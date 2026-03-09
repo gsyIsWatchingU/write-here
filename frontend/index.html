@@ -102,10 +102,17 @@
             margin-bottom: 10px;
             cursor: pointer;
             transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
         }
         
         .doc-item:hover {
             background-color: #f5f5f5;
+        }
+        
+        .doc-item .doc-info {
+            flex: 1;
         }
         
         .doc-item h3 {
@@ -123,13 +130,107 @@
             font-size: 12px;
             color: #999;
         }
+        
+        .doc-item .doc-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .doc-item .doc-actions button {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+        
+        .auth-container {
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        
+        .auth-container h2 {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .auth-form input {
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .auth-form button {
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            background-color: #1890ff;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .auth-form button:hover {
+            background-color: #40a9ff;
+        }
+        
+        .auth-toggle {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        
+        .auth-toggle a {
+            color: #1890ff;
+            text-decoration: none;
+        }
+        
+        .auth-toggle a:hover {
+            text-decoration: underline;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .user-info span {
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
+    <!-- 认证页面 -->
+    <div id="auth-page" class="auth-container">
+        <h2 id="auth-title">登录</h2>
+        <form id="auth-form" class="auth-form">
+            <input type="text" id="username" placeholder="用户名">
+            <input type="password" id="password" placeholder="密码">
+            <button type="submit">登录</button>
+        </form>
+        <div class="auth-toggle">
+            <span id="auth-toggle-text">还没有账号？</span> <a href="#" id="auth-toggle-link">立即注册</a>
+        </div>
+    </div>
+    
+    <!-- 编辑器页面 -->
+    <div id="editor-page" class="container" style="display: none;">
         <header>
             <h1>轻量级文档编辑器</h1>
             <div class="actions">
+                <div class="user-info" id="user-info">
+                    <span id="username-display"></span>
+                    <button id="logout">退出</button>
+                </div>
                 <button id="new-doc">新建文档</button>
                 <button id="save-doc" class="primary">保存</button>
             </div>
@@ -141,23 +242,82 @@
         </div>
         
         <div class="doc-list" id="doc-list">
-            <h2>文档列表</h2>
+            <h2>我的文档</h2>
             <!-- 文档列表将通过JavaScript动态生成 -->
         </div>
     </div>
     
     <script>
         // 全局变量
+        let currentUser = null;
         let currentDocId = null;
+        let isLoginMode = true;
         
         // 初始化页面
         function init() {
-            loadDocs();
+            checkAuth();
             setupEventListeners();
+        }
+        
+        // 检查认证状态
+        function checkAuth() {
+            const user = localStorage.getItem('currentUser');
+            if (user) {
+                currentUser = JSON.parse(user);
+                showEditorPage();
+                loadDocs();
+            } else {
+                showAuthPage();
+            }
+        }
+        
+        // 显示认证页面
+        function showAuthPage() {
+            document.getElementById('auth-page').style.display = 'block';
+            document.getElementById('editor-page').style.display = 'none';
+        }
+        
+        // 显示编辑器页面
+        function showEditorPage() {
+            document.getElementById('auth-page').style.display = 'none';
+            document.getElementById('editor-page').style.display = 'block';
+            document.getElementById('username-display').textContent = currentUser.username;
         }
         
         // 设置事件监听器
         function setupEventListeners() {
+            // 认证表单提交
+            document.getElementById('auth-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                if (isLoginMode) {
+                    login();
+                } else {
+                    register();
+                }
+            });
+            
+            // 认证模式切换
+            document.getElementById('auth-toggle-link').addEventListener('click', function(e) {
+                e.preventDefault();
+                isLoginMode = !isLoginMode;
+                if (isLoginMode) {
+                    document.getElementById('auth-title').textContent = '登录';
+                    document.getElementById('auth-toggle-text').textContent = '还没有账号？';
+                    document.getElementById('auth-toggle-link').textContent = '立即注册';
+                } else {
+                    document.getElementById('auth-title').textContent = '注册';
+                    document.getElementById('auth-toggle-text').textContent = '已有账号？';
+                    document.getElementById('auth-toggle-link').textContent = '立即登录';
+                }
+            });
+            
+            // 退出登录
+            document.getElementById('logout').addEventListener('click', function() {
+                localStorage.removeItem('currentUser');
+                currentUser = null;
+                showAuthPage();
+            });
+            
             // 新建文档按钮
             document.getElementById('new-doc').addEventListener('click', function() {
                 currentDocId = null;
@@ -169,13 +329,78 @@
             document.getElementById('save-doc').addEventListener('click', saveDoc);
         }
         
+        // 注册
+        function register() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                alert('请填写用户名和密码');
+                return;
+            }
+            
+            fetch('http://localhost:3000/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                alert('注册成功，请登录');
+                isLoginMode = true;
+                document.getElementById('auth-title').textContent = '登录';
+                document.getElementById('auth-toggle-text').textContent = '还没有账号？';
+                document.getElementById('auth-toggle-link').textContent = '立即注册';
+            })
+            .catch(error => console.error('注册失败:', error));
+        }
+        
+        // 登录
+        function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                alert('请填写用户名和密码');
+                return;
+            }
+            
+            fetch('http://localhost:3000/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                currentUser = data;
+                localStorage.setItem('currentUser', JSON.stringify(data));
+                showEditorPage();
+                loadDocs();
+            })
+            .catch(error => console.error('登录失败:', error));
+        }
+        
         // 加载文档列表
         function loadDocs() {
-            fetch('http://localhost:3000/docs')
+            if (!currentUser) return;
+            
+            fetch(`http://localhost:3000/docs?userId=${currentUser.id}`)
                 .then(response => response.json())
                 .then(data => {
                     const docList = document.getElementById('doc-list');
-                    docList.innerHTML = '<h2>文档列表</h2>';
+                    docList.innerHTML = '<h2>我的文档</h2>';
                     
                     if (data.length === 0) {
                         docList.innerHTML += '<p>暂无文档</p>';
@@ -186,13 +411,27 @@
                         const docItem = document.createElement('div');
                         docItem.className = 'doc-item';
                         docItem.innerHTML = `
-                            <h3>${doc.title}</h3>
-                            <p>${doc.content.substring(0, 100)}${doc.content.length > 100 ? '...' : ''}</p>
-                            <div class="meta">创建时间: ${new Date(doc.createdAt).toLocaleString()}</div>
+                            <div class="doc-info">
+                                <h3>${doc.title}</h3>
+                                <p>${doc.content.substring(0, 100)}${doc.content.length > 100 ? '...' : ''}</p>
+                                <div class="meta">创建时间: ${new Date(doc.createdAt).toLocaleString()}</div>
+                            </div>
+                            <div class="doc-actions">
+                                <button class="edit-doc" data-id="${doc.id}">编辑</button>
+                                <button class="delete-doc" data-id="${doc.id}">删除</button>
+                            </div>
                         `;
                         
-                        docItem.addEventListener('click', function() {
+                        // 编辑按钮事件
+                        docItem.querySelector('.edit-doc').addEventListener('click', function(e) {
+                            e.stopPropagation();
                             loadDoc(doc.id);
+                        });
+                        
+                        // 删除按钮事件
+                        docItem.querySelector('.delete-doc').addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            deleteDoc(doc.id);
                         });
                         
                         docList.appendChild(docItem);
@@ -203,9 +442,15 @@
         
         // 加载单个文档
         function loadDoc(id) {
-            fetch(`http://localhost:3000/docs/${id}`)
+            if (!currentUser) return;
+            
+            fetch(`http://localhost:3000/docs/${id}?userId=${currentUser.id}`)
                 .then(response => response.json())
                 .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
                     currentDocId = data.id;
                     document.getElementById('doc-title').value = data.title;
                     document.getElementById('doc-content').value = data.content;
@@ -215,6 +460,8 @@
         
         // 保存文档
         function saveDoc() {
+            if (!currentUser) return;
+            
             const title = document.getElementById('doc-title').value;
             const content = document.getElementById('doc-content').value;
             
@@ -224,6 +471,7 @@
             }
             
             const docData = {
+                userId: currentUser.id,
                 title,
                 content
             };
@@ -245,10 +493,41 @@
             })
             .then(response => response.json())
             .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
                 alert('文档保存成功');
                 loadDocs();
             })
             .catch(error => console.error('保存文档失败:', error));
+        }
+        
+        // 删除文档
+        function deleteDoc(id) {
+            if (!currentUser) return;
+            
+            if (!confirm('确定要删除这个文档吗？')) {
+                return;
+            }
+            
+            fetch(`http://localhost:3000/docs/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ userId: currentUser.id })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                alert('文档删除成功');
+                loadDocs();
+            })
+            .catch(error => console.error('删除文档失败:', error));
         }
         
         // 初始化

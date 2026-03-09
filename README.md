@@ -1,6 +1,6 @@
 # 轻量级文档编辑器
 
-一个类似语雀的轻量级线上文档编辑器，包含前后端和数据库。
+一个类似语雀的轻量级线上文档编辑器，包含前后端和数据库，支持用户认证和个人文档管理。
 
 ## 项目结构
 
@@ -15,11 +15,13 @@
 
 ## 功能特点
 
+- 用户注册和登录
 - 新建文档
 - 编辑文档
 - 保存文档
-- 查看文档列表
-- 查看文档详情
+- 查看个人文档列表
+- 删除文档
+- 每个用户只能操作自己的文档
 
 ## 技术栈
 
@@ -54,20 +56,39 @@ npm start
 
 ## API 接口
 
-- `GET /docs` - 获取所有文档
-- `GET /docs/:id` - 获取单个文档
-- `POST /docs` - 创建新文档
-- `PUT /docs/:id` - 更新文档
+### 用户相关
+- `POST /register` - 用户注册
+- `POST /login` - 用户登录
+
+### 文档相关
+- `GET /docs?userId=1` - 获取指定用户的所有文档
+- `GET /docs/:id?userId=1` - 获取指定用户的单个文档
+- `POST /docs` - 创建新文档（需要 userId）
+- `PUT /docs/:id` - 更新文档（需要 userId）
+- `DELETE /docs/:id` - 删除文档（需要 userId）
 
 ## 数据库结构
 
+### 用户表 (users)
+```sql
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### 文档表 (docs)
 ```sql
 CREATE TABLE docs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL,
     title TEXT NOT NULL,
     content TEXT NOT NULL,
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (userId) REFERENCES users(id)
 );
 ```
 
@@ -75,5 +96,6 @@ CREATE TABLE docs (
 
 - 本项目为轻量级实现，仅包含最基础的功能
 - 数据库使用 SQLite，数据存储在 `db/docs.db` 文件中
-- 本项目未实现用户认证和权限管理
+- 本项目使用 localStorage 存储用户登录状态
 - 本项目未实现文档版本控制
+- 本项目未实现密码加密存储，仅用于演示目的
