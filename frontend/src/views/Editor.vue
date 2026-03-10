@@ -137,7 +137,7 @@ const lowlight = createLowlight(common)
 
 // Yjs setup
 const ydoc = new Y.Doc()
-const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
+const wsUrl = 'wss://write-here-backend.onrender.com/ws'
 const provider = new WebsocketProvider(wsUrl, `doc-${docId}`, ydoc)
 
 // 用户颜色

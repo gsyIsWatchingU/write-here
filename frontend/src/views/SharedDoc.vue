@@ -99,7 +99,7 @@ onMounted(async () => {
       // 协同编辑模式
       editor.value.setEditable(true)
       ydoc = new Y.Doc()
-      const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
+      const wsUrl = 'wss://write-here-backend.onrender.com/ws'
       provider = new WebsocketProvider(wsUrl, `doc-${share.doc.id}`, ydoc)
       const yXmlFragment = ydoc.getXmlFragment('prosemirror')
 

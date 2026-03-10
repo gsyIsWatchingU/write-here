@@ -1,4 +1,4 @@
-const BASE = '/api'
+const BASE = 'https://write-here-backend.onrender.com'
 
 export function getUser() {
   const raw = localStorage.getItem('currentUser')
