@@ -48,7 +48,7 @@ npm install
 npm start
 ```
 
-后端服务将运行在 `http://localhost:3000`。
+后端服务将运行在 `http://localhost:3003`。
 
 ### 3. 打开前端页面
 
@@ -97,5 +97,4 @@ CREATE TABLE docs (
 - 本项目为轻量级实现，仅包含最基础的功能
 - 数据库使用 SQLite，数据存储在 `db/docs.db` 文件中
 - 本项目使用 localStorage 存储用户登录状态
-- 本项目未实现文档版本控制
-- 本项目未实现密码加密存储，仅用于演示目的
+- 本项目未实现密码加密存储
