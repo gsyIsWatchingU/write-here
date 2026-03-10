@@ -28,8 +28,25 @@
 
     <EditorToolbar v-if="editor && editorReady" :editor="editor" />
 
-    <div class="editor-wrapper">
-      <editor-content :editor="editor" class="editor-content" />
+    <div class="editor-main">
+      <div class="editor-wrapper">
+        <editor-content :editor="editor" class="editor-content" />
+      </div>
+      <div class="outline-panel">
+        <h3>文档大纲</h3>
+        <div class="outline-content">
+          <div v-if="outline.length === 0" class="empty-outline">
+            暂无大纲内容
+          </div>
+          <ul v-else class="outline-list">
+            <li v-for="(item, index) in outline" :key="index" 
+                :class="'outline-item level-' + item.level"
+                @click="scrollToHeading(item.id)">
+              {{ item.text }}
+            </li>
+          </ul>
+        </div>
+      </div>
     </div>
 
     <!-- 分享弹窗 -->
@@ -114,6 +131,7 @@ const shareLink = ref('')
 const sharePermission = ref('read')
 const collabUsers = ref([])
 const editorReady = ref(false)
+const outline = ref([])
 
 const lowlight = createLowlight(common)
 
@@ -181,10 +199,48 @@ const editor = useEditor({
   ],
   onCreate() {
     editorReady.value = true
+    updateOutline()
+  },
+  onUpdate() {
+    updateOutline()
   },
 })
 
 let saveTimer = null
+
+// 生成文档大纲
+function updateOutline() {
+  if (!editor.value) return
+  
+  const newOutline = []
+  let id = 0
+  
+  editor.value.state.doc.descendants((node, pos) => {
+    if (node.type.name === 'heading') {
+      newOutline.push({
+        id: ++id,
+        level: node.attrs.level,
+        text: node.textContent,
+        pos
+      })
+    }
+  })
+  
+  outline.value = newOutline
+}
+
+// 滚动到指定标题
+function scrollToHeading(id) {
+  if (!editor.value) return
+  
+  const heading = outline.value.find(item => item.id === id)
+  if (heading) {
+    editor.value.commands.focus({
+      at: heading.pos,
+      scrollIntoView: true
+    })
+  }
+}
 
 // 加载文档
 onMounted(async () => {
@@ -301,6 +357,8 @@ function copyLink() {
   background: #fff;
   box-shadow: var(--shadow);
   z-index: 100;
+  position: sticky;
+  top: 0;
 }
 .topbar-left {
   display: flex;
@@ -345,12 +403,21 @@ function copyLink() {
   justify-content: center;
   font-weight: 600;
 }
+.toolbar-menu {
+  position: sticky;
+  top: 56px;
+  z-index: 99;
+}
+.editor-main {
+  flex: 1;
+  padding: 24px 320px 24px 24px;
+  overflow-y: auto;
+}
 .editor-wrapper {
   flex: 1;
   display: flex;
   justify-content: center;
-  padding: 24px;
-  overflow-y: auto;
+  min-width: 0;
 }
 .editor-content {
   background: #fff;
@@ -358,8 +425,67 @@ function copyLink() {
   box-shadow: var(--shadow);
   width: 100%;
   max-width: 800px;
-  min-height: calc(100vh - 160px);
+  min-height: calc(100vh - 240px);
   padding: 40px 48px;
+}
+.outline-panel {
+  width: 280px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 16px;
+  position: fixed;
+  right: 24px;
+  top: 120px;
+  bottom: 24px;
+  overflow-y: auto;
+}
+.outline-panel h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+}
+.empty-outline {
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+  padding: 20px 0;
+}
+.outline-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.outline-item {
+  padding: 6px 8px;
+  margin: 2px 0;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+.outline-item:hover {
+  background: var(--bg-gray);
+}
+.outline-item.level-1 {
+  font-weight: 600;
+  padding-left: 8px;
+}
+.outline-item.level-2 {
+  padding-left: 16px;
+}
+.outline-item.level-3 {
+  padding-left: 24px;
+}
+.outline-item.level-4 {
+  padding-left: 32px;
+}
+.outline-item.level-5 {
+  padding-left: 40px;
+}
+.outline-item.level-6 {
+  padding-left: 48px;
 }
 .editor-content :deep(.tiptap) {
   outline: none;
