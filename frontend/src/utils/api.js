@@ -1,4 +1,4 @@
-const BASE = 'https://write-here-backend.onrender.com'
+const BASE = 'http://localhost:3210'
 
 export function getUser() {
   const raw = localStorage.getItem('currentUser')
@@ -57,4 +57,58 @@ export const api = {
 
   getDocShares: (docId, userId) =>
     request(`/shares/doc/${docId}?userId=${userId}`),
+
+  // 管理员相关
+  getAdminDocs: (userId) =>
+    request(`/admin/docs?userId=${userId}`),
+
+  // 社区相关
+  getCommunityDocs: (sortBy) =>
+    request(`/community/docs?sortBy=${sortBy}`),
+
+  updateDocVisibility: (id, userId, visibility) =>
+    request(`/docs/${id}/visibility`, { method: 'PUT', body: JSON.stringify({ userId, visibility }) }),
+
+  // 点赞相关
+  toggleLike: (id, userId) =>
+    request(`/docs/${id}/like`, { method: 'POST', body: JSON.stringify({ userId }) }),
+
+  checkLikeStatus: (id, userId) =>
+    request(`/docs/${id}/like/status?userId=${userId}`),
+
+  // 通知相关
+  getNotifications: (userId) =>
+    request(`/notifications?userId=${userId}`),
+
+  markNotificationRead: (id, userId) =>
+    request(`/notifications/${id}/read`, { method: 'PUT', body: JSON.stringify({ userId }) }),
+
+  // 协作相关
+  requestCollaboration: (docId, userId) =>
+    request('/collaborations', { method: 'POST', body: JSON.stringify({ docId, userId }) }),
+
+  getCollaborationRequests: (userId) =>
+    request(`/collaborations/requests?userId=${userId}`),
+
+  respondToCollaboration: (id, userId, status) =>
+    request(`/collaborations/${id}`, { method: 'PUT', body: JSON.stringify({ userId, status }) }),
+
+  getDocCollaborators: (docId, userId) =>
+    request(`/collaborations/doc/${docId}?userId=${userId}`),
+
+  removeCollaborator: (id, userId) =>
+    request(`/collaborations/${id}?userId=${userId}`, { method: 'DELETE' }),
+
+  checkCollaborationAccess: (docId, userId) =>
+    request(`/collaborations/check?docId=${docId}&userId=${userId}`),
+
+  // 评论相关
+  getDocComments: (docId) =>
+    request(`/comments/doc/${docId}`),
+
+  addComment: (docId, userId, content) =>
+    request('/comments', { method: 'POST', body: JSON.stringify({ docId, userId, content }) }),
+
+  deleteComment: (id, userId) =>
+    request(`/comments/${id}?userId=${userId}`, { method: 'DELETE' }),
 }

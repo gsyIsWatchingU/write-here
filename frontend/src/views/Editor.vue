@@ -21,6 +21,15 @@
           >{{ u.name[0] }}</span>
         </div>
         <span v-if="saveStatus" class="save-status">{{ saveStatus }}</span>
+        <div class="visibility-control">
+          <label>
+            <span>可见性：</span>
+            <select v-model="visibility" @change="updateVisibility">
+              <option value="private">私密</option>
+              <option value="public">公开</option>
+            </select>
+          </label>
+        </div>
         <button class="primary" @click="saveDoc">保存</button>
         <button class="ghost" @click="openShare">分享</button>
       </div>
@@ -132,6 +141,7 @@ const sharePermission = ref('read')
 const collabUsers = ref([])
 const editorReady = ref(false)
 const outline = ref([])
+const visibility = ref('private')
 
 const lowlight = createLowlight(common)
 
@@ -245,8 +255,23 @@ function scrollToHeading(id) {
 // 加载文档
 onMounted(async () => {
   try {
-    const doc = await api.getDoc(docId, user.id)
-    docTitle.value = doc.title
+    // 先尝试获取文档（检查是否是所有者）
+    let doc
+    try {
+      doc = await api.getDoc(docId, user.id)
+      docTitle.value = doc.title
+      visibility.value = doc.visibility || 'private'
+    } catch (e) {
+      // 如果不是所有者，检查是否有协作权限
+      const accessCheck = await api.checkCollaborationAccess(docId, user.id)
+      if (!accessCheck.hasAccess) {
+        throw new Error('无权限访问此文档')
+      }
+      // 有协作权限，获取文档信息
+      doc = await api.getDoc(docId, user.id)
+      docTitle.value = doc.title
+      visibility.value = doc.visibility || 'private'
+    }
 
     // 等待 Yjs 同步完成，如果文档为空则从服务器加载
     provider.on('sync', (isSynced) => {
@@ -267,8 +292,17 @@ onMounted(async () => {
     if (editor.value) {
       autoSave()
     }
-  }, 30000)
+  }, 32100)
 })
+
+// 更新文档可见性
+async function updateVisibility() {
+  try {
+    await api.updateDocVisibility(docId, user.id, visibility.value)
+  } catch (e) {
+    alert('更新可见性失败：' + e.message)
+  }
+}
 
 onBeforeUnmount(() => {
   if (saveTimer) clearInterval(saveTimer)
@@ -387,6 +421,23 @@ function copyLink() {
 .save-status {
   font-size: 12px;
   color: var(--text-muted);
+}
+.visibility-control {
+  display: flex;
+  align-items: center;
+}
+.visibility-control label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.visibility-control select {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
 }
 .collab-avatars {
   display: flex;

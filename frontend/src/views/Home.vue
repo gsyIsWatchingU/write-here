@@ -2,7 +2,19 @@
   <div class="home-page">
     <header class="topbar">
       <h1 class="logo" @click="router.push('/')">WriteHere</h1>
+      <div class="topbar-center">
+        <button class="nav-btn" :class="{ active: isHomeActive }" @click="router.push('/')">我的文档</button>
+        <button class="nav-btn" :class="{ active: isCommunityActive }" @click="router.push('/community')">社区</button>
+        <button v-if="user?.isAdmin" class="nav-btn" :class="{ active: isAdminActive }" @click="router.push('/admin')">文档管理</button>
+      </div>
       <div class="topbar-right">
+        <button class="icon-btn notification-btn" @click="toggleNotifications">
+          <span class="notification-icon">🔔</span>
+          <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount }}</span>
+        </button>
+        <button class="icon-btn collaboration-btn" @click="toggleCollabRequests">
+          <span class="collaboration-icon">👥</span>
+        </button>
         <span class="username">{{ user?.username }}</span>
         <button class="ghost" @click="handleLogout">退出</button>
       </div>
@@ -69,25 +81,122 @@
         <button class="ghost" @click="shareModal = null" style="margin-top: 12px;">关闭</button>
       </div>
     </div>
+
+    <!-- 通知列表 -->
+    <div v-if="showNotifications" class="notification-dropdown" @click.stop>
+      <div class="notification-header">
+        <h3>通知</h3>
+        <button class="ghost small" @click="markAllAsRead">全部已读</button>
+      </div>
+      <div class="notification-list">
+        <div v-if="notifications.length === 0" class="empty-notifications">
+          <p>暂无通知</p>
+        </div>
+        <div v-else v-for="notification in notifications" :key="notification.id" class="notification-item" :class="{ unread: !notification.isRead }">
+          <div class="notification-content">
+            <p>{{ notification.message }}</p>
+            <span class="notification-time">{{ formatTime(notification.createdAt) }}</span>
+          </div>
+          <button v-if="!notification.isRead" class="icon-btn small" @click="markAsRead(notification.id)">✓</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 协作请求管理 -->
+    <div v-if="showCollabRequests" class="collab-requests-dropdown" @click.stop>
+      <div class="collab-requests-header">
+        <h3>协作请求</h3>
+        <button class="ghost small" @click="loadCollabRequests">刷新</button>
+      </div>
+      <div class="collab-requests-list">
+        <div v-if="collabRequests.length === 0" class="empty-requests">
+          <p>暂无协作请求</p>
+        </div>
+        <div v-else v-for="request in collabRequests" :key="request.id" class="collab-request-item">
+          <div class="collab-request-content">
+            <p><strong>{{ request.username }}</strong> 申请协作文档：<br>{{ request.title }}</p>
+            <span class="collab-request-time">{{ formatTime(request.createdAt) }}</span>
+          </div>
+          <div class="collab-request-actions">
+            <button class="icon-btn small accept-btn" @click="respondToCollaboration(request.id, 'approved')">✓</button>
+            <button class="icon-btn small reject-btn" @click="respondToCollaboration(request.id, 'rejected')">✗</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { api, getUser, clearUser } from '../utils/api'
 
 const router = useRouter()
+const route = useRoute()
 const user = ref(getUser())
+
+const isHomeActive = computed(() => {
+  return route.path === '/'
+})
+
+const isCommunityActive = computed(() => {
+  return route.path === '/community'
+})
+
+const isAdminActive = computed(() => {
+  return route.path === '/admin'
+})
 const docs = ref([])
 const loading = ref(true)
 const shareModal = ref(null)
 const shareLink = ref('')
 const sharePermission = ref('read')
+const showNotifications = ref(false)
+const notifications = ref([])
+const unreadCount = ref(0)
+const showCollabRequests = ref(false)
+const collabRequests = ref([])
+let ws = null
 
 onMounted(() => {
   loadDocs()
+  loadNotifications()
+  setupWebSocket()
 })
+
+onUnmounted(() => {
+  if (ws) {
+    ws.close()
+  }
+})
+
+function setupWebSocket() {
+  if (!user.value) return
+  
+  ws = new WebSocket(`ws://localhost:3210/notifications?userId=${user.value.id}`)
+  
+  ws.onopen = () => {
+    console.log('WebSocket 连接已建立')
+  }
+  
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data)
+    if (data.type === 'notification') {
+      // 收到新通知
+      notifications.value.unshift(data.data)
+      unreadCount.value++
+    }
+  }
+  
+  ws.onclose = () => {
+    console.log('WebSocket 连接已关闭')
+  }
+  
+  ws.onerror = (error) => {
+    console.error('WebSocket 错误:', error)
+  }
+}
 
 async function loadDocs() {
   loading.value = true
@@ -176,6 +285,78 @@ function formatTime(t) {
   if (!t) return ''
   return new Date(t).toLocaleString('zh-CN')
 }
+
+// 通知相关函数
+async function loadNotifications() {
+  try {
+    const data = await api.getNotifications(user.value.id)
+    notifications.value = data
+    unreadCount.value = data.filter(n => !n.isRead).length
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+function toggleNotifications() {
+  showNotifications.value = !showNotifications.value
+  if (showNotifications.value) {
+    // 打开通知时加载最新通知
+    loadNotifications()
+  }
+}
+
+async function markAsRead(notificationId) {
+  try {
+    await api.markNotificationRead(notificationId, user.value.id)
+    // 更新本地通知状态
+    const notification = notifications.value.find(n => n.id === notificationId)
+    if (notification) {
+      notification.isRead = 1
+      unreadCount.value--
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+async function markAllAsRead() {
+  try {
+    const unreadNotifications = notifications.value.filter(n => !n.isRead)
+    for (const notification of unreadNotifications) {
+      await api.markNotificationRead(notification.id, user.value.id)
+      notification.isRead = 1
+    }
+    unreadCount.value = 0
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+// 协作请求相关函数
+async function loadCollabRequests() {
+  try {
+    collabRequests.value = await api.getCollaborationRequests(user.value.id)
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+function toggleCollabRequests() {
+  showCollabRequests.value = !showCollabRequests.value
+  if (showCollabRequests.value) {
+    loadCollabRequests()
+  }
+}
+
+async function respondToCollaboration(requestId, status) {
+  try {
+    await api.respondToCollaboration(requestId, user.value.id, status)
+    // 重新加载协作请求
+    await loadCollabRequests()
+  } catch (e) {
+    alert(e.message)
+  }
+}
 </script>
 
 <style scoped>
@@ -200,14 +381,190 @@ function formatTime(t) {
   color: var(--primary);
   cursor: pointer;
 }
+.topbar-center {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.nav-btn {
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: all 0.2s;
+}
+.nav-btn:hover {
+  background: var(--bg-gray);
+  color: var(--text-primary);
+}
 .topbar-right {
   display: flex;
   align-items: center;
   gap: 12px;
 }
+.notification-btn {
+  position: relative;
+}
+.notification-icon {
+  font-size: 18px;
+}
+.notification-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #ff4757;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 16px;
+  text-align: center;
+}
 .username {
   font-size: 14px;
   color: var(--text-secondary);
+}
+.notification-dropdown {
+  position: absolute;
+  top: 60px;
+  right: 24px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  width: 320px;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+.notification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.notification-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.notification-header .ghost.small {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+.notification-list {
+  padding: 8px 0;
+}
+.empty-notifications {
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.notification-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  transition: background-color 0.2s;
+}
+.notification-item:hover {
+  background: var(--bg-gray);
+}
+.notification-item.unread {
+  background: #f8f9fa;
+}
+.notification-content {
+  flex: 1;
+  margin-right: 12px;
+}
+.notification-content p {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.notification-time {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.icon-btn.small {
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+}
+.collaboration-btn {
+  position: relative;
+}
+.collaboration-icon {
+  font-size: 18px;
+}
+.collab-requests-dropdown {
+  position: absolute;
+  top: 60px;
+  right: 80px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  width: 360px;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+.collab-requests-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.collab-requests-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.collab-requests-list {
+  padding: 8px 0;
+}
+.empty-requests {
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.collab-request-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  transition: background-color 0.2s;
+}
+.collab-request-item:hover {
+  background: var(--bg-gray);
+}
+.collab-request-content {
+  flex: 1;
+  margin-right: 12px;
+}
+.collab-request-content p {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.collab-request-time {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.collab-request-actions {
+  display: flex;
+  gap: 4px;
+}
+.accept-btn {
+  color: #27ae60;
+}
+.reject-btn {
+  color: #e74c3c;
 }
 .main-content {
   max-width: 960px;

@@ -22,6 +22,18 @@ const routes = [
     path: '/share/:token',
     name: 'SharedDoc',
     component: () => import('../views/SharedDoc.vue')
+  },
+  {
+    path: '/community',
+    name: 'Community',
+    component: () => import('../views/Community.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/admin',
+    name: 'Admin',
+    component: () => import('../views/Admin.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 
