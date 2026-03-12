@@ -7,7 +7,9 @@
           v-model="docTitle"
           class="title-input"
           placeholder="无标题文档"
-          @blur="saveDoc"
+          :readonly="!canEdit"
+          :class="{ readonly: !canEdit }"
+          @blur="canEdit ? saveDoc() : null"
         />
       </div>
       <div class="topbar-right">
@@ -21,7 +23,7 @@
           >{{ u.name[0] }}</span>
         </div>
         <span v-if="saveStatus" class="save-status">{{ saveStatus }}</span>
-        <div class="visibility-control">
+        <div v-if="isOwner" class="visibility-control">
           <label>
             <span>可见性：</span>
             <select v-model="visibility" @change="updateVisibility">
@@ -30,12 +32,12 @@
             </select>
           </label>
         </div>
-        <button class="primary" @click="saveDoc">保存</button>
-        <button class="ghost" @click="openShare">分享</button>
+        <button v-if="canEdit" class="primary" @click="saveDoc">保存</button>
+        <button v-if="isOwner" class="ghost" @click="openShare">分享</button>
       </div>
     </header>
 
-    <EditorToolbar v-if="editor && editorReady" :editor="editor" />
+    <EditorToolbar v-if="editor && editorReady && canEdit" :editor="editor" />
 
     <div class="editor-main">
       <div class="editor-wrapper">
@@ -142,6 +144,8 @@ const collabUsers = ref([])
 const editorReady = ref(false)
 const outline = ref([])
 const visibility = ref('private')
+const isOwner = ref(false)
+const canEdit = ref(false)
 
 const lowlight = createLowlight(common)
 
@@ -207,6 +211,7 @@ const editor = useEditor({
       },
     }),
   ],
+  editable: false,
   onCreate() {
     editorReady.value = true
     updateOutline()
@@ -255,22 +260,20 @@ function scrollToHeading(id) {
 // 加载文档
 onMounted(async () => {
   try {
-    // 先尝试获取文档（检查是否是所有者）
-    let doc
-    try {
-      doc = await api.getDoc(docId, user.id)
-      docTitle.value = doc.title
-      visibility.value = doc.visibility || 'private'
-    } catch (e) {
-      // 如果不是所有者，检查是否有协作权限
-      const accessCheck = await api.checkCollaborationAccess(docId, user.id)
-      if (!accessCheck.hasAccess) {
-        throw new Error('无权限访问此文档')
-      }
-      // 有协作权限，获取文档信息
-      doc = await api.getDoc(docId, user.id)
-      docTitle.value = doc.title
-      visibility.value = doc.visibility || 'private'
+    const doc = await api.getDoc(docId, user.id)
+    docTitle.value = doc.title
+    visibility.value = doc.visibility || 'private'
+
+    isOwner.value = doc.userId === user.id
+    if (isOwner.value) {
+      canEdit.value = true
+    } else {
+      const status = await api.getCollaborationStatus(docId, user.id)
+      canEdit.value = status.status === 'approved'
+    }
+
+    if (editor.value) {
+      editor.value.setEditable(!!canEdit.value)
     }
 
     // 等待 Yjs 同步完成，如果文档为空则从服务器加载
@@ -297,6 +300,7 @@ onMounted(async () => {
 
 // 更新文档可见性
 async function updateVisibility() {
+  if (!isOwner.value) return
   try {
     await api.updateDocVisibility(docId, user.id, visibility.value)
   } catch (e) {
@@ -320,6 +324,7 @@ async function saveDoc() {
 }
 
 async function doSave(isAuto) {
+  if (!canEdit.value) return
   if (!editor.value) return
   const content = editor.value.getHTML()
   const title = docTitle.value || '无标题文档'
@@ -334,6 +339,7 @@ async function doSave(isAuto) {
 }
 
 function goBack() {
+  if (!canEdit.value) return router.push('/')
   saveDoc().then(() => router.push('/'))
 }
 
@@ -408,6 +414,9 @@ function copyLink() {
   background: transparent;
   width: 100%;
   max-width: 400px;
+}
+.title-input.readonly {
+  cursor: default;
 }
 .title-input:focus {
   background: var(--bg-gray);

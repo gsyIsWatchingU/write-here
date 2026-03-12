@@ -8,12 +8,13 @@
         <button v-if="user?.isAdmin" class="nav-btn" :class="{ active: isAdminActive }" @click="router.push('/admin')">文档管理</button>
       </div>
       <div class="topbar-right">
-        <button class="icon-btn notification-btn" @click="toggleNotifications">
+        <button ref="notificationBtnRef" class="icon-btn notification-btn" @click.stop="toggleNotifications">
           <span class="notification-icon">🔔</span>
           <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount }}</span>
         </button>
-        <button class="icon-btn collaboration-btn" @click="toggleCollabRequests">
+        <button ref="collabBtnRef" class="icon-btn collaboration-btn" @click.stop="toggleCollabRequests">
           <span class="collaboration-icon">👥</span>
+          <span v-if="collabUnreadCount > 0" class="notification-badge collab-badge">{{ collabUnreadCount }}</span>
         </button>
         <span class="username">{{ user?.username }}</span>
         <button class="ghost" @click="handleLogout">退出</button>
@@ -40,6 +41,31 @@
               <button class="icon-btn" title="分享" @click.stop="openShare(doc)">&#128279;</button>
               <button class="icon-btn" title="删除" @click.stop="handleDelete(doc.id)">&#128465;</button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-divider"></div>
+
+      <div class="toolbar secondary">
+        <h2>参与协作的文档</h2>
+      </div>
+      <div v-if="loadingCollab" class="empty">加载中...</div>
+      <div v-else-if="collabDocs.length === 0" class="empty">
+        <p>暂无参与协作的文档</p>
+      </div>
+      <div v-else class="doc-grid">
+        <div v-for="doc in collabDocs" :key="doc.id" class="doc-card" @click="openDoc(doc.id)">
+          <div class="doc-card-body">
+            <div class="doc-title-row">
+              <h3 class="doc-title">{{ doc.title }}</h3>
+              <span class="doc-badge">协作</span>
+            </div>
+            <p class="doc-preview">{{ stripHtml(doc.content) }}</p>
+          </div>
+          <div class="doc-card-footer">
+            <span class="doc-time">{{ formatTime(doc.updatedAt) }}</span>
+            <span class="doc-author">作者：{{ doc.username }}</span>
           </div>
         </div>
       </div>
@@ -83,7 +109,7 @@
     </div>
 
     <!-- 通知列表 -->
-    <div v-if="showNotifications" class="notification-dropdown" @click.stop>
+    <div v-if="showNotifications" ref="notificationDropdownRef" class="notification-dropdown" @click.stop>
       <div class="notification-header">
         <h3>通知</h3>
         <button class="ghost small" @click="markAllAsRead">全部已读</button>
@@ -103,7 +129,7 @@
     </div>
 
     <!-- 协作请求管理 -->
-    <div v-if="showCollabRequests" class="collab-requests-dropdown" @click.stop>
+    <div v-if="showCollabRequests" ref="collabDropdownRef" class="collab-requests-dropdown" @click.stop>
       <div class="collab-requests-header">
         <h3>协作请求</h3>
         <button class="ghost small" @click="loadCollabRequests">刷新</button>
@@ -135,6 +161,10 @@ import { api, getUser, clearUser } from '../utils/api'
 const router = useRouter()
 const route = useRoute()
 const user = ref(getUser())
+const notificationBtnRef = ref(null)
+const collabBtnRef = ref(null)
+const notificationDropdownRef = ref(null)
+const collabDropdownRef = ref(null)
 
 const isHomeActive = computed(() => {
   return route.path === '/'
@@ -149,6 +179,8 @@ const isAdminActive = computed(() => {
 })
 const docs = ref([])
 const loading = ref(true)
+const collabDocs = ref([])
+const loadingCollab = ref(true)
 const shareModal = ref(null)
 const shareLink = ref('')
 const sharePermission = ref('read')
@@ -157,19 +189,39 @@ const notifications = ref([])
 const unreadCount = ref(0)
 const showCollabRequests = ref(false)
 const collabRequests = ref([])
+const collabUnreadCount = ref(0)
 let ws = null
 
 onMounted(() => {
   loadDocs()
+  loadCollabDocs()
   loadNotifications()
+  loadCollabRequests()
   setupWebSocket()
+  window.addEventListener('click', handleGlobalClick)
 })
 
 onUnmounted(() => {
   if (ws) {
     ws.close()
   }
+  window.removeEventListener('click', handleGlobalClick)
 })
+
+function handleGlobalClick(e) {
+  const t = e.target
+  const inNotificationBtn = notificationBtnRef.value?.contains?.(t)
+  const inNotificationDropdown = notificationDropdownRef.value?.contains?.(t)
+  const inCollabBtn = collabBtnRef.value?.contains?.(t)
+  const inCollabDropdown = collabDropdownRef.value?.contains?.(t)
+
+  if (showNotifications.value && !inNotificationBtn && !inNotificationDropdown) {
+    showNotifications.value = false
+  }
+  if (showCollabRequests.value && !inCollabBtn && !inCollabDropdown) {
+    showCollabRequests.value = false
+  }
+}
 
 function setupWebSocket() {
   if (!user.value) return
@@ -186,6 +238,9 @@ function setupWebSocket() {
       // 收到新通知
       notifications.value.unshift(data.data)
       unreadCount.value++
+      if (data.data?.type === 'collaboration_request') {
+        collabUnreadCount.value++
+      }
     }
   }
   
@@ -206,6 +261,17 @@ async function loadDocs() {
     console.error(e)
   }
   loading.value = false
+}
+
+async function loadCollabDocs() {
+  loadingCollab.value = true
+  try {
+    collabDocs.value = await api.getMyCollaborationDocs(user.value.id)
+  } catch (e) {
+    console.error(e)
+    collabDocs.value = []
+  }
+  loadingCollab.value = false
 }
 
 async function createNewDoc() {
@@ -336,6 +402,7 @@ async function markAllAsRead() {
 async function loadCollabRequests() {
   try {
     collabRequests.value = await api.getCollaborationRequests(user.value.id)
+    collabUnreadCount.value = collabRequests.value.length
   } catch (e) {
     console.error(e)
   }
@@ -345,6 +412,7 @@ function toggleCollabRequests() {
   showCollabRequests.value = !showCollabRequests.value
   if (showCollabRequests.value) {
     loadCollabRequests()
+    collabUnreadCount.value = 0
   }
 }
 
@@ -399,6 +467,10 @@ async function respondToCollaboration(requestId, status) {
 .nav-btn:hover {
   background: var(--bg-gray);
   color: var(--text-primary);
+}
+.nav-btn.active {
+  background: var(--primary);
+  color: #fff;
 }
 .topbar-right {
   display: flex;
@@ -498,6 +570,10 @@ async function respondToCollaboration(requestId, status) {
 .collaboration-btn {
   position: relative;
 }
+.collab-badge {
+  top: -6px;
+  right: -6px;
+}
 .collaboration-icon {
   font-size: 18px;
 }
@@ -577,8 +653,16 @@ async function respondToCollaboration(requestId, status) {
   align-items: center;
   margin-bottom: 20px;
 }
+.toolbar.secondary {
+  margin-top: 8px;
+}
 .toolbar h2 {
   font-size: 20px;
+}
+.section-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 28px 0;
 }
 .empty {
   text-align: center;
@@ -614,6 +698,26 @@ async function respondToCollaboration(requestId, status) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.doc-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.doc-title-row .doc-title {
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 0;
+}
+.doc-badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e6f7ff;
+  color: var(--primary);
+  border: 1px solid rgba(0,0,0,0.04);
+  flex: none;
+}
 .doc-preview {
   font-size: 13px;
   color: var(--text-muted);
@@ -630,6 +734,10 @@ async function respondToCollaboration(requestId, status) {
   margin-top: 12px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
+}
+.doc-author {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 .doc-time {
   font-size: 12px;

@@ -52,7 +52,11 @@
               </span>
             </div>
             <div class="doc-actions">
-              <button v-if="doc.userId !== user?.id" class="collab-btn" @click.stop="requestCollaboration(doc.id)">
+              <button
+                v-if="doc.userId !== user?.id && collabAccess[doc.id] === false"
+                class="collab-btn"
+                @click.stop="requestCollaboration(doc.id)"
+              >
                 申请协作
               </button>
             </div>
@@ -87,6 +91,7 @@ const docs = ref([])
 const loading = ref(true)
 const sortBy = ref('综合')
 const likedDocs = ref({})
+const collabAccess = ref({})
 
 const sortOptions = [
   { label: '综合', value: '综合' },
@@ -102,10 +107,33 @@ async function loadDocs() {
   loading.value = true
   try {
     docs.value = await api.getCommunityDocs(sortBy.value)
+    collabAccess.value = {}
     // 检查用户点赞状态
     for (const doc of docs.value) {
       const status = await api.checkLikeStatus(doc.id, user.value.id)
       likedDocs.value[doc.id] = status.liked
+    }
+
+    // 检查协作权限（有权限则不显示“申请协作”）
+    await Promise.all(
+      docs.value.map(async (doc) => {
+        if (!user.value || doc.userId === user.value.id) {
+          collabAccess.value[doc.id] = true
+          return
+        }
+        try {
+          const access = await api.checkCollaborationAccess(doc.id, user.value.id)
+          collabAccess.value[doc.id] = !!access.hasAccess
+        } catch (e) {
+          // 无权限/无记录都视为未获协作权限
+          collabAccess.value[doc.id] = false
+        }
+      })
+    )
+
+    // 对没有协作权限检查结果的默认允许申请（兜底）
+    for (const doc of docs.value) {
+      if (collabAccess.value[doc.id] === undefined) collabAccess.value[doc.id] = false
     }
   } catch (e) {
     console.error(e)

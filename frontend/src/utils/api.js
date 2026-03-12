@@ -102,6 +102,12 @@ export const api = {
   checkCollaborationAccess: (docId, userId) =>
     request(`/collaborations/check?docId=${docId}&userId=${userId}`),
 
+  getCollaborationStatus: (docId, userId) =>
+    request(`/collaborations/status?docId=${docId}&userId=${userId}`),
+
+  getMyCollaborationDocs: (userId) =>
+    request(`/collaborations/mydocs?userId=${userId}`),
+
   // 评论相关
   getDocComments: (docId) =>
     request(`/comments/doc/${docId}`),

@@ -518,6 +518,34 @@ app.post('/collaborations', (req, res) => {
                     return res.status(400).json({ error: '您已经是该文档的协作者' });
                 } else if (existing.status === 'pending') {
                     return res.status(400).json({ error: '协作请求已发送，等待作者批准' });
+                } else if (existing.status === 'rejected') {
+                    // 被拒绝后允许重新申请：更新回 pending，避免 UNIQUE 冲突
+                    return db.run(
+                        'UPDATE collaborations SET status = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
+                        ['pending', existing.id],
+                        function(err) {
+                            if (err) return res.status(500).json({ error: err.message });
+
+                            // 重新发送通知给文档作者
+                            db.run('INSERT INTO notifications (userId, type, message) VALUES (?, ?, ?)',
+                                [doc.ownerId, 'collaboration_request', `有人申请协作您的文档`], function(err) {
+                                    if (err) console.error('发送通知失败:', err.message);
+                                    else {
+                                        sendNotificationToUser(doc.ownerId, {
+                                            id: this.lastID,
+                                            userId: doc.ownerId,
+                                            type: 'collaboration_request',
+                                            message: `有人申请协作您的文档`,
+                                            isRead: 0,
+                                            createdAt: new Date().toISOString()
+                                        });
+                                    }
+                                }
+                            );
+
+                            return res.json({ id: existing.id, docId, userId, status: 'pending', reRequested: true });
+                        }
+                    );
                 }
             }
 
@@ -551,6 +579,49 @@ app.post('/collaborations', (req, res) => {
             );
         });
     });
+});
+
+// 获取用户对某文档的协作状态（pending/approved/rejected/none）
+app.get('/collaborations/status', (req, res) => {
+    const { docId, userId } = req.query;
+    if (!docId || !userId) return res.status(400).json({ error: '参数不完整' });
+
+    db.get(
+        'SELECT status FROM collaborations WHERE docId = ? AND userId = ?',
+        [docId, userId],
+        (err, row) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ status: row?.status || null });
+        }
+    );
+});
+
+// 获取我参与协作（已批准）的文档列表
+app.get('/collaborations/mydocs', (req, res) => {
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
+
+    db.all(
+        `
+        SELECT 
+            docs.*,
+            users.username,
+            collaborations.id as collaborationId,
+            collaborations.createdAt as collaborationCreatedAt,
+            collaborations.updatedAt as collaborationUpdatedAt
+        FROM collaborations
+        JOIN docs ON collaborations.docId = docs.id
+        JOIN users ON docs.userId = users.id
+        WHERE collaborations.userId = ?
+          AND collaborations.status = 'approved'
+        ORDER BY docs.updatedAt DESC
+        `,
+        [userId],
+        (err, rows) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json(rows);
+        }
+    );
 });
 
 // 获取用户收到的协作请求
