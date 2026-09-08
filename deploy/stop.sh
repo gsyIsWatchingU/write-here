@@ -3,6 +3,13 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PID_FILE="$PROJECT_DIR/run/server.pid"
+SUPERVISOR_CONFIG="${SUPERVISOR_CONFIG:-/workspace/etc/supervisord.conf}"
+
+if command -v supervisorctl >/dev/null 2>&1 && supervisorctl -c "$SUPERVISOR_CONFIG" status write-here 2>/dev/null | grep -q '^write-here'; then
+  supervisorctl -c "$SUPERVISOR_CONFIG" stop cloudflared-write-here write-here
+  echo "WriteHere 与公网隧道已由 Supervisor 停止"
+  exit 0
+fi
 
 if [[ ! -f "$PID_FILE" ]]; then
   echo "未找到运行中的 WriteHere 进程"

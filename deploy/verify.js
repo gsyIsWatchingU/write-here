@@ -3,8 +3,8 @@ const sqlite3 = require('../backend/node_modules/sqlite3').verbose();
 const path = require('path');
 
 const port = Number(process.env.PORT) || 3210;
-const httpBase = `http://127.0.0.1:${port}`;
-const wsBase = `ws://127.0.0.1:${port}`;
+const httpBase = (process.env.BASE_URL || `http://127.0.0.1:${port}`).replace(/\/$/, '');
+const wsBase = httpBase.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
 
 async function checkHttp(path) {
   const response = await fetch(`${httpBase}${path}`, {
