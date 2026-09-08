@@ -13,6 +13,7 @@ const { setupWSConnection } = require('y-websocket/bin/utils');
 const app = express();
 const port = Number(process.env.PORT) || 3210;
 const host = process.env.HOST || '0.0.0.0';
+const MIN_PASSWORD_LENGTH = 6;
 
 // 中间件
 app.use(cors());
@@ -166,6 +167,9 @@ app.post('/register', (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) {
         return res.status(400).json({ error: '用户名和密码不能为空' });
+    }
+    if (password.length < MIN_PASSWORD_LENGTH) {
+        return res.status(400).json({ error: `密码至少需要 ${MIN_PASSWORD_LENGTH} 位` });
     }
     db.run(
         'INSERT INTO users (username, password) VALUES (?, ?)',

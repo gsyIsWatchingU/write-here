@@ -8,33 +8,22 @@
 - **Node.js**：建议 18+（本项目在 Node 20 上验证过）
 - **包管理器**：推荐 `npm`（根目录提供一键脚本）
 
-### 一键启动（推荐）
+### 本地前端开发
+
+线上业务数据只保存在 GPU 服务器。首次本地开发时复制 `frontend/.env.example` 为 `frontend/.env.local`，把其中地址替换为当前 GPU 公网地址，然后执行：
+
 在项目根目录执行：
 
 ```bash
-# 首次运行：安装根目录 + 前端 + 后端依赖
+# 首次运行：安装依赖
 npm run install:all
 
-# 同时启动前后端（concurrently）
+# 只启动本地前端，REST 与 WebSocket 连接 GPU 后端
 npm run dev
 ```
 
-- **后端**：`http://localhost:3210`
-- **前端**：Vite dev server（控制台会输出端口，通常是 `http://localhost:5173` 附近）
-
-### 分别启动（开发/调试更直观）
-
-```bash
-# 1) 启动后端
-cd backend
-npm install
-npm run start
-
-# 2) 启动前端（新开一个终端）
-cd ../frontend
-npm install
-npm run dev
-```
+- **前端**：Vite dev server，默认 `http://localhost:5273`
+- **后端与数据库**：仅在 GPU 服务器运行
 
 ## GPU 服务器部署
 
@@ -54,7 +43,7 @@ npm run dev
 ### 后端
 - **运行时**：Node.js
 - **框架**：Express
-- **数据库**：SQLite（本地文件 `db/docs.db`）
+- **数据库**：SQLite（GPU 服务器文件 `/workspace/projects/write-here/db/docs.db`）
 - **WebSocket**：
   - y-websocket：承载 Yjs 协同编辑同步
   - ws：承载通知 WebSocket（`/notifications`）
@@ -75,8 +64,7 @@ write-here/
 ├── backend/                  # 后端（Express + SQLite + WS）
 │   ├── server.js             # 单文件服务：REST API + WS + DB 初始化/迁移
 │   └── package.json
-├── db/
-│   └── docs.db               # SQLite 数据库文件
+├── db/                       # GPU 服务器运行时数据目录，不纳入 Git
 └── package.json              # 根目录一键脚本（dev / install:all）
 ```
 
@@ -105,4 +93,5 @@ write-here/
 ---
 
 ### 备注
+- **密码规则**：注册密码至少 6 位。
 - **安全性**：当前为学习/演示项目，登录密码未做加密哈希；生产环境需补充加密、鉴权中间件、限流、CSRF/XSS 等。

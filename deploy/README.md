@@ -12,7 +12,7 @@ bash deploy/start.sh
 - 部署验证：`node deploy/verify.js`
 - 停止服务：`bash deploy/stop.sh`
 
-`db/docs.db` 为服务器独立数据，不使用本机数据库覆盖。服务器或容器重启后，需要重新执行启动脚本。
+`db/docs.db` 是唯一业务数据库，只存在于 GPU 服务器运行目录，不纳入 Git，也不接受本机数据库覆盖。服务器或容器重启后，需要重新执行启动脚本。
 
 ## GitHub Actions 自动部署
 

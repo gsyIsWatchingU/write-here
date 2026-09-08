@@ -5,7 +5,12 @@
       <p class="subtitle">[ 极简协作文档工作台 ]</p>
       <form @submit.prevent="handleSubmit" class="login-form">
         <input v-model="username" type="text" placeholder="用户名" autofocus />
-        <input v-model="password" type="password" placeholder="密码" />
+        <input
+          v-model="password"
+          type="password"
+          :placeholder="isLogin ? '密码' : '密码（至少 6 位）'"
+          :minlength="isLogin ? undefined : 6"
+        />
         <button type="submit" class="primary submit-btn">{{ isLogin ? '登录' : '注册' }}</button>
       </form>
       <p class="toggle">
@@ -32,6 +37,10 @@ async function handleSubmit() {
   error.value = ''
   if (!username.value || !password.value) {
     error.value = '请填写用户名和密码'
+    return
+  }
+  if (!isLogin.value && password.value.length < 6) {
+    error.value = '密码至少需要 6 位'
     return
   }
   try {
