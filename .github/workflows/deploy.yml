@@ -1,0 +1,148 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: write-here-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: 构建检查
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+            backend/package-lock.json
+
+      - name: 安装依赖
+        run: |
+          npm ci
+          npm ci --prefix frontend
+          npm ci --prefix backend
+
+      - name: 构建前端
+        run: npm run build --prefix frontend
+
+      - name: 检查后端语法
+        run: node --check backend/server.js
+
+  deploy:
+    name: 部署到 GPU 服务器
+    needs: ci
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      DEPLOY_PATH: /workspace/projects/write-here
+      GPU_HOST: ${{ secrets.GPU_HOST }}
+      GPU_PORT: ${{ secrets.GPU_PORT }}
+      GPU_USER: ${{ secrets.GPU_USER }}
+      GPU_SSH_PRIVATE_KEY: ${{ secrets.GPU_SSH_PRIVATE_KEY }}
+      GPU_KNOWN_HOSTS: ${{ secrets.GPU_KNOWN_HOSTS }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 检查部署配置
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in GPU_HOST GPU_PORT GPU_USER GPU_SSH_PRIVATE_KEY GPU_KNOWN_HOSTS; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "缺少 GitHub Actions Secret：$name" >&2
+              exit 1
+            fi
+          done
+
+      - name: 配置 SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$GPU_SSH_PRIVATE_KEY" | tr -d '\r' > "$HOME/.ssh/write-here-deploy-key"
+          printf '%s\n' "$GPU_KNOWN_HOSTS" | tr -d '\r' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/write-here-deploy-key" "$HOME/.ssh/known_hosts"
+
+      - name: 生成部署包
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="write-here-${GITHUB_SHA}.tar.gz"
+          git ls-files | grep -v '^db/' > .deploy-manifest
+          tar --verbatim-files-from -czf "$archive" -T .deploy-manifest .deploy-manifest
+          echo "DEPLOY_ARCHIVE=$archive" >> "$GITHUB_ENV"
+
+      - name: 上传并发布
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh_args=(
+            -i "$HOME/.ssh/write-here-deploy-key"
+            -p "$GPU_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+          )
+          target="$GPU_USER@$GPU_HOST"
+          remote_archive="$DEPLOY_PATH/.deploy-tmp/$DEPLOY_ARCHIVE"
+
+          ssh "${ssh_args[@]}" "$target" "mkdir -p '$DEPLOY_PATH/.deploy-tmp'"
+          scp \
+            -i "$HOME/.ssh/write-here-deploy-key" \
+            -P "$GPU_PORT" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            "$DEPLOY_ARCHIVE" "$target:$remote_archive"
+
+          ssh "${ssh_args[@]}" "$target" \
+            "PROJECT_DIR='$DEPLOY_PATH' ARCHIVE_NAME='$DEPLOY_ARCHIVE' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          archive_path="$PROJECT_DIR/.deploy-tmp/$ARCHIVE_NAME"
+          release_name="${ARCHIVE_NAME#write-here-}"
+          release_name="${release_name%.tar.gz}"
+          if [[ ! "$release_name" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "非法发布版本：$release_name" >&2
+            exit 1
+          fi
+          release_dir="$PROJECT_DIR/.deploy-tmp/release-$release_name"
+
+          test -f "$archive_path"
+          test -f "$PROJECT_DIR/db/docs.db"
+          rm -rf "$release_dir"
+          mkdir -p "$release_dir"
+          trap 'rm -f "$archive_path"; rm -rf "$release_dir"' EXIT
+          tar -xzf "$archive_path" -C "$release_dir"
+          bash "$release_dir/deploy/apply-release.sh" "$release_dir" "$PROJECT_DIR"
+
+          cd "$PROJECT_DIR"
+          bash deploy/start.sh
+          REMOTE
+
+      - name: 清理 SSH 私钥
+        if: always()
+        shell: bash
+        run: rm -f "$HOME/.ssh/write-here-deploy-key" "$HOME/.ssh/known_hosts"

@@ -14,6 +14,29 @@ bash deploy/start.sh
 
 `db/docs.db` 为服务器独立数据，不使用本机数据库覆盖。服务器或容器重启后，需要重新执行启动脚本。
 
+## GitHub Actions 自动部署
+
+推送或合并到 `main` 后，`.github/workflows/deploy.yml` 会自动执行：
+
+1. 安装三套依赖，构建前端并检查后端语法。
+2. 通过 SSH 上传只包含 Git 已跟踪文件的发布包。
+3. 保留服务器的 `db/`、日志、运行目录和环境变量文件。
+4. 重启 Supervisor 服务并执行 HTTP、WebSocket 与 SQLite 验证。
+
+首次使用前，在 GitHub 仓库的 `Settings → Secrets and variables → Actions` 中配置：
+
+| Secret | 用途 |
+| --- | --- |
+| `GPU_HOST` | GPU 服务器地址 |
+| `GPU_PORT` | SSH 端口 |
+| `GPU_USER` | SSH 用户名 |
+| `GPU_SSH_PRIVATE_KEY` | 专用于 GitHub Actions 的 SSH 私钥 |
+| `GPU_KNOWN_HOSTS` | 已确认的服务器 SSH 主机公钥记录 |
+
+对应公钥需加入服务器 SSH 用户的 `authorized_keys`。不要使用个人主密钥，也不要把私钥、密码或 Token 提交到仓库。
+
+Pull Request 只执行构建检查，不部署；只有 `main` 分支通过检查后才会更新服务器。可在 GitHub 的 `Actions → CI/CD → Run workflow` 手动重跑。
+
 ## 公网访问
 
 GPU 服务器使用与 `research-workbench` 相同的 Supervisor + Cloudflare Quick Tunnel 方案：
