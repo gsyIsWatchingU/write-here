@@ -36,6 +36,10 @@ npm install
 npm run dev
 ```
 
+## GPU 服务器部署
+
+服务器部署脚本、验证命令和运行维护说明见 [`deploy/README.md`](deploy/README.md)。生产环境由 Node.js 在同一端口提供前端页面、REST API 与 WebSocket 服务。
+
 ## 技术栈
 
 ### 前端

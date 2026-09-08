@@ -156,7 +156,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { api, getUser, clearUser } from '../utils/api'
+import { api, getUser, clearUser, getWebSocketUrl } from '../utils/api'
 
 const router = useRouter()
 const route = useRoute()
@@ -226,7 +226,7 @@ function handleGlobalClick(e) {
 function setupWebSocket() {
   if (!user.value) return
   
-  ws = new WebSocket(`ws://localhost:3210/notifications?userId=${user.value.id}`)
+  ws = new WebSocket(`${getWebSocketUrl('/notifications')}?userId=${user.value.id}`)
   
   ws.onopen = () => {
     console.log('WebSocket 连接已建立')

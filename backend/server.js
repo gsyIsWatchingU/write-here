@@ -11,11 +11,16 @@ const { setupWSConnection } = require('y-websocket/bin/utils');
 
 // 创建 Express 应用
 const app = express();
-const port = 3210;
+const port = Number(process.env.PORT) || 3210;
+const host = process.env.HOST || '0.0.0.0';
 
 // 中间件
 app.use(cors());
 app.use(express.json());
+
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok' });
+});
 
 // 连接数据库 - 使用 __dirname 确保路径正确
 const dbPath = path.join(__dirname, '../db/docs.db');
@@ -900,6 +905,16 @@ app.put('/notifications/:id/read', (req, res) => {
     );
 });
 
+// 生产环境由后端直接托管 Vite 构建产物，REST 与 WebSocket 使用同一来源。
+const frontendDistPath = path.join(__dirname, '../frontend/dist');
+app.use(express.static(frontendDistPath));
+app.get('*', (req, res, next) => {
+    if (!req.accepts('html')) return next();
+    res.sendFile(path.join(frontendDistPath, 'index.html'), (err) => {
+        if (err) next(err);
+    });
+});
+
 // ==================== WebSocket 通知服务 ====================
 
 // 存储用户的 WebSocket 连接
@@ -967,8 +982,8 @@ wss.on('connection', (ws, req) => {
     setupWSConnection(ws, req);
 });
 
-server.listen(port, () => {
-    console.log(`服务器运行在 http://localhost:${port}`);
+server.listen(port, host, () => {
+    console.log(`服务器运行在 http://${host}:${port}`);
     console.log(`WebSocket 协同编辑服务已启动`);
     console.log(`WebSocket 通知服务已启动`);
 });

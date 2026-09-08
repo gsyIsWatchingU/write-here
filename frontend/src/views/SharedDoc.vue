@@ -80,7 +80,7 @@ import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import { ySyncPlugin, yCursorPlugin, yUndoPlugin } from 'y-prosemirror'
 import EditorToolbar from '../components/EditorToolbar.vue'
-import { api, getUser } from '../utils/api'
+import { api, getUser, getWebSocketUrl } from '../utils/api'
 
 const route = useRoute()
 const token = route.params.token
@@ -137,7 +137,7 @@ onMounted(async () => {
       // 协同编辑模式
       editor.value.setEditable(true)
       ydoc = new Y.Doc()
-      const wsUrl = 'wss://write-here-backend.onrender.com/ws'
+      const wsUrl = getWebSocketUrl('/ws')
       provider = new WebsocketProvider(wsUrl, `doc-${share.doc.id}`, ydoc)
       const yXmlFragment = ydoc.getXmlFragment('prosemirror')
 

@@ -9,6 +9,9 @@ lerna-debug.log*
 # Build outputs
 dist/
 build/
+logs/
+run/
+.deploy-tmp/
 
 # Environment variables
 .env

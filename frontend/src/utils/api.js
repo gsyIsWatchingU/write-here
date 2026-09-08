@@ -1,4 +1,12 @@
-const BASE = 'http://localhost:3210'
+const BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? '/api' : '')
+
+export function getWebSocketUrl(path) {
+  const configuredBase = import.meta.env.VITE_WS_BASE_URL?.replace(/\/$/, '')
+  if (configuredBase) return `${configuredBase}${path}`
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${window.location.host}${path}`
+}
 
 export function getUser() {
   const raw = localStorage.getItem('currentUser')
@@ -15,7 +23,7 @@ export function clearUser() {
 
 async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', ...options.headers },
     ...options
   })
   const data = await res.json()

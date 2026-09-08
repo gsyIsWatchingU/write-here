@@ -128,7 +128,7 @@ import { common, createLowlight } from 'lowlight'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import EditorToolbar from '../components/EditorToolbar.vue'
-import { api, getUser } from '../utils/api'
+import { api, getUser, getWebSocketUrl } from '../utils/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -151,7 +151,7 @@ const lowlight = createLowlight(common)
 
 // Yjs setup
 const ydoc = new Y.Doc()
-const wsUrl = 'wss://write-here-backend.onrender.com/ws'
+const wsUrl = getWebSocketUrl('/ws')
 const provider = new WebsocketProvider(wsUrl, `doc-${docId}`, ydoc)
 
 // 用户颜色
