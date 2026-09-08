@@ -1,8 +1,8 @@
 <template>
   <div class="login-page">
     <div class="login-card">
-      <h1 class="logo">WriteHere</h1>
-      <p class="subtitle">轻量级协同文档编辑器</p>
+      <h1 class="logo">WRITE_HERE_</h1>
+      <p class="subtitle">[ 极简协作文档工作台 ]</p>
       <form @submit.prevent="handleSubmit" class="login-form">
         <input v-model="username" type="text" placeholder="用户名" autofocus />
         <input v-model="password" type="password" placeholder="密码" />
@@ -57,13 +57,14 @@ async function handleSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+  background: var(--bg-gray);
 }
 .login-card {
-  background: #fff;
+  background: var(--bg);
   padding: 48px 40px;
-  border-radius: 12px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+  border: 2px solid var(--border);
+  border-radius: 0;
+  box-shadow: none;
   width: 400px;
   max-width: 90vw;
 }
@@ -71,7 +72,7 @@ async function handleSubmit() {
   text-align: center;
   font-size: 28px;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--text);
   margin-bottom: 4px;
 }
 .subtitle {

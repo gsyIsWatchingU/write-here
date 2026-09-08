@@ -14,7 +14,7 @@
         <s>S</s>
       </button>
       <button class="icon-btn" :class="{ active: editor.isActive('highlight') }" @click="editor.chain().focus().toggleHighlight().run()" title="高亮">
-        <span style="background:#ffeaa7;padding:0 4px;border-radius:2px;">H</span>
+        <span style="background:var(--primary);padding:0 4px;border:1px solid var(--border);">H</span>
       </button>
     </div>
 
@@ -58,8 +58,8 @@
 
     <div class="toolbar-group">
       <button class="icon-btn" @click="insertTable" title="插入表格">&#9638;</button>
-      <button class="icon-btn" @click="addImage" title="插入图片">&#128247;</button>
-      <button class="icon-btn" @click="setLink" title="插入链接">&#128279;</button>
+      <button class="icon-btn" @click="addImage" title="插入图片">▧</button>
+      <button class="icon-btn" @click="setLink" title="插入链接">↗</button>
     </div>
 
     <span class="toolbar-divider"></span>

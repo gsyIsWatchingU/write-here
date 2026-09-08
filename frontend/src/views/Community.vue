@@ -1,11 +1,11 @@
 <template>
   <div class="community-page">
     <header class="topbar">
-      <h1 class="logo" @click="router.push('/')">WriteHere</h1>
+      <h1 class="logo" @click="router.push('/')">WRITE_HERE_</h1>
       <div class="topbar-center">
-        <button class="nav-btn" :class="{ active: isHomeActive }" @click="router.push('/')">我的文档</button>
-        <button class="nav-btn" :class="{ active: isCommunityActive }" @click="router.push('/community')">社区</button>
-        <button v-if="user?.isAdmin" class="nav-btn" :class="{ active: isAdminActive }" @click="router.push('/admin')">文档管理</button>
+        <button class="nav-btn" :class="{ active: isHomeActive }" @click="router.push('/')">[01] 我的文档</button>
+        <button class="nav-btn" :class="{ active: isCommunityActive }" @click="router.push('/community')">[02] 社区</button>
+        <button v-if="user?.isAdmin" class="nav-btn" :class="{ active: isAdminActive }" @click="router.push('/admin')">[03] 文档管理</button>
       </div>
       <div class="topbar-right">
         <span class="username">{{ user?.username }}</span>
@@ -45,7 +45,7 @@
               <span class="doc-likes">
                 <button class="like-btn" @click.stop="handleLike(doc.id, $event)">
                   <span :class="['like-icon', { liked: likedDocs[doc.id] }]">
-                    {{ likedDocs[doc.id] ? '❤' : '🤍' }}
+                    {{ likedDocs[doc.id] ? '♥' : '♡' }}
                   </span>
                   {{ doc.likes }}
                 </button>

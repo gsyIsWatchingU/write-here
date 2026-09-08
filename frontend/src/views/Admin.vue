@@ -1,11 +1,11 @@
 <template>
   <div class="admin-page">
     <header class="topbar">
-      <h1 class="logo" @click="router.push('/')">WriteHere</h1>
+      <h1 class="logo" @click="router.push('/')">WRITE_HERE_</h1>
       <div class="topbar-center">
-        <button class="nav-btn" @click="router.push('/')">我的文档</button>
-        <button class="nav-btn" @click="router.push('/community')">社区</button>
-        <button class="nav-btn active" @click="router.push('/admin')">文档管理</button>
+        <button class="nav-btn" @click="router.push('/')">[01] 我的文档</button>
+        <button class="nav-btn" @click="router.push('/community')">[02] 社区</button>
+        <button class="nav-btn active" @click="router.push('/admin')">[03] 文档管理</button>
       </div>
       <div class="topbar-right">
         <span class="username">{{ user?.username }}</span>
@@ -37,7 +37,7 @@
           <div class="doc-card-footer">
             <span class="doc-time">{{ formatTime(doc.updatedAt) }}</span>
             <div class="doc-card-actions">
-              <button class="icon-btn" title="查看" @click="openDoc(doc.id)">&#128065;</button>
+              <button class="icon-btn" title="查看" @click="openDoc(doc.id)">→</button>
             </div>
           </div>
         </div>

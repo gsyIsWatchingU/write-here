@@ -1,19 +1,19 @@
 <template>
   <div class="home-page">
     <header class="topbar">
-      <h1 class="logo" @click="router.push('/')">WriteHere</h1>
+      <h1 class="logo" @click="router.push('/')">WRITE_HERE_</h1>
       <div class="topbar-center">
-        <button class="nav-btn" :class="{ active: isHomeActive }" @click="router.push('/')">我的文档</button>
-        <button class="nav-btn" :class="{ active: isCommunityActive }" @click="router.push('/community')">社区</button>
-        <button v-if="user?.isAdmin" class="nav-btn" :class="{ active: isAdminActive }" @click="router.push('/admin')">文档管理</button>
+        <button class="nav-btn" :class="{ active: isHomeActive }" @click="router.push('/')">[01] 我的文档</button>
+        <button class="nav-btn" :class="{ active: isCommunityActive }" @click="router.push('/community')">[02] 社区</button>
+        <button v-if="user?.isAdmin" class="nav-btn" :class="{ active: isAdminActive }" @click="router.push('/admin')">[03] 文档管理</button>
       </div>
       <div class="topbar-right">
         <button ref="notificationBtnRef" class="icon-btn notification-btn" @click.stop="toggleNotifications">
-          <span class="notification-icon">🔔</span>
+          <span class="notification-icon">[!]</span>
           <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount }}</span>
         </button>
         <button ref="collabBtnRef" class="icon-btn collaboration-btn" @click.stop="toggleCollabRequests">
-          <span class="collaboration-icon">👥</span>
+          <span class="collaboration-icon">[+]</span>
           <span v-if="collabUnreadCount > 0" class="notification-badge collab-badge">{{ collabUnreadCount }}</span>
         </button>
         <span class="username">{{ user?.username }}</span>
@@ -38,8 +38,8 @@
           <div class="doc-card-footer">
             <span class="doc-time">{{ formatTime(doc.updatedAt) }}</span>
             <div class="doc-card-actions">
-              <button class="icon-btn" title="分享" @click.stop="openShare(doc)">&#128279;</button>
-              <button class="icon-btn" title="删除" @click.stop="handleDelete(doc.id)">&#128465;</button>
+              <button class="icon-btn" title="分享" @click.stop="openShare(doc)">↗</button>
+              <button class="icon-btn" title="删除" @click.stop="handleDelete(doc.id)">×</button>
             </div>
           </div>
         </div>

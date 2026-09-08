@@ -48,7 +48,7 @@ npm run dev
 - **路由**：Vue Router 4
 - **富文本编辑器**：TipTap 2（基于 ProseMirror）
 - **协同编辑**：Yjs + y-websocket（多端实时同步、光标/在线成员）
-- **样式**：原生 CSS（CSS 变量 + scoped）
+- **样式**：原生 CSS（参考 CLI List 的极简像素主题）
 - **其他**：Lowlight（代码块高亮）
 
 ### 后端

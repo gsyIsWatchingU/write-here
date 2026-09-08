@@ -1,7 +1,7 @@
 <template>
   <div class="shared-page">
     <header class="topbar">
-      <h1 class="logo">WriteHere</h1>
+      <h1 class="logo">WRITE_HERE_</h1>
       <span class="badge" v-if="permission">{{ permission === 'edit' ? '协同编辑' : '只读' }}</span>
     </header>
     <div v-if="loading" class="loading">加载中...</div>
