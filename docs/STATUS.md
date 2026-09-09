@@ -68,5 +68,6 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 2026-09-09：列表页内容区放宽通过前端构建，并完成 1864px 桌面与 390px 移动端视觉检查；移动端无横向溢出。
 - 2026-09-09：`fae7ba0` 的 CI 构建成功，但部署配置检查失败；GPU 公网 HTTP、WSS、SQLite 与 Supervisor 现状正常，页面代码仍为旧的 960px 版本。
 - 2026-09-09：Markdown 导入功能通过前端生产构建。
-- 2026-09-09：5 个部署 Secrets 已补齐，但 GitHub 公共 Runner 访问内网 GPU SSH 超时；已注册标签为 `write-here-gpu` 的自托管 Runner，并确认 GitHub 在线状态与 Supervisor 状态正常。
+- 2026-09-09：GitHub 公共 Runner 访问内网 GPU SSH 超时；已改用标签为 `write-here-gpu` 的自托管 Runner，并清理不再使用的 5 个 SSH Secrets 与专用公钥。
+- 2026-09-09：`33c35b1` 的 `main` 推送已完成构建、产物上传、自托管部署和公网验收；服务器 `run/deployed-commit` 与本地 `HEAD` 一致，HTTP、两条 WebSocket、8 个 SQLite 业务表及应用、隧道、Runner 的 Supervisor 状态均通过。
 - 尚未执行注册登录、文档编辑、分享和协作审批的完整浏览器验收。
