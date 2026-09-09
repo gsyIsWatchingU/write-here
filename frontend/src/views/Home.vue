@@ -722,7 +722,7 @@ async function respondToCollaboration(requestId, status) {
   color: #e74c3c;
 }
 .main-content {
-  max-width: 960px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 24px;
 }
