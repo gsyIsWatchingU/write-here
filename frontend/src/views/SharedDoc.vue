@@ -21,43 +21,21 @@
         <editor-content :editor="editor" class="editor-content" />
       </div>
       
-      <!-- 评论区域 -->
-      <div class="comments-section">
-        <h2>评论</h2>
-        
-        <!-- 评论输入框 -->
-        <div v-if="user" class="comment-input">
-          <textarea v-model="commentContent" placeholder="写下你的评论..." rows="3"></textarea>
-          <button class="primary" @click="addComment" :disabled="!commentContent.trim()">发布评论</button>
-        </div>
-        <div v-else class="login-prompt">
-          <p>登录后才能评论</p>
-          <button class="primary" @click="$router.push('/login')">去登录</button>
-        </div>
-        
-        <!-- 评论列表 -->
-        <div class="comments-list">
-          <div v-if="loadingComments" class="loading-comments">加载评论中...</div>
-          <div v-else-if="comments.length === 0" class="no-comments">暂无评论，快来发表第一条评论吧！</div>
-          <div v-else v-for="comment in comments" :key="comment.id" class="comment-item">
-            <div class="comment-header">
-              <span class="comment-author">{{ comment.username }}</span>
-              <span class="comment-time">{{ formatTime(comment.createdAt) }}</span>
-              <button v-if="user && (comment.userId === user.id || docOwnerId === user.id)" 
-                      class="delete-comment-btn" @click="deleteComment(comment.id)">
-                删除
-              </button>
-            </div>
-            <div class="comment-content">{{ comment.content }}</div>
-          </div>
-        </div>
+      <div class="shared-comments">
+        <CommentPanel
+          v-if="docId"
+          :doc-id="docId"
+          :owner-id="docOwnerId"
+          :share-token="token"
+          :focused-comment-id="route.query.comment"
+        />
       </div>
     </template>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
@@ -83,6 +61,7 @@ import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import { ySyncPlugin, yCursorPlugin, yUndoPlugin } from 'y-prosemirror'
 import EditorToolbar from '../components/EditorToolbar.vue'
+import CommentPanel from '../components/CommentPanel.vue'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 
 const route = useRoute()
@@ -95,9 +74,6 @@ const permission = ref('')
 const docId = ref(null)
 const docOwnerId = ref(null)
 const user = ref(getUser())
-const comments = ref([])
-const loadingComments = ref(false)
-const commentContent = ref('')
 
 const lowlight = createLowlight(common)
 
@@ -169,48 +145,11 @@ onMounted(async () => {
       editor.value.commands.setContent(share.doc.content)
     }
 
-    // 加载评论
-    await loadComments()
   } catch (e) {
     error.value = e.message || '分享链接无效或已过期'
   }
   loading.value = false
 })
-
-// 加载评论
-async function loadComments() {
-  if (!docId.value) return
-  loadingComments.value = true
-  try {
-    comments.value = await api.getDocComments(docId.value)
-  } catch (e) {
-    console.error('加载评论失败:', e)
-  }
-  loadingComments.value = false
-}
-
-// 添加评论
-async function addComment() {
-  if (!commentContent.value.trim() || !user.value || !docId.value) return
-  try {
-    const comment = await api.addComment(docId.value, user.value.id, commentContent.value.trim())
-    comments.value.unshift(comment)
-    commentContent.value = ''
-  } catch (e) {
-    alert(e.message)
-  }
-}
-
-// 删除评论
-async function deleteComment(commentId) {
-  if (!confirm('确定要删除这条评论吗？')) return
-  try {
-    await api.deleteComment(commentId, user.value.id)
-    comments.value = comments.value.filter(c => c.id !== commentId)
-  } catch (e) {
-    alert(e.message)
-  }
-}
 
 onBeforeUnmount(() => {
   provider?.destroy()
@@ -244,6 +183,7 @@ onBeforeUnmount(() => {
   background: #e6f7ff;
   color: var(--primary);
 }
+.shared-comments { max-width: 800px; margin: 0 auto 40px; }
 .loading, .error-page {
   text-align: center;
   padding: 80px 0;
@@ -276,96 +216,4 @@ onBeforeUnmount(() => {
 .editor-content :deep(mark) { background: #ffeaa7; padding: 0 2px; border-radius: 2px; }
 .editor-content :deep(hr) { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
 
-/* 评论区域样式 */
-.comments-section {
-  max-width: 800px;
-  margin: 40px auto;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-  padding: 32px;
-}
-.comments-section h2 {
-  font-size: 20px;
-  margin-bottom: 24px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-}
-.comment-input {
-  margin-bottom: 32px;
-}
-.comment-input textarea {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 14px;
-  resize: vertical;
-  margin-bottom: 12px;
-}
-.comment-input button {
-  float: right;
-}
-.login-prompt {
-  text-align: center;
-  padding: 24px;
-  background: var(--bg-gray);
-  border-radius: var(--radius);
-  margin-bottom: 32px;
-}
-.login-prompt p {
-  margin-bottom: 12px;
-  color: var(--text-secondary);
-}
-.comments-list {
-  clear: both;
-}
-.loading-comments,
-.no-comments {
-  text-align: center;
-  color: var(--text-muted);
-  padding: 40px 0;
-}
-.comment-item {
-  padding: 16px 0;
-  border-bottom: 1px solid var(--border);
-}
-.comment-item:last-child {
-  border-bottom: none;
-}
-.comment-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-  gap: 12px;
-}
-.comment-author {
-  font-weight: 600;
-  color: var(--text-primary);
-  font-size: 14px;
-}
-.comment-time {
-  font-size: 12px;
-  color: var(--text-muted);
-  flex: 1;
-}
-.delete-comment-btn {
-  font-size: 12px;
-  color: #e74c3c;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--radius);
-  transition: background-color 0.2s;
-}
-.delete-comment-btn:hover {
-  background: rgba(231, 76, 60, 0.1);
-}
-.comment-content {
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--text-primary);
-  word-break: break-word;
-}
 </style>

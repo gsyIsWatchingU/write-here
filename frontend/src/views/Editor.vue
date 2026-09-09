@@ -9,7 +9,7 @@
           placeholder="无标题文档"
           :readonly="!canEdit"
           :class="{ readonly: !canEdit }"
-          @blur="canEdit ? saveDoc() : null"
+          @input="scheduleAutoSave"
         />
       </div>
       <div class="topbar-right">
@@ -32,7 +32,6 @@
             </select>
           </label>
         </div>
-        <button v-if="canEdit" class="primary" @click="saveDoc">保存</button>
         <button v-if="isOwner" class="ghost" @click="openShare">分享</button>
       </div>
     </header>
@@ -40,8 +39,16 @@
     <EditorToolbar v-if="editor && editorReady && canEdit" :editor="editor" />
 
     <div class="editor-main">
-      <div class="editor-wrapper">
-        <editor-content :editor="editor" class="editor-content" />
+      <div class="document-column">
+        <div class="editor-wrapper">
+          <editor-content :editor="editor" class="editor-content" />
+        </div>
+        <CommentPanel
+          v-if="commentsReady"
+          :doc-id="docId"
+          :owner-id="docOwnerId"
+          :focused-comment-id="route.query.comment"
+        />
       </div>
       <div class="outline-panel">
         <h3>文档大纲</h3>
@@ -128,6 +135,7 @@ import { common, createLowlight } from 'lowlight'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import EditorToolbar from '../components/EditorToolbar.vue'
+import CommentPanel from '../components/CommentPanel.vue'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 
 const route = useRoute()
@@ -146,6 +154,8 @@ const outline = ref([])
 const visibility = ref('private')
 const isOwner = ref(false)
 const canEdit = ref(false)
+const docOwnerId = ref(null)
+const commentsReady = ref(false)
 
 const lowlight = createLowlight(common)
 
@@ -218,10 +228,15 @@ const editor = useEditor({
   },
   onUpdate() {
     updateOutline()
+    scheduleAutoSave()
   },
 })
 
+const AUTO_SAVE_DELAY = 800
 let saveTimer = null
+let saveInFlight = null
+let documentLoaded = false
+let lastSavedSnapshot = ''
 
 // 生成文档大纲
 function updateOutline() {
@@ -262,6 +277,7 @@ onMounted(async () => {
   try {
     const doc = await api.getDoc(docId, user.id)
     docTitle.value = doc.title
+    docOwnerId.value = doc.userId
     visibility.value = doc.visibility || 'private'
 
     isOwner.value = doc.userId === user.id
@@ -275,6 +291,14 @@ onMounted(async () => {
     if (editor.value) {
       editor.value.setEditable(!!canEdit.value)
     }
+    commentsReady.value = true
+
+    lastSavedSnapshot = JSON.stringify({
+      title: doc.title || '无标题文档',
+      content: doc.content || ''
+    })
+    documentLoaded = true
+    saveStatus.value = canEdit.value ? '已保存' : ''
 
     // 等待 Yjs 同步完成，如果文档为空则从服务器加载
     provider.on('sync', (isSynced) => {
@@ -285,17 +309,14 @@ onMounted(async () => {
         }
       }
     })
+
+    // Yjs 可能已先于接口完成同步，此处补一次差异检查。
+    scheduleAutoSave()
   } catch (e) {
     alert('加载文档失败：' + e.message)
     router.push('/')
   }
 
-  // 自动保存
-  saveTimer = setInterval(() => {
-    if (editor.value) {
-      autoSave()
-    }
-  }, 32100)
 })
 
 // 更新文档可见性
@@ -309,38 +330,82 @@ async function updateVisibility() {
 }
 
 onBeforeUnmount(() => {
-  if (saveTimer) clearInterval(saveTimer)
+  documentLoaded = false
+  if (saveTimer) clearTimeout(saveTimer)
   provider.awareness.off('change', updateCollabUsers)
   provider.destroy()
   ydoc.destroy()
 })
 
-async function autoSave() {
-  await doSave(true)
-}
-
-async function saveDoc() {
-  await doSave(false)
-}
-
-async function doSave(isAuto) {
-  if (!canEdit.value) return
-  if (!editor.value) return
-  const content = editor.value.getHTML()
-  const title = docTitle.value || '无标题文档'
-  saveStatus.value = '保存中...'
-  try {
-    await api.updateDoc(docId, user.id, title, content)
-    saveStatus.value = isAuto ? '已自动保存' : '已保存'
-    setTimeout(() => { saveStatus.value = '' }, 2000)
-  } catch (e) {
-    saveStatus.value = '保存失败'
+function getDocumentSnapshot() {
+  if (!editor.value) return null
+  return {
+    title: docTitle.value || '无标题文档',
+    content: editor.value.getHTML()
   }
 }
 
-function goBack() {
+function scheduleAutoSave() {
+  if (!documentLoaded || !canEdit.value || !editor.value) return
+
+  const snapshot = getDocumentSnapshot()
+  if (!snapshot || JSON.stringify(snapshot) === lastSavedSnapshot) return
+
+  saveStatus.value = '保存中...'
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    saveTimer = null
+    flushAutoSave()
+  }, AUTO_SAVE_DELAY)
+}
+
+async function flushAutoSave() {
+  if (!documentLoaded || !canEdit.value || !editor.value) return true
+
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
+
+  if (saveInFlight) {
+    await saveInFlight
+    return flushAutoSave()
+  }
+
+  const snapshot = getDocumentSnapshot()
+  const serializedSnapshot = JSON.stringify(snapshot)
+  if (serializedSnapshot === lastSavedSnapshot) {
+    saveStatus.value = '已保存'
+    return true
+  }
+
+  saveStatus.value = '保存中...'
+  const request = api
+    .updateDoc(docId, user.id, snapshot.title, snapshot.content)
+    .then(() => true, () => false)
+  saveInFlight = request
+  const saved = await request
+  if (saveInFlight === request) saveInFlight = null
+
+  if (!saved) {
+    saveStatus.value = '保存失败'
+    return false
+  }
+
+  lastSavedSnapshot = serializedSnapshot
+
+  if (JSON.stringify(getDocumentSnapshot()) !== serializedSnapshot) {
+    return flushAutoSave()
+  }
+
+  saveStatus.value = '已保存'
+  return true
+}
+
+async function goBack() {
   if (!canEdit.value) return router.push('/')
-  saveDoc().then(() => router.push('/'))
+  const saved = await flushAutoSave()
+  if (saved) router.push('/')
 }
 
 async function openShare() {
@@ -472,6 +537,11 @@ function copyLink() {
   flex: 1;
   padding: 24px 320px 24px 24px;
   overflow-y: auto;
+}
+.document-column {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
 }
 .editor-wrapper {
   flex: 1;

@@ -11,12 +11,30 @@
         <button v-if="user?.isAdmin" class="nav-btn" :class="{ active: isAdminActive }" @click="router.push('/admin')">[03] 文档管理</button>
       </div>
       <div class="topbar-right">
-        <button ref="notificationBtnRef" class="icon-btn notification-btn" @click.stop="toggleNotifications">
-          <span class="notification-icon">[!]</span>
+        <button
+          ref="notificationBtnRef"
+          class="topbar-action-btn notification-btn"
+          aria-label="查看消息通知"
+          :aria-expanded="showNotifications"
+          title="查看消息通知"
+          @click.stop="toggleNotifications"
+        >
+          <span aria-hidden="true">[!]</span>
+          <span class="action-label action-label-long">消息通知</span>
+          <span class="action-label action-label-short">消息</span>
           <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount }}</span>
         </button>
-        <button ref="collabBtnRef" class="icon-btn collaboration-btn" @click.stop="toggleCollabRequests">
-          <span class="collaboration-icon">[+]</span>
+        <button
+          ref="collabBtnRef"
+          class="topbar-action-btn collaboration-btn"
+          aria-label="查看协作请求"
+          :aria-expanded="showCollabRequests"
+          title="查看协作请求"
+          @click.stop="toggleCollabRequests"
+        >
+          <span aria-hidden="true">[+]</span>
+          <span class="action-label action-label-long">协作请求</span>
+          <span class="action-label action-label-short">协作</span>
           <span v-if="collabUnreadCount > 0" class="notification-badge collab-badge">{{ collabUnreadCount }}</span>
         </button>
         <span class="username">{{ user?.username }}</span>
@@ -114,19 +132,27 @@
     <!-- 通知列表 -->
     <div v-if="showNotifications" ref="notificationDropdownRef" class="notification-dropdown" @click.stop>
       <div class="notification-header">
-        <h3>通知</h3>
-        <button class="ghost small" @click="markAllAsRead">全部已读</button>
+        <div>
+          <h3>消息通知</h3>
+          <span>{{ unreadCount }} 条未读</span>
+        </div>
+        <div class="notification-header-actions">
+          <button class="ghost small" @click="markAllAsRead">全部已读</button>
+          <button class="ghost small" @click="clearReadNotifications">清理已读</button>
+        </div>
       </div>
       <div class="notification-list">
         <div v-if="notifications.length === 0" class="empty-notifications">
           <p>暂无通知</p>
         </div>
-        <div v-else v-for="notification in notifications" :key="notification.id" class="notification-item" :class="{ unread: !notification.isRead }">
+        <div v-else v-for="notification in notifications" :key="notification.id" class="notification-item" :class="{ unread: !notification.isRead, actionable: notification.docId }" @click="openNotification(notification)">
           <div class="notification-content">
+            <span class="notification-type">{{ notificationTypeLabel(notification.type) }}</span>
             <p>{{ notification.message }}</p>
             <span class="notification-time">{{ formatTime(notification.createdAt) }}</span>
           </div>
-          <button v-if="!notification.isRead" class="icon-btn small" @click="markAsRead(notification.id)">✓</button>
+          <button v-if="!notification.isRead" class="icon-btn small" title="标记已读" @click.stop="markAsRead(notification.id)">✓</button>
+          <span v-else-if="notification.docId" class="notification-arrow">→</span>
         </div>
       </div>
     </div>
@@ -369,6 +395,7 @@ async function loadNotifications() {
 function toggleNotifications() {
   showNotifications.value = !showNotifications.value
   if (showNotifications.value) {
+    showCollabRequests.value = false
     // 打开通知时加载最新通知
     loadNotifications()
   }
@@ -381,7 +408,7 @@ async function markAsRead(notificationId) {
     const notification = notifications.value.find(n => n.id === notificationId)
     if (notification) {
       notification.isRead = 1
-      unreadCount.value--
+      unreadCount.value = Math.max(0, unreadCount.value - 1)
     }
   } catch (e) {
     console.error(e)
@@ -390,15 +417,37 @@ async function markAsRead(notificationId) {
 
 async function markAllAsRead() {
   try {
-    const unreadNotifications = notifications.value.filter(n => !n.isRead)
-    for (const notification of unreadNotifications) {
-      await api.markNotificationRead(notification.id, user.value.id)
-      notification.isRead = 1
-    }
+    await api.markAllNotificationsRead(user.value.id)
+    notifications.value.forEach(notification => { notification.isRead = 1 })
     unreadCount.value = 0
   } catch (e) {
     console.error(e)
   }
+}
+
+async function clearReadNotifications() {
+  try {
+    await api.deleteReadNotifications(user.value.id)
+    notifications.value = notifications.value.filter(notification => !notification.isRead)
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+async function openNotification(notification) {
+  if (!notification.isRead) await markAsRead(notification.id)
+  if (!notification.docId) return
+  showNotifications.value = false
+  const query = notification.commentId ? { comment: notification.commentId } : undefined
+  router.push({ path: `/doc/${notification.docId}`, query })
+}
+
+function notificationTypeLabel(type) {
+  return ({
+    comment: '评论', reply: '回复', mention: '@提及', comment_like: '评论点赞',
+    like: '文档点赞', collaboration_request: '协作申请', collaboration_response: '协作结果',
+    collaboration_removed: '协作变更'
+  })[type] || '系统'
 }
 
 // 协作请求相关函数
@@ -414,6 +463,7 @@ async function loadCollabRequests() {
 function toggleCollabRequests() {
   showCollabRequests.value = !showCollabRequests.value
   if (showCollabRequests.value) {
+    showNotifications.value = false
     loadCollabRequests()
     collabUnreadCount.value = 0
   }
@@ -483,8 +533,14 @@ async function respondToCollaboration(requestId, status) {
 .notification-btn {
   position: relative;
 }
-.notification-icon {
-  font-size: 18px;
+.topbar-action-btn {
+  position: relative;
+  min-height: 34px;
+  padding: 5px 9px;
+  white-space: nowrap;
+}
+.action-label-short {
+  display: none;
 }
 .notification-badge {
   position: absolute;
@@ -526,6 +582,14 @@ async function respondToCollaboration(requestId, status) {
   margin: 0;
   font-size: 16px;
 }
+.notification-header > div:first-child span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.notification-header-actions {
+  display: flex;
+  gap: 4px;
+}
 .notification-header .ghost.small {
   font-size: 12px;
   padding: 4px 8px;
@@ -549,6 +613,9 @@ async function respondToCollaboration(requestId, status) {
 .notification-item:hover {
   background: var(--bg-gray);
 }
+.notification-item.actionable {
+  cursor: pointer;
+}
 .notification-item.unread {
   background: #f8f9fa;
 }
@@ -560,6 +627,18 @@ async function respondToCollaboration(requestId, status) {
   margin: 0 0 4px 0;
   font-size: 14px;
   color: var(--text-primary);
+}
+.notification-type {
+  display: inline-block;
+  margin-bottom: 5px;
+  padding: 1px 5px;
+  color: var(--text-primary);
+  background: var(--primary);
+  border: 1px solid var(--border);
+  font-size: 10px;
+}
+.notification-arrow {
+  color: var(--text-muted);
 }
 .notification-time {
   font-size: 12px;
@@ -576,9 +655,6 @@ async function respondToCollaboration(requestId, status) {
 .collab-badge {
   top: -6px;
   right: -6px;
-}
-.collaboration-icon {
-  font-size: 18px;
 }
 .collab-requests-dropdown {
   position: absolute;
@@ -792,5 +868,17 @@ async function respondToCollaboration(requestId, status) {
   padding: 6px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+
+@media (max-width: 760px) {
+  .topbar-action-btn {
+    padding-inline: 7px;
+  }
+  .action-label-long {
+    display: none;
+  }
+  .action-label-short {
+    display: inline;
+  }
 }
 </style>

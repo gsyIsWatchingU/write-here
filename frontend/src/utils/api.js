@@ -91,6 +91,12 @@ export const api = {
   markNotificationRead: (id, userId) =>
     request(`/notifications/${id}/read`, { method: 'PUT', body: JSON.stringify({ userId }) }),
 
+  markAllNotificationsRead: (userId) =>
+    request('/notifications/read-all', { method: 'PUT', body: JSON.stringify({ userId }) }),
+
+  deleteReadNotifications: (userId) =>
+    request(`/notifications/read?userId=${userId}`, { method: 'DELETE' }),
+
   // 协作相关
   requestCollaboration: (docId, userId) =>
     request('/collaborations', { method: 'POST', body: JSON.stringify({ docId, userId }) }),
@@ -117,12 +123,18 @@ export const api = {
     request(`/collaborations/mydocs?userId=${userId}`),
 
   // 评论相关
-  getDocComments: (docId) =>
-    request(`/comments/doc/${docId}`),
+  getDocComments: (docId, userId, shareToken = '') =>
+    request(`/comments/doc/${docId}?userId=${userId || ''}&shareToken=${encodeURIComponent(shareToken)}`),
 
-  addComment: (docId, userId, content) =>
-    request('/comments', { method: 'POST', body: JSON.stringify({ docId, userId, content }) }),
+  addComment: (docId, userId, content, parentId = null, shareToken = '') =>
+    request('/comments', { method: 'POST', body: JSON.stringify({ docId, userId, content, parentId, shareToken }) }),
 
   deleteComment: (id, userId) =>
     request(`/comments/${id}?userId=${userId}`, { method: 'DELETE' }),
+
+  toggleCommentLike: (id, userId, shareToken = '') =>
+    request(`/comments/${id}/like`, { method: 'POST', body: JSON.stringify({ userId, shareToken }) }),
+
+  resolveComment: (id, userId, resolved) =>
+    request(`/comments/${id}/resolve`, { method: 'PUT', body: JSON.stringify({ userId, resolved }) }),
 }

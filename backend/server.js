@@ -24,7 +24,7 @@ app.get('/health', (req, res) => {
 });
 
 // 连接数据库 - 使用 __dirname 确保路径正确
-const dbPath = path.join(__dirname, '../db/docs.db');
+const dbPath = process.env.DB_PATH || path.join(__dirname, '../db/docs.db');
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('数据库连接失败:', err.message);
@@ -124,9 +124,25 @@ function initDatabase() {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 docId INTEGER NOT NULL,
                 userId INTEGER NOT NULL,
+                parentId INTEGER,
                 content TEXT NOT NULL,
+                isResolved INTEGER NOT NULL DEFAULT 0,
                 createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (docId) REFERENCES docs(id) ON DELETE CASCADE,
+                FOREIGN KEY (userId) REFERENCES users(id),
+                FOREIGN KEY (parentId) REFERENCES comments(id) ON DELETE CASCADE
+            )
+        `);
+
+        // 评论点赞独立存储，避免重复点赞并保留用户维度
+        db.run(`
+            CREATE TABLE IF NOT EXISTS comment_likes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                commentId INTEGER NOT NULL,
+                userId INTEGER NOT NULL,
+                createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(commentId, userId),
+                FOREIGN KEY (commentId) REFERENCES comments(id) ON DELETE CASCADE,
                 FOREIGN KEY (userId) REFERENCES users(id)
             )
         `);
@@ -155,6 +171,30 @@ function initDatabase() {
                 console.error('迁移 likes 列失败:', err.message);
             }
         });
+
+        db.run(`ALTER TABLE comments ADD COLUMN parentId INTEGER`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.error('迁移评论 parentId 列失败:', err.message);
+            }
+        });
+
+        db.run(`ALTER TABLE comments ADD COLUMN isResolved INTEGER NOT NULL DEFAULT 0`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.error('迁移评论 isResolved 列失败:', err.message);
+            }
+        });
+
+        for (const [column, type] of [
+            ['actorUserId', 'INTEGER'],
+            ['docId', 'INTEGER'],
+            ['commentId', 'INTEGER']
+        ]) {
+            db.run(`ALTER TABLE notifications ADD COLUMN ${column} ${type}`, (err) => {
+                if (err && !err.message.includes('duplicate column name')) {
+                    console.error(`迁移通知 ${column} 列失败:`, err.message);
+                }
+            });
+        }
 
         console.log('数据库表初始化完成');
     });
@@ -239,7 +279,7 @@ app.post('/docs', (req, res) => {
     );
 });
 
-// 更新文档（用户专属）
+// 更新文档（作者或已批准的协作者）
 app.put('/docs/:id', (req, res) => {
     const { id } = req.params;
     const { userId, title, content } = req.body;
@@ -247,8 +287,17 @@ app.put('/docs/:id', (req, res) => {
         return res.status(400).json({ error: '用户ID和标题不能为空' });
     }
     db.run(
-        'UPDATE docs SET title = ?, content = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND userId = ?',
-        [title, content || '', id, userId],
+        `UPDATE docs
+         SET title = ?, content = ?, updatedAt = CURRENT_TIMESTAMP
+         WHERE id = ? AND (
+             userId = ? OR EXISTS (
+                 SELECT 1 FROM collaborations
+                 WHERE collaborations.docId = docs.id
+                   AND collaborations.userId = ?
+                   AND collaborations.status = 'approved'
+             )
+         )`,
+        [title, content || '', id, userId, userId],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             if (this.changes === 0) return res.status(404).json({ error: '文档不存在或无权限修改' });
@@ -466,22 +515,15 @@ app.post('/docs/:id/like', (req, res) => {
                             if (err) return res.status(500).json({ error: err.message });
                             // 发送通知给作者
                             if (doc.userId !== parseInt(userId)) {
-                                db.run('INSERT INTO notifications (userId, type, message) VALUES (?, ?, ?)', 
-                                    [doc.userId, 'like', `有人点赞了你的文档`], function(err) {
-                                        if (err) console.error('发送通知失败:', err.message);
-                                        else {
-                                            // 发送实时通知
-                                            sendNotificationToUser(doc.userId, {
-                                                id: this.lastID,
-                                                userId: doc.userId,
-                                                type: 'like',
-                                                message: `有人点赞了你的文档`,
-                                                isRead: 0,
-                                                createdAt: new Date().toISOString()
-                                            });
-                                        }
-                                    }
-                                );
+                                db.get('SELECT username FROM users WHERE id = ?', [userId], (userErr, actor) => {
+                                    if (!userErr && actor) createNotification({
+                                        userId: doc.userId,
+                                        type: 'like',
+                                        message: `${actor.username} 点赞了你的文档`,
+                                        actorUserId: Number(userId),
+                                        docId: Number(id)
+                                    });
+                                });
                             }
                             res.json({ liked: true });
                         });
@@ -784,71 +826,176 @@ app.get('/collaborations/check', (req, res) => {
 
 // ==================== 评论 API ====================
 
+function checkCommentAccess(docId, userId, shareToken, callback) {
+    db.get(`
+        SELECT docs.id, docs.userId AS ownerId, docs.title, docs.visibility,
+               EXISTS(
+                   SELECT 1 FROM collaborations
+                   WHERE collaborations.docId = docs.id
+                     AND collaborations.userId = ?
+                     AND collaborations.status = 'approved'
+               ) AS isCollaborator,
+               EXISTS(
+                   SELECT 1 FROM shares
+                   WHERE shares.docId = docs.id AND shares.token = ?
+               ) AS hasShare
+        FROM docs
+        WHERE docs.id = ?
+    `, [userId || 0, shareToken || '', docId], (err, doc) => {
+        if (err) return callback(err);
+        if (!doc) return callback(null, null, false);
+        const numericUserId = Number(userId || 0);
+        const allowed = doc.visibility === 'public'
+            || doc.ownerId === numericUserId
+            || doc.isCollaborator === 1
+            || doc.hasShare === 1;
+        callback(null, doc, allowed);
+    });
+}
+
+function createNotification({ userId, type, message, actorUserId = null, docId = null, commentId = null }) {
+    if (!userId || Number(userId) === Number(actorUserId)) return;
+    db.run(
+        `INSERT INTO notifications (userId, type, message, actorUserId, docId, commentId)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [userId, type, message, actorUserId, docId, commentId],
+        function(err) {
+            if (err) return console.error('发送通知失败:', err.message);
+            sendNotificationToUser(Number(userId), {
+                id: this.lastID,
+                userId: Number(userId),
+                type,
+                message,
+                actorUserId,
+                docId,
+                commentId,
+                isRead: 0,
+                createdAt: new Date().toISOString()
+            });
+        }
+    );
+}
+
+function notifyMentions(content, actor, doc, commentId, excludedUserIds = []) {
+    const usernames = [...new Set(
+        [...content.matchAll(/@([^\s@，。,:：；;]+)/g)].map(match => match[1])
+    )];
+    if (!usernames.length) return;
+    const placeholders = usernames.map(() => '?').join(',');
+    db.all(
+        `SELECT id, username FROM users WHERE username IN (${placeholders})`,
+        usernames,
+        (err, users) => {
+            if (err) return console.error('查询提及用户失败:', err.message);
+            users
+                .filter(mentioned => !excludedUserIds.includes(mentioned.id))
+                .forEach(mentioned => createNotification({
+                    userId: mentioned.id,
+                    type: 'mention',
+                    message: `${actor.username} 在《${doc.title}》中提到了你`,
+                    actorUserId: actor.id,
+                    docId: doc.id,
+                    commentId
+                }));
+        }
+    );
+}
+
 // 获取文档的评论列表
 app.get('/comments/doc/:docId', (req, res) => {
     const { docId } = req.params;
-    db.all(`
-        SELECT comments.*, users.username 
-        FROM comments 
-        JOIN users ON comments.userId = users.id 
-        WHERE comments.docId = ? 
-        ORDER BY comments.createdAt DESC
-    `, [docId], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
+    const { userId, shareToken } = req.query;
+    checkCommentAccess(docId, userId, shareToken, (accessErr, doc, allowed) => {
+        if (accessErr) return res.status(500).json({ error: accessErr.message });
+        if (!doc) return res.status(404).json({ error: '文档不存在' });
+        if (!allowed) return res.status(403).json({ error: '无权限查看评论' });
+
+        db.all(`
+            SELECT comments.*, users.username,
+                   COUNT(comment_likes.id) AS likeCount,
+                   MAX(CASE WHEN comment_likes.userId = ? THEN 1 ELSE 0 END) AS liked
+            FROM comments
+            JOIN users ON comments.userId = users.id
+            LEFT JOIN comment_likes ON comment_likes.commentId = comments.id
+            WHERE comments.docId = ?
+            GROUP BY comments.id
+            ORDER BY COALESCE(comments.parentId, comments.id) DESC,
+                     CASE WHEN comments.parentId IS NULL THEN 0 ELSE 1 END,
+                     comments.createdAt ASC
+        `, [userId || 0, docId], (err, rows) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json(rows.map(row => ({
+                ...row,
+                liked: Boolean(row.liked),
+                likeCount: Number(row.likeCount)
+            })));
+        });
     });
 });
 
 // 添加评论
 app.post('/comments', (req, res) => {
-    const { docId, userId, content } = req.body;
-    if (!docId || !userId || !content) return res.status(400).json({ error: '参数不完整' });
+    const { docId, userId, content, parentId = null, shareToken = '' } = req.body;
+    const normalizedContent = String(content || '').trim();
+    if (!docId || !userId || !normalizedContent) return res.status(400).json({ error: '参数不完整' });
+    if (normalizedContent.length > 2000) return res.status(400).json({ error: '评论不能超过 2000 字' });
 
-    // 检查文档是否存在且为公开
-    db.get('SELECT userId as ownerId, visibility FROM docs WHERE id = ?', [docId], (err, doc) => {
-        if (err) return res.status(500).json({ error: err.message });
+    checkCommentAccess(docId, userId, shareToken, (accessErr, doc, allowed) => {
+        if (accessErr) return res.status(500).json({ error: accessErr.message });
         if (!doc) return res.status(404).json({ error: '文档不存在' });
-        if (doc.visibility !== 'public') return res.status(403).json({ error: '只能评论公开文档' });
+        if (!allowed) return res.status(403).json({ error: '无权限评论此文档' });
 
-        // 添加评论
-        db.run(
-            'INSERT INTO comments (docId, userId, content) VALUES (?, ?, ?)',
-            [docId, userId, content],
-            function(err) {
-                if (err) return res.status(500).json({ error: err.message });
-                
-                // 发送通知给文档作者
-                if (doc.ownerId !== parseInt(userId)) {
-                    db.run('INSERT INTO notifications (userId, type, message) VALUES (?, ?, ?)', 
-                        [doc.ownerId, 'comment', `有人评论了你的文档`], function(err) {
-                            if (err) console.error('发送通知失败:', err.message);
-                            else {
-                                // 发送实时通知
-                                sendNotificationToUser(doc.ownerId, {
-                                    id: this.lastID,
-                                    userId: doc.ownerId,
-                                    type: 'comment',
-                                    message: `有人评论了你的文档`,
-                                    isRead: 0,
-                                    createdAt: new Date().toISOString()
-                                });
-                            }
-                        }
-                    );
+        db.get('SELECT id, username FROM users WHERE id = ?', [userId], (userErr, actor) => {
+            if (userErr) return res.status(500).json({ error: userErr.message });
+            if (!actor) return res.status(404).json({ error: '用户不存在' });
+
+            const insertComment = (rootParentId, parentAuthorId = null) => {
+                db.run(
+                    'INSERT INTO comments (docId, userId, content, parentId) VALUES (?, ?, ?, ?)',
+                    [docId, userId, normalizedContent, rootParentId],
+                    function(err) {
+                        if (err) return res.status(500).json({ error: err.message });
+                        const commentId = this.lastID;
+                        const recipients = new Set();
+                        if (doc.ownerId !== Number(userId)) recipients.add(doc.ownerId);
+                        if (parentAuthorId && parentAuthorId !== Number(userId)) recipients.add(parentAuthorId);
+
+                        recipients.forEach(recipientId => createNotification({
+                            userId: recipientId,
+                            type: rootParentId ? 'reply' : 'comment',
+                            message: rootParentId
+                                ? `${actor.username} 回复了《${doc.title}》中的评论`
+                                : `${actor.username} 评论了《${doc.title}》`,
+                            actorUserId: actor.id,
+                            docId: Number(docId),
+                            commentId: rootParentId || commentId
+                        }));
+                        notifyMentions(normalizedContent, actor, doc, rootParentId || commentId, [...recipients]);
+
+                        db.get(`
+                            SELECT comments.*, users.username, 0 AS likeCount, 0 AS liked
+                            FROM comments
+                            JOIN users ON comments.userId = users.id
+                            WHERE comments.id = ?
+                        `, [commentId], (commentErr, comment) => {
+                            if (commentErr) return res.status(500).json({ error: commentErr.message });
+                            res.status(201).json({ ...comment, liked: false });
+                        });
+                    }
+                );
+            };
+
+            if (!parentId) return insertComment(null);
+            db.get(
+                'SELECT id, userId, parentId FROM comments WHERE id = ? AND docId = ?',
+                [parentId, docId],
+                (parentErr, parent) => {
+                    if (parentErr) return res.status(500).json({ error: parentErr.message });
+                    if (!parent) return res.status(404).json({ error: '回复的评论不存在' });
+                    insertComment(parent.parentId || parent.id, parent.userId);
                 }
-
-                // 返回评论信息
-                db.get(`
-                    SELECT comments.*, users.username 
-                    FROM comments 
-                    JOIN users ON comments.userId = users.id 
-                    WHERE comments.id = ?
-                `, [this.lastID], (err, comment) => {
-                    if (err) return res.status(500).json({ error: err.message });
-                    res.json(comment);
-                });
-            }
-        );
+            );
+        });
     });
 });
 
@@ -871,10 +1018,92 @@ app.delete('/comments/:id', (req, res) => {
             return res.status(403).json({ error: '无权限删除此评论' });
         }
 
-        // 删除评论
-        db.run('DELETE FROM comments WHERE id = ?', [id], function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ message: '评论已删除' });
+        const commentIdsSql = 'SELECT id FROM comments WHERE id = ? OR parentId = ?';
+        db.serialize(() => {
+            db.run(`DELETE FROM comment_likes WHERE commentId IN (${commentIdsSql})`, [id, id]);
+            db.run('DELETE FROM comments WHERE id = ? OR parentId = ?', [id, id], function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                res.json({ message: '评论已删除' });
+            });
+        });
+    });
+});
+
+// 评论点赞/取消点赞
+app.post('/comments/:id/like', (req, res) => {
+    const { id } = req.params;
+    const { userId, shareToken = '' } = req.body;
+    if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
+
+    db.get(`
+        SELECT comments.id, comments.docId, comments.userId AS authorId,
+               users.username AS actorName, docs.title
+        FROM comments
+        JOIN docs ON comments.docId = docs.id
+        JOIN users ON users.id = ?
+        WHERE comments.id = ?
+    `, [userId, id], (err, comment) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!comment) return res.status(404).json({ error: '评论或用户不存在' });
+
+        checkCommentAccess(comment.docId, userId, shareToken, (accessErr, doc, allowed) => {
+            if (accessErr) return res.status(500).json({ error: accessErr.message });
+            if (!doc || !allowed) return res.status(403).json({ error: '无权限点赞此评论' });
+
+            db.get('SELECT id FROM comment_likes WHERE commentId = ? AND userId = ?', [id, userId], (likeErr, like) => {
+            if (likeErr) return res.status(500).json({ error: likeErr.message });
+            const finish = (liked) => db.get(
+                'SELECT COUNT(*) AS count FROM comment_likes WHERE commentId = ?',
+                [id],
+                (countErr, countRow) => {
+                    if (countErr) return res.status(500).json({ error: countErr.message });
+                    res.json({ liked, likeCount: Number(countRow.count) });
+                }
+            );
+
+            if (like) {
+                return db.run('DELETE FROM comment_likes WHERE id = ?', [like.id], deleteErr => {
+                    if (deleteErr) return res.status(500).json({ error: deleteErr.message });
+                    finish(false);
+                });
+            }
+
+            db.run('INSERT INTO comment_likes (commentId, userId) VALUES (?, ?)', [id, userId], insertErr => {
+                if (insertErr) return res.status(500).json({ error: insertErr.message });
+                createNotification({
+                    userId: comment.authorId,
+                    type: 'comment_like',
+                    message: `${comment.actorName} 赞了你在《${comment.title}》中的评论`,
+                    actorUserId: Number(userId),
+                    docId: comment.docId,
+                    commentId: Number(id)
+                });
+                finish(true);
+            });
+            });
+        });
+    });
+});
+
+// 解决/重新打开评论线程
+app.put('/comments/:id/resolve', (req, res) => {
+    const { id } = req.params;
+    const { userId, resolved } = req.body;
+    if (!userId || typeof resolved !== 'boolean') return res.status(400).json({ error: '参数不完整' });
+
+    db.get(`
+        SELECT comments.id, comments.userId, comments.parentId, docs.userId AS ownerId
+        FROM comments JOIN docs ON comments.docId = docs.id
+        WHERE comments.id = ?
+    `, [id], (err, comment) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!comment || comment.parentId) return res.status(404).json({ error: '评论线程不存在' });
+        if (comment.userId !== Number(userId) && comment.ownerId !== Number(userId)) {
+            return res.status(403).json({ error: '无权限处理此评论线程' });
+        }
+        db.run('UPDATE comments SET isResolved = ? WHERE id = ?', [resolved ? 1 : 0, id], updateErr => {
+            if (updateErr) return res.status(500).json({ error: updateErr.message });
+            res.json({ id: Number(id), isResolved: resolved ? 1 : 0 });
         });
     });
 });
@@ -886,9 +1115,37 @@ app.get('/notifications', (req, res) => {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
     
-    db.all('SELECT * FROM notifications WHERE userId = ? ORDER BY createdAt DESC', [userId], (err, rows) => {
+    db.all(`
+        SELECT notifications.*, users.username AS actorName, docs.title AS docTitle
+        FROM notifications
+        LEFT JOIN users ON notifications.actorUserId = users.id
+        LEFT JOIN docs ON notifications.docId = docs.id
+        WHERE notifications.userId = ?
+        ORDER BY notifications.createdAt DESC
+        LIMIT 100
+    `, [userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
+    });
+});
+
+// 一键全部已读
+app.put('/notifications/read-all', (req, res) => {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
+    db.run('UPDATE notifications SET isRead = 1 WHERE userId = ? AND isRead = 0', [userId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ updated: this.changes });
+    });
+});
+
+// 清理已读通知
+app.delete('/notifications/read', (req, res) => {
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
+    db.run('DELETE FROM notifications WHERE userId = ? AND isRead = 1', [userId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ deleted: this.changes });
     });
 });
 
