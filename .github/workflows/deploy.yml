@@ -94,7 +94,7 @@ jobs:
           tar --verbatim-files-from -czf "$archive" -T .deploy-manifest .deploy-manifest
           echo "DEPLOY_ARCHIVE=$archive" >> "$GITHUB_ENV"
 
-      - name: 上传并发布
+      - name: 上传、发布并验证
         shell: bash
         run: |
           set -euo pipefail
@@ -140,6 +140,9 @@ jobs:
 
           cd "$PROJECT_DIR"
           bash deploy/start.sh
+          bash deploy/verify-public.sh
+          printf '%s\n' "$release_name" > "$PROJECT_DIR/run/deployed-commit"
+          echo "已部署并验证版本：$release_name"
           REMOTE
 
       - name: 清理 SSH 私钥

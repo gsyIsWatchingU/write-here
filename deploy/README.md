@@ -21,7 +21,8 @@ bash deploy/start.sh
 1. 安装三套依赖，构建前端并检查后端语法。
 2. 通过 SSH 上传只包含 Git 已跟踪文件的发布包。
 3. 保留服务器的 `db/`、日志、运行目录和环境变量文件。
-4. 重启 Supervisor 服务并执行 HTTP、WebSocket 与 SQLite 验证。
+4. 重启 Supervisor 服务并执行服务器本机 HTTP、WebSocket 与 SQLite 验证。
+5. 通过 Quick Tunnel 再次验证公网 HTTP、两条 WSS、SQLite 与 Supervisor，并把通过验证的 commit 写入 `run/deployed-commit`。
 
 首次使用前，在 GitHub 仓库的 `Settings → Secrets and variables → Actions` 中配置：
 
@@ -36,6 +37,16 @@ bash deploy/start.sh
 对应公钥需加入服务器 SSH 用户的 `authorized_keys`。不要使用个人主密钥，也不要把私钥、密码或 Token 提交到仓库。
 
 Pull Request 只执行构建检查，不部署；只有 `main` 分支通过检查后才会更新服务器。可在 GitHub 的 `Actions → CI/CD → Run workflow` 手动重跑。
+
+每次推送 `main` 后，必须等待流水线成功并核对线上版本：
+
+```bash
+git rev-parse HEAD
+ssh mygpu "cat /workspace/projects/write-here/run/deployed-commit"
+ssh mygpu "cd /workspace/projects/write-here && bash deploy/verify-public.sh"
+```
+
+前两个 commit 必须一致，公网验证必须全部通过；否则本次交付未完成。
 
 ## 公网访问
 

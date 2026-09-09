@@ -39,3 +39,6 @@ node --check backend/server.js
 - 每次完成并验证改动后，自动提交当前任务相关改动；除非用户明确要求不提交。
 - 离开当前电脑前更新 `docs/STATUS.md`，记录完成项、下一步、问题和验证结果。
 - 提交并推送当前分支，确认远程分支包含最新提交。
+- 推送 `main` 后必须等待 GitHub Actions 的 `CI/CD` 流水线结束；只有“构建检查”和“部署到 GPU 服务器”均成功，才能报告任务完成。
+- 部署成功后必须确认服务器 `run/deployed-commit` 与本地 `HEAD` 一致，并执行 `bash deploy/verify-public.sh`，验证公网 HTTP、两条 WebSocket、SQLite 和 Supervisor 状态。
+- 流水线或线上验证失败时，不得只报告“已推送”；应说明失败步骤，修复后重新推送验证，或明确列出需要用户处理的阻塞项。
