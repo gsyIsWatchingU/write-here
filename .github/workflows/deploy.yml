@@ -47,6 +47,25 @@ jobs:
       - name: 检查后端语法
         run: node --check backend/server.js
 
+      - name: 生成部署包
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/write-here-${GITHUB_SHA}.tar.gz"
+          trap 'rm -f .deploy-manifest' EXIT
+          git ls-files | grep -v '^db/' > .deploy-manifest
+          tar --verbatim-files-from -czf "$archive" -T .deploy-manifest .deploy-manifest
+
+      - name: 上传部署包
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: write-here-${{ github.sha }}
+          path: ${{ runner.temp }}/write-here-${{ github.sha }}.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
   deploy:
     name: 部署到 GPU 服务器
     needs: ci
@@ -57,8 +76,11 @@ jobs:
     env:
       DEPLOY_PATH: /workspace/projects/write-here
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
+      - name: 下载部署包
+        uses: actions/download-artifact@v4
+        with:
+          name: write-here-${{ github.sha }}
+          path: ${{ runner.temp }}/write-here-release
 
       - name: 检查部署目标
         shell: bash
@@ -68,20 +90,11 @@ jobs:
           test -d "$DEPLOY_PATH"
           test -f "$DEPLOY_PATH/db/docs.db"
 
-      - name: 生成部署包
-        shell: bash
-        run: |
-          set -euo pipefail
-          archive="$RUNNER_TEMP/write-here-${GITHUB_SHA}.tar.gz"
-          trap 'rm -f .deploy-manifest' EXIT
-          git ls-files | grep -v '^db/' > .deploy-manifest
-          tar --verbatim-files-from -czf "$archive" -T .deploy-manifest .deploy-manifest
-          echo "DEPLOY_ARCHIVE=$archive" >> "$GITHUB_ENV"
-
       - name: 发布并验证
         shell: bash
         run: |
           set -euo pipefail
+          DEPLOY_ARCHIVE="$RUNNER_TEMP/write-here-release/write-here-${GITHUB_SHA}.tar.gz"
           [[ "$DEPLOY_PATH" == "/workspace/projects/write-here" ]]
           release_name="$(basename "$DEPLOY_ARCHIVE")"
           release_name="${release_name#write-here-}"

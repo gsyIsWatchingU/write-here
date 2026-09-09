@@ -19,7 +19,7 @@ bash deploy/start.sh
 推送或合并到 `main` 后，`.github/workflows/deploy.yml` 会自动执行：
 
 1. 在 GitHub 公共 Runner 安装三套依赖，构建前端并检查后端语法。
-2. 由 GPU 服务器上的自托管 Runner 获取只包含 Git 已跟踪文件的发布包。
+2. CI 上传只包含 Git 已跟踪文件的发布包，GPU 自托管 Runner 下载该产物。
 3. 保留服务器的 `db/`、日志、运行目录和环境变量文件。
 4. 重启 Supervisor 服务并执行服务器本机 HTTP、WebSocket 与 SQLite 验证。
 5. 通过 Quick Tunnel 再次验证公网 HTTP、两条 WSS、SQLite 与 Supervisor，并把通过验证的 commit 写入 `run/deployed-commit`。
