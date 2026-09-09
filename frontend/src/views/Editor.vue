@@ -23,6 +23,14 @@
           >{{ u.name[0] }}</span>
         </div>
         <span v-if="saveStatus" class="save-status">{{ saveStatus }}</span>
+        <input
+          ref="markdownFileInput"
+          class="file-input"
+          type="file"
+          accept=".md,.markdown,text/markdown,text/plain"
+          @change="handleMarkdownImport"
+        />
+        <button v-if="canEdit" class="ghost" @click="openMarkdownPicker">导入 MD</button>
         <div v-if="isOwner" class="visibility-control">
           <label>
             <span>可见性：</span>
@@ -132,6 +140,7 @@ import Superscript from '@tiptap/extension-superscript'
 import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
 import { common, createLowlight } from 'lowlight'
+import MarkdownIt from 'markdown-it'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import EditorToolbar from '../components/EditorToolbar.vue'
@@ -156,8 +165,14 @@ const isOwner = ref(false)
 const canEdit = ref(false)
 const docOwnerId = ref(null)
 const commentsReady = ref(false)
+const markdownFileInput = ref(null)
 
 const lowlight = createLowlight(common)
+const markdownParser = new MarkdownIt({
+  html: false,
+  linkify: true,
+})
+const MAX_MARKDOWN_FILE_SIZE = 2 * 1024 * 1024
 
 // Yjs setup
 const ydoc = new Y.Doc()
@@ -408,6 +423,42 @@ async function goBack() {
   if (saved) router.push('/')
 }
 
+function openMarkdownPicker() {
+  markdownFileInput.value?.click()
+}
+
+async function handleMarkdownImport(event) {
+  const input = event.target
+  const file = input.files?.[0]
+  if (!file || !editor.value || !canEdit.value) return
+
+  try {
+    if (!/\.(md|markdown)$/i.test(file.name)) {
+      throw new Error('请选择 .md 或 .markdown 文件')
+    }
+    if (file.size > MAX_MARKDOWN_FILE_SIZE) {
+      throw new Error('Markdown 文件不能超过 2 MB')
+    }
+
+    const hasContent = editor.value.getText().trim().length > 0
+    if (hasContent && !window.confirm('导入会替换当前正文，是否继续？')) return
+
+    const markdown = await file.text()
+    editor.value.commands.setContent(markdownParser.render(markdown))
+
+    if (!docTitle.value.trim() || docTitle.value === '无标题文档') {
+      docTitle.value = file.name.replace(/\.(md|markdown)$/i, '')
+    }
+
+    const saved = await flushAutoSave()
+    if (!saved) throw new Error('内容已导入，但自动保存失败')
+  } catch (error) {
+    alert('导入失败：' + error.message)
+  } finally {
+    input.value = ''
+  }
+}
+
 async function openShare() {
   showShareModal.value = true
   shareLink.value = ''
@@ -537,6 +588,9 @@ function copyLink() {
   flex: 1;
   padding: 24px 320px 24px 24px;
   overflow-y: auto;
+}
+.file-input {
+  display: none;
 }
 .document-column {
   width: 100%;
