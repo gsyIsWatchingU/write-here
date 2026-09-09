@@ -1,7 +1,10 @@
 <template>
   <div class="shared-page">
     <header class="topbar">
-      <h1 class="logo">WRITE_HERE_</h1>
+      <h1 class="logo brand-logo">
+        <img src="/horizon-docs.svg" alt="" aria-hidden="true">
+        <span>Horizon Docs</span>
+      </h1>
       <span class="badge" v-if="permission">{{ permission === 'edit' ? '协同编辑' : '只读' }}</span>
     </header>
     <div v-if="loading" class="loading">加载中...</div>

@@ -1,7 +1,10 @@
 <template>
   <div class="home-page">
     <header class="topbar">
-      <h1 class="logo" @click="router.push('/')">WRITE_HERE_</h1>
+      <h1 class="logo brand-logo" @click="router.push('/')">
+        <img src="/horizon-docs.svg" alt="" aria-hidden="true">
+        <span>Horizon Docs</span>
+      </h1>
       <div class="topbar-center">
         <button class="nav-btn" :class="{ active: isHomeActive }" @click="router.push('/')">[01] 我的文档</button>
         <button class="nav-btn" :class="{ active: isCommunityActive }" @click="router.push('/community')">[02] 社区</button>

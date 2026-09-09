@@ -1,7 +1,10 @@
 <template>
   <div class="login-page">
     <div class="login-card">
-      <h1 class="logo">WRITE_HERE_</h1>
+      <h1 class="logo brand-logo">
+        <img src="/horizon-docs.svg" alt="" aria-hidden="true">
+        <span>Horizon Docs</span>
+      </h1>
       <p class="subtitle">[ 极简协作文档工作台 ]</p>
       <form @submit.prevent="handleSubmit" class="login-form">
         <input v-model="username" type="text" placeholder="用户名" autofocus />
