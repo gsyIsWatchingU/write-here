@@ -1,5 +1,6 @@
 <template>
   <div class="toolbar-menu">
+    <EditorBlockMenu :editor="editor" />
     <div class="toolbar-group">
       <button class="icon-btn" :class="{ active: editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()" title="粗体">
         <strong>B</strong>
@@ -80,6 +81,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import EditorBlockMenu from './EditorBlockMenu.vue'
 
 const props = defineProps({
   editor: { type: Object, required: true }
