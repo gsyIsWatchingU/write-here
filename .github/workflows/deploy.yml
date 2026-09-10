@@ -47,6 +47,9 @@ jobs:
       - name: 检查后端语法
         run: node --check backend/server.js
 
+      - name: 测试题目发布接口
+        run: npm test --prefix backend
+
       - name: 生成部署包
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         shell: bash

@@ -19,6 +19,17 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/problems',
+    name: 'Problems',
+    component: () => import('../views/Problems.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/embed/problems/:id',
+    name: 'ProblemEmbed',
+    component: () => import('../views/ProblemEmbed.vue')
+  },
+  {
     path: '/share/:token',
     name: 'SharedDoc',
     component: () => import('../views/SharedDoc.vue')
