@@ -146,6 +146,7 @@ import { WebsocketProvider } from 'y-websocket'
 import EditorToolbar from '../components/EditorToolbar.vue'
 import CommentPanel from '../components/CommentPanel.vue'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
+import { normalizeImportedMarkdown } from '../utils/markdown'
 
 const route = useRoute()
 const router = useRouter()
@@ -444,7 +445,7 @@ async function handleMarkdownImport(event) {
     const hasContent = editor.value.getText().trim().length > 0
     if (hasContent && !window.confirm('导入会替换当前正文，是否继续？')) return
 
-    const markdown = await file.text()
+    const markdown = normalizeImportedMarkdown(await file.text())
     editor.value.commands.setContent(markdownParser.render(markdown))
     updateOutline()
 
