@@ -59,8 +59,21 @@
           <div class="doc-card-footer">
             <span class="doc-time">{{ formatTime(doc.updatedAt) }}</span>
             <div class="doc-card-actions">
-              <button class="icon-btn" title="分享" @click.stop="openShare(doc)">↗</button>
-              <button class="icon-btn" title="删除" @click.stop="handleDelete(doc.id)">×</button>
+              <button class="card-action-btn share-action" type="button" title="分享文档" aria-label="分享文档" @click.stop="openShare(doc)">
+                <svg class="card-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4" />
+                </svg>
+                <span>分享</span>
+              </button>
+              <button class="card-action-btn delete-action" type="button" title="删除文档" aria-label="删除文档" @click.stop="handleDelete(doc.id)">
+                <svg class="card-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" />
+                </svg>
+                <span>删除</span>
+              </button>
             </div>
           </div>
         </div>
@@ -810,6 +823,8 @@ async function respondToCollaboration(requestId, status) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 12px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
@@ -825,6 +840,34 @@ async function respondToCollaboration(requestId, status) {
 .doc-card-actions {
   display: flex;
   gap: 4px;
+}
+.card-action-btn {
+  min-height: 34px;
+  padding: 5px 8px;
+  gap: 5px;
+  font-size: 12px;
+  line-height: 1;
+}
+.card-action-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}
+.share-action:hover {
+  background: var(--primary);
+}
+.delete-action {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.delete-action:hover {
+  color: var(--danger);
+  background: var(--danger-hover);
 }
 .modal-overlay {
   position: fixed;
