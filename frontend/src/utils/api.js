@@ -22,8 +22,14 @@ export function clearUser() {
 }
 
 async function request(path, options = {}) {
+  const token = getUser()?.token
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', ...options.headers },
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers
+    },
     ...options
   })
   const data = await res.json()
@@ -52,6 +58,22 @@ export const api = {
 
   deleteDoc: (id, userId) =>
     request(`/docs/${id}?userId=${userId}`, { method: 'DELETE' }),
+
+  // 题库相关：需要登录会话；公开题面仅凭不可猜测的关联令牌读取。
+  getProblems: () =>
+    request('/problem-items'),
+
+  createProblem: (title = '无标题题目') =>
+    request('/problem-items', { method: 'POST', body: JSON.stringify({ title }) }),
+
+  publishProblem: (id) =>
+    request(`/problem-items/${id}/publish`, { method: 'POST', body: '{}' }),
+
+  unpublishProblem: (id) =>
+    request(`/problem-items/${id}/unpublish`, { method: 'POST', body: '{}' }),
+
+  getProblemContent: (id, token) =>
+    request(`/problem-content/${id}?token=${encodeURIComponent(token)}`),
 
   // 分享相关
   createShare: (docId, userId, permission) =>

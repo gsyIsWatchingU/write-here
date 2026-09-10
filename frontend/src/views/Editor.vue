@@ -6,7 +6,7 @@
         <input
           v-model="docTitle"
           class="title-input"
-          placeholder="无标题文档"
+          :placeholder="docKind === 'problem' ? '无标题题目' : '无标题文档'"
           :readonly="!canEdit"
           :class="{ readonly: !canEdit }"
           @input="scheduleAutoSave"
@@ -31,7 +31,7 @@
           @change="handleMarkdownImport"
         />
         <button v-if="canEdit" class="ghost" @click="openMarkdownPicker">导入 MD</button>
-        <div v-if="isOwner" class="visibility-control">
+        <div v-if="isOwner && docKind !== 'problem'" class="visibility-control">
           <label>
             <span>可见性：</span>
             <select v-model="visibility" @change="updateVisibility">
@@ -40,7 +40,7 @@
             </select>
           </label>
         </div>
-        <button v-if="isOwner" class="ghost" @click="openShare">分享</button>
+        <button v-if="isOwner && docKind !== 'problem'" class="ghost" @click="openShare">分享</button>
       </div>
     </header>
 
@@ -182,6 +182,7 @@ const user = getUser()
 const docId = route.params.id
 
 const docTitle = ref('')
+const docKind = ref('document')
 const saveStatus = ref('')
 const showShareModal = ref(false)
 const shareLink = ref('')
@@ -340,6 +341,7 @@ onMounted(async () => {
   try {
     const doc = await api.getDoc(docId, user.id)
     docTitle.value = doc.title
+    docKind.value = doc.kind || 'document'
     docOwnerId.value = doc.userId
     visibility.value = doc.visibility || 'private'
 
@@ -381,7 +383,7 @@ onMounted(async () => {
     scheduleAutoSave()
   } catch (e) {
     alert('加载文档失败：' + e.message)
-    router.push('/')
+    router.push(route.query.from === 'problems' ? '/problems' : '/')
   }
 
 })
@@ -471,9 +473,10 @@ async function flushAutoSave() {
 }
 
 async function goBack() {
-  if (!canEdit.value) return router.push('/')
+  const returnPath = route.query.from === 'problems' || docKind.value === 'problem' ? '/problems' : '/'
+  if (!canEdit.value) return router.push(returnPath)
   const saved = await flushAutoSave()
-  if (saved) router.push('/')
+  if (saved) router.push(returnPath)
 }
 
 function openMarkdownPicker() {

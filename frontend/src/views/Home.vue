@@ -7,8 +7,9 @@
       </h1>
       <div class="topbar-center">
         <button class="nav-btn" :class="{ active: isHomeActive }" @click="router.push('/')">[01] 我的文档</button>
-        <button class="nav-btn" :class="{ active: isCommunityActive }" @click="router.push('/community')">[02] 社区</button>
-        <button v-if="user?.isAdmin" class="nav-btn" :class="{ active: isAdminActive }" @click="router.push('/admin')">[03] 文档管理</button>
+        <button class="nav-btn" @click="router.push('/problems')">[02] 题库</button>
+        <button class="nav-btn" :class="{ active: isCommunityActive }" @click="router.push('/community')">[03] 社区</button>
+        <button v-if="user?.isAdmin" class="nav-btn" :class="{ active: isAdminActive }" @click="router.push('/admin')">[04] 文档管理</button>
       </div>
       <div class="topbar-right">
         <button

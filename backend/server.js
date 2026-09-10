@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const http = require('http');
 const { v4: uuidv4 } = require('uuid');
+const { authenticateSession, createProblemsRouter, migrateProblems } = require('./problems');
 
 // y-websocket server utils
 const Y = require('yjs');
@@ -221,6 +222,8 @@ function initDatabase() {
             });
         }
 
+        migrateProblems(db);
+
         console.log('数据库表初始化完成');
     });
 }
@@ -260,7 +263,15 @@ app.post('/login', (req, res) => {
     db.get('SELECT id, username, isAdmin FROM users WHERE username = ? AND password = ?', [username, password], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!row) return res.status(401).json({ error: '用户名或密码错误' });
-        res.json(row);
+        const token = uuidv4();
+        db.run(
+            "INSERT INTO sessions (token, userId, expiresAt) VALUES (?, ?, datetime('now', '+30 days'))",
+            [token, row.id],
+            (sessionError) => {
+                if (sessionError) return res.status(500).json({ error: sessionError.message });
+                res.json({ ...row, token });
+            }
+        );
     });
 });
 
@@ -270,18 +281,21 @@ app.post('/login', (req, res) => {
 app.get('/docs', (req, res) => {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
-    db.all('SELECT * FROM docs WHERE userId = ? ORDER BY updatedAt DESC', [userId], (err, rows) => {
+    db.all("SELECT * FROM docs WHERE userId = ? AND kind = 'document' ORDER BY updatedAt DESC", [userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
 });
 
 // 获取单个文档（用户专属或公开文档）
-app.get('/docs/:id', (req, res) => {
+app.get('/docs/:id', async (req, res) => {
     const { id } = req.params;
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
-    db.get('SELECT * FROM docs WHERE id = ? AND (userId = ? OR visibility = "public")', [id, userId], (err, row) => {
+    const sessionUser = await authenticateSession(db, req).catch(() => null);
+    db.get(`SELECT * FROM docs
+            WHERE id = ? AND (userId = ? OR visibility = 'public')
+              AND (kind != 'problem' OR userId = ?)`, [id, userId, sessionUser?.id || -1], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!row) return res.status(404).json({ error: '文档不存在或无权限访问' });
         res.json(row);
@@ -305,12 +319,13 @@ app.post('/docs', (req, res) => {
 });
 
 // 更新文档（作者或已批准的协作者）
-app.put('/docs/:id', (req, res) => {
+app.put('/docs/:id', async (req, res) => {
     const { id } = req.params;
     const { userId, title, content } = req.body;
     if (!userId || !title) {
         return res.status(400).json({ error: '用户ID和标题不能为空' });
     }
+    const sessionUser = await authenticateSession(db, req).catch(() => null);
     db.run(
         `UPDATE docs
          SET title = ?, content = ?, updatedAt = CURRENT_TIMESTAMP
@@ -321,8 +336,8 @@ app.put('/docs/:id', (req, res) => {
                    AND collaborations.userId = ?
                    AND collaborations.status = 'approved'
              )
-         )`,
-        [title, content || '', id, userId, userId],
+         ) AND (kind != 'problem' OR userId = ?)`,
+        [title, content || '', id, userId, userId, sessionUser?.id || -1],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             if (this.changes === 0) return res.status(404).json({ error: '文档不存在或无权限修改' });
@@ -332,16 +347,17 @@ app.put('/docs/:id', (req, res) => {
 });
 
 // 删除文档（用户专属）- 修复：使用 query 参数获取 userId
-app.delete('/docs/:id', (req, res) => {
+app.delete('/docs/:id', async (req, res) => {
     const { id } = req.params;
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
+    const sessionUser = await authenticateSession(db, req).catch(() => null);
     db.serialize(() => {
         // 同时删除相关分享
         db.run('DELETE FROM shares WHERE docId = ?', [id]);
         db.run(
-            'DELETE FROM docs WHERE id = ? AND userId = ?',
-            [id, userId],
+            "DELETE FROM docs WHERE id = ? AND userId = ? AND (kind != 'problem' OR userId = ?)",
+            [id, userId, sessionUser?.id || -1],
             function(err) {
                 if (err) return res.status(500).json({ error: err.message });
                 if (this.changes === 0) return res.status(404).json({ error: '文档不存在或无权限删除' });
@@ -350,6 +366,8 @@ app.delete('/docs/:id', (req, res) => {
         );
     });
 });
+
+app.use(createProblemsRouter({ db }));
 
 // ==================== 分享 API ====================
 

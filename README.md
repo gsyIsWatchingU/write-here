@@ -1,6 +1,6 @@
 # Horizon Docs - 轻量级在线文档协作平台
 
-一个类似语雀的轻量级线上文档编辑器，包含前后端与 SQLite 数据库，支持**个人文档管理、Markdown 导入、社区公开文档、分享链接、协作申请/审批、实时协同编辑、评论线程、点赞、@提及**与**WebSocket 实时通知**。
+一个类似语雀的轻量级线上文档编辑器，包含前后端与 SQLite 数据库，支持**个人文档管理、算法题面发布、Markdown 导入、社区公开文档、分享链接、协作申请/审批、实时协同编辑、评论线程、点赞、@提及**与**WebSocket 实时通知**。
 
 ## 项目启动方式
 
@@ -58,7 +58,7 @@ write-here/
 │   │   ├── components/       # 通用组件（如 EditorToolbar）
 │   │   ├── router/           # 路由与鉴权守卫
 │   │   ├── utils/            # api 封装、localStorage 用户态
-│   │   └── views/            # 页面：Home/Community/Editor/SharedDoc/Admin/Login
+│   │   └── views/            # 页面：文档、题库、编辑、嵌入阅读、社区与管理
 │   ├── index.html
 │   └── vite.config.js
 ├── backend/                  # 后端（Express + SQLite + WS）
@@ -94,6 +94,13 @@ write-here/
 - 通过 `shares.token` 暴露外链，并在分享页根据 `permission(read/edit)`：
   - **只读**：编辑器不可编辑
   - **可编辑**：挂载 Yjs provider，进入协同编辑
+
+### 6）WriteHere 作为算法题面内容源
+
+- 在“题库”区域创建题目，编辑器仍复用现有 TipTap 与自动保存能力。
+- “发布”会冻结标题和正文快照并递增版本；未发布修改不会影响算法训练网站。
+- 发布后复制关联链接，Algorithm Lab 通过版本化 JSON API 校验内容，并以隔离 iframe 展示题面。
+- 测试用例、代码模板、判题和训练记录仍由 Algorithm Lab 管理。
 
 ---
 
