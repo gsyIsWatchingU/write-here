@@ -322,6 +322,7 @@ onMounted(async () => {
         if (yXmlFragment.length === 0 && doc.content && editor.value) {
           editor.value.commands.setContent(doc.content)
         }
+        updateOutline()
       }
     })
 
@@ -445,6 +446,7 @@ async function handleMarkdownImport(event) {
 
     const markdown = await file.text()
     editor.value.commands.setContent(markdownParser.render(markdown))
+    updateOutline()
 
     if (!docTitle.value.trim() || docTitle.value === '无标题文档') {
       docTitle.value = file.name.replace(/\.(md|markdown)$/i, '')
