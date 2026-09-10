@@ -36,12 +36,33 @@
           <span>{{ option.label }}</span>
           <span v-if="currentBlockType === option.type" class="block-menu-check" aria-hidden="true">✓</span>
         </button>
+
+        <div class="block-menu-divider"></div>
+        <div class="block-menu-actions" aria-label="块操作">
+          <button class="block-menu-option" type="button" @click="duplicateBlock">
+            <span class="block-menu-icon" aria-hidden="true">⧉</span>
+            <span>复制块</span>
+          </button>
+          <button class="block-menu-option" type="button" :disabled="!canMoveUp" @click="moveBlock(-1)">
+            <span class="block-menu-icon" aria-hidden="true">↑</span>
+            <span>上移</span>
+          </button>
+          <button class="block-menu-option" type="button" :disabled="!canMoveDown" @click="moveBlock(1)">
+            <span class="block-menu-icon" aria-hidden="true">↓</span>
+            <span>下移</span>
+          </button>
+          <button class="block-menu-option danger" type="button" @click="deleteBlock">
+            <span class="block-menu-icon" aria-hidden="true">×</span>
+            <span>删除块</span>
+          </button>
+        </div>
       </div>
     </div>
   </Teleport>
 </template>
 
 <script setup>
+import { TextSelection } from '@tiptap/pm/state'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const props = defineProps({
@@ -67,6 +88,8 @@ const open = ref(false)
 const top = ref(0)
 const left = ref(0)
 const currentBlockType = ref('paragraph')
+const canMoveUp = ref(false)
+const canMoveDown = ref(false)
 let animationFrame = null
 
 const positionStyle = computed(() => ({
@@ -90,6 +113,16 @@ function getCurrentBlockType() {
   return 'paragraph'
 }
 
+function getCurrentBlock() {
+  const { $from, empty } = props.editor.state.selection
+  if (!empty || $from.depth < 1) return null
+
+  const index = $from.index(0)
+  const position = $from.before(1)
+  const node = props.editor.state.doc.child(index)
+  return { index, position, node }
+}
+
 function updatePosition() {
   if (animationFrame) cancelAnimationFrame(animationFrame)
   animationFrame = requestAnimationFrame(() => {
@@ -101,19 +134,14 @@ function updatePosition() {
       return
     }
 
-    const { $from, empty } = editor.state.selection
-    if (!empty) {
+    const currentBlock = getCurrentBlock()
+    if (!currentBlock) {
       visible.value = false
       open.value = false
       return
     }
-    if ($from.depth < 1) {
-      visible.value = false
-      return
-    }
 
-    const blockPosition = $from.before(1)
-    const blockElement = editor.view.nodeDOM(blockPosition)
+    const blockElement = editor.view.nodeDOM(currentBlock.position)
     if (!(blockElement instanceof HTMLElement)) {
       visible.value = false
       return
@@ -123,6 +151,8 @@ function updatePosition() {
     top.value = blockRect.top + 2
     left.value = Math.max(4, blockRect.left - 38)
     currentBlockType.value = getCurrentBlockType()
+    canMoveUp.value = currentBlock.index > 0
+    canMoveDown.value = currentBlock.index < editor.state.doc.childCount - 1
     visible.value = true
   })
 }
@@ -158,6 +188,81 @@ function convertBlock(type) {
   }
 
   currentBlockType.value = getCurrentBlockType()
+  open.value = false
+  nextTick(updatePosition)
+}
+
+function focusTransactionBlock(transaction, position) {
+  const resolvedPosition = Math.min(position + 1, transaction.doc.content.size)
+  transaction.setSelection(TextSelection.near(transaction.doc.resolve(resolvedPosition)))
+  transaction.scrollIntoView()
+}
+
+function duplicateBlock() {
+  const currentBlock = getCurrentBlock()
+  if (!currentBlock) return
+
+  const insertPosition = currentBlock.position + currentBlock.node.nodeSize
+  const transaction = props.editor.state.tr.insert(
+    insertPosition,
+    currentBlock.node.copy(currentBlock.node.content),
+  )
+  focusTransactionBlock(transaction, insertPosition)
+  props.editor.view.dispatch(transaction)
+  props.editor.commands.focus()
+  open.value = false
+  nextTick(updatePosition)
+}
+
+function moveBlock(direction) {
+  const currentBlock = getCurrentBlock()
+  if (!currentBlock) return
+
+  const { doc } = props.editor.state
+  const targetIndex = currentBlock.index + direction
+  if (targetIndex < 0 || targetIndex >= doc.childCount) return
+
+  const transaction = props.editor.state.tr
+  const currentEnd = currentBlock.position + currentBlock.node.nodeSize
+  let insertPosition
+
+  if (direction < 0) {
+    const previousNode = doc.child(targetIndex)
+    insertPosition = currentBlock.position - previousNode.nodeSize
+    transaction.delete(currentBlock.position, currentEnd)
+    transaction.insert(insertPosition, currentBlock.node)
+  } else {
+    const nextNode = doc.child(targetIndex)
+    insertPosition = currentBlock.position + nextNode.nodeSize
+    transaction.delete(currentBlock.position, currentEnd)
+    transaction.insert(insertPosition, currentBlock.node)
+  }
+
+  focusTransactionBlock(transaction, insertPosition)
+  props.editor.view.dispatch(transaction)
+  props.editor.commands.focus()
+  open.value = false
+  nextTick(updatePosition)
+}
+
+function deleteBlock() {
+  const currentBlock = getCurrentBlock()
+  if (!currentBlock) return
+
+  const transaction = props.editor.state.tr
+  const currentEnd = currentBlock.position + currentBlock.node.nodeSize
+  if (props.editor.state.doc.childCount === 1) {
+    const paragraph = props.editor.schema.nodes.paragraph.create()
+    transaction.replaceWith(currentBlock.position, currentEnd, paragraph)
+    focusTransactionBlock(transaction, currentBlock.position)
+  } else {
+    transaction.delete(currentBlock.position, currentEnd)
+    const nextPosition = Math.min(currentBlock.position, transaction.doc.content.size)
+    focusTransactionBlock(transaction, Math.max(0, nextPosition - 1))
+  }
+
+  props.editor.view.dispatch(transaction)
+  props.editor.commands.focus()
   open.value = false
   nextTick(updatePosition)
 }
@@ -283,6 +388,25 @@ onBeforeUnmount(() => {
   color: var(--primary-strong);
   font-weight: 700;
   text-align: right;
+}
+
+.block-menu-divider {
+  height: 1px;
+  margin: 8px 0;
+  background: var(--border-soft);
+}
+
+.block-menu-option:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.block-menu-option.danger {
+  color: var(--danger);
+}
+
+.block-menu-option.danger:hover {
+  background: var(--danger-hover);
 }
 
 @media (max-width: 760px) {
