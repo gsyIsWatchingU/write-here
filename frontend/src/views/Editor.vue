@@ -51,16 +51,24 @@
         <div class="editor-wrapper">
           <editor-content :editor="editor" class="editor-content" />
         </div>
-        <CommentPanel
-          v-if="commentsReady"
-          :doc-id="docId"
-          :owner-id="docOwnerId"
-          :focused-comment-id="route.query.comment"
-        />
       </div>
-      <div class="outline-panel">
-        <h3>文档大纲</h3>
-        <div class="outline-content">
+
+      <SelectionCommentButton
+        v-if="editor && commentsReady"
+        :editor="editor"
+        :enabled="Boolean(user)"
+        @comment="openSelectionComment"
+      />
+
+      <aside class="outline-panel side-panel" :class="{ 'mobile-open': sidePanelOpen }">
+        <div class="side-panel-tabs">
+          <button :class="{ active: activeSideTab === 'outline' }" @click="openSidePanel('outline')">大纲</button>
+          <button :class="{ active: activeSideTab === 'comments' }" @click="openSidePanel('comments')">
+            评论 <span v-if="commentCount">{{ commentCount }}</span>
+          </button>
+          <button class="side-panel-close" title="关闭侧栏" @click="sidePanelOpen = false">×</button>
+        </div>
+        <div v-show="activeSideTab === 'outline'" class="outline-content">
           <div v-if="outline.length === 0" class="empty-outline">
             暂无大纲内容
           </div>
@@ -72,7 +80,26 @@
             </li>
           </ul>
         </div>
-      </div>
+        <CommentPanel
+          v-if="commentsReady"
+          v-show="activeSideTab === 'comments'"
+          :doc-id="docId"
+          :owner-id="docOwnerId"
+          :focused-comment-id="route.query.comment"
+          :editor="editor"
+          :pending-anchor="pendingCommentAnchor"
+          :can-persist-anchors="canEdit"
+          :document-ready="contentReady"
+          @open="openSidePanel('comments')"
+          @anchor-created="pendingCommentAnchor = null"
+          @anchor-cancelled="pendingCommentAnchor = null"
+          @count-change="commentCount = $event"
+        />
+      </aside>
+
+      <button class="mobile-side-trigger" @click="openSidePanel(activeSideTab)">
+        大纲 / 评论<span v-if="commentCount"> · {{ commentCount }}</span>
+      </button>
     </div>
 
     <!-- 分享弹窗 -->
@@ -115,7 +142,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
@@ -145,6 +172,7 @@ import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import EditorToolbar from '../components/EditorToolbar.vue'
 import CommentPanel from '../components/CommentPanel.vue'
+import SelectionCommentButton from '../components/SelectionCommentButton.vue'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 import { normalizeImportedMarkdown } from '../utils/markdown'
 
@@ -166,7 +194,12 @@ const isOwner = ref(false)
 const canEdit = ref(false)
 const docOwnerId = ref(null)
 const commentsReady = ref(false)
+const contentReady = ref(false)
 const markdownFileInput = ref(null)
+const activeSideTab = ref(route.query.comment ? 'comments' : 'outline')
+const sidePanelOpen = ref(Boolean(route.query.comment))
+const pendingCommentAnchor = ref(null)
+const commentCount = ref(0)
 
 const lowlight = createLowlight(common)
 const markdownParser = new MarkdownIt({
@@ -288,6 +321,20 @@ function scrollToHeading(id) {
   }
 }
 
+function openSidePanel(tab) {
+  activeSideTab.value = tab
+  sidePanelOpen.value = true
+}
+
+function openSelectionComment(anchor) {
+  pendingCommentAnchor.value = anchor
+  openSidePanel('comments')
+}
+
+watch(() => route.query.comment, commentId => {
+  if (commentId) openSidePanel('comments')
+})
+
 // 加载文档
 onMounted(async () => {
   try {
@@ -323,6 +370,7 @@ onMounted(async () => {
         if (yXmlFragment.length === 0 && doc.content && editor.value) {
           editor.value.commands.setContent(doc.content)
         }
+        contentReady.value = true
         updateOutline()
       }
     }
@@ -350,6 +398,7 @@ async function updateVisibility() {
 
 onBeforeUnmount(() => {
   documentLoaded = false
+  contentReady.value = false
   if (saveTimer) clearTimeout(saveTimer)
   provider.awareness.off('change', updateCollabUsers)
   provider.destroy()
@@ -591,7 +640,7 @@ function copyLink() {
 }
 .editor-main {
   flex: 1;
-  padding: 24px 320px 24px 24px;
+  padding: 24px 400px 24px 24px;
   overflow-y: auto;
 }
 .file-input {
@@ -618,22 +667,46 @@ function copyLink() {
   padding: 40px 48px;
 }
 .outline-panel {
-  width: 280px;
+  width: 360px;
   background: #fff;
-  border-radius: 8px;
+  border-radius: 0;
   box-shadow: var(--shadow);
-  padding: 16px;
+  padding: 14px;
   position: fixed;
   right: 24px;
   top: 120px;
   bottom: 24px;
   overflow-y: auto;
 }
-.outline-panel h3 {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0 0 16px 0;
-  color: var(--text-primary);
+.side-panel-tabs {
+  position: sticky;
+  top: -14px;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: 1fr 1fr 34px;
+  margin: -14px -14px 14px;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
+}
+.side-panel-tabs button {
+  min-height: 42px;
+  padding: 8px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--border-soft);
+  border-radius: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+.side-panel-tabs button.active {
+  color: var(--text);
+  background: var(--primary);
+  font-weight: 700;
+}
+.side-panel-close,
+.mobile-side-trigger {
+  display: none;
 }
 .empty-outline {
   color: var(--text-muted);
@@ -709,4 +782,39 @@ function copyLink() {
 .share-options { margin-top: 12px; }
 .share-options label { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .share-options select { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); }
+@media (max-width: 760px) {
+  .outline-panel.side-panel {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 210;
+    width: 100%;
+    max-height: 72vh;
+    margin: 0;
+    padding: 14px;
+    transform: translateY(105%);
+    transition: transform .2s ease;
+    border-top: 2px solid var(--border);
+    box-shadow: 0 -5px 0 rgba(0, 0, 0, .12);
+  }
+  .outline-panel.side-panel.mobile-open { transform: translateY(0); }
+  .side-panel-close { display: block; }
+  .mobile-side-trigger {
+    position: fixed;
+    right: 12px;
+    bottom: 12px;
+    z-index: 150;
+    display: block;
+    min-height: 38px;
+    padding: 8px 12px;
+    color: var(--text);
+    background: var(--primary);
+    border: 2px solid var(--border);
+    border-radius: 0;
+    box-shadow: 3px 3px 0 var(--border);
+    font-family: inherit;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .outline-panel.side-panel { transition: none; }
+}
 </style>

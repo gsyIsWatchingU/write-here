@@ -126,8 +126,17 @@ export const api = {
   getDocComments: (docId, userId, shareToken = '') =>
     request(`/comments/doc/${docId}?userId=${userId || ''}&shareToken=${encodeURIComponent(shareToken)}`),
 
-  addComment: (docId, userId, content, parentId = null, shareToken = '') =>
-    request('/comments', { method: 'POST', body: JSON.stringify({ docId, userId, content, parentId, shareToken }) }),
+  addComment: (docId, userId, content, parentId = null, shareToken = '', anchor = null, replyToUserId = null) =>
+    request('/comments', {
+      method: 'POST',
+      body: JSON.stringify({ docId, userId, content, parentId, shareToken, anchor, replyToUserId }),
+    }),
+
+  updateCommentAnchors: (docId, userId, anchors, shareToken = '') =>
+    request('/comments/anchors', {
+      method: 'PUT',
+      body: JSON.stringify({ docId, userId, anchors, shareToken }),
+    }),
 
   deleteComment: (id, userId) =>
     request(`/comments/${id}?userId=${userId}`, { method: 'DELETE' }),

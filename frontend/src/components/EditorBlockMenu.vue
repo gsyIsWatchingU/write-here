@@ -101,7 +101,12 @@ function updatePosition() {
       return
     }
 
-    const { $from } = editor.state.selection
+    const { $from, empty } = editor.state.selection
+    if (!empty) {
+      visible.value = false
+      open.value = false
+      return
+    }
     if ($from.depth < 1) {
       visible.value = false
       return

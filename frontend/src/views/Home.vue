@@ -162,6 +162,7 @@
           <div class="notification-content">
             <span class="notification-type">{{ notificationTypeLabel(notification.type) }}</span>
             <p>{{ notification.message }}</p>
+            <blockquote v-if="notification.quoteText" class="notification-quote">{{ notification.quoteText }}</blockquote>
             <span class="notification-time">{{ formatTime(notification.createdAt) }}</span>
           </div>
           <button v-if="!notification.isRead" class="icon-btn small" title="标记已读" @click.stop="markAsRead(notification.id)">✓</button>
@@ -277,9 +278,10 @@ function setupWebSocket() {
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data)
     if (data.type === 'notification') {
-      // 收到新通知
+      const existingIndex = notifications.value.findIndex(item => Number(item.id) === Number(data.data.id))
+      if (existingIndex >= 0) notifications.value.splice(existingIndex, 1)
       notifications.value.unshift(data.data)
-      unreadCount.value++
+      unreadCount.value = notifications.value.filter(item => !item.isRead).length
       if (data.data?.type === 'collaboration_request') {
         collabUnreadCount.value++
       }
@@ -458,6 +460,7 @@ async function openNotification(notification) {
 function notificationTypeLabel(type) {
   return ({
     comment: '评论', reply: '回复', mention: '@提及', comment_like: '评论点赞',
+    comment_resolved: '评论已解决', comment_reopened: '评论重新打开',
     like: '文档点赞', collaboration_request: '协作申请', collaboration_response: '协作结果',
     collaboration_removed: '协作变更'
   })[type] || '系统'
@@ -640,6 +643,17 @@ async function respondToCollaboration(requestId, status) {
   margin: 0 0 4px 0;
   font-size: 14px;
   color: var(--text-primary);
+}
+.notification-quote {
+  max-height: 58px;
+  margin: 7px 0;
+  padding: 5px 8px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  background: var(--surface-hover);
+  border-left: 3px solid var(--primary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 .notification-type {
   display: inline-block;
