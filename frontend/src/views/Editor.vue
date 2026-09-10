@@ -317,7 +317,7 @@ onMounted(async () => {
     saveStatus.value = canEdit.value ? '已保存' : ''
 
     // 等待 Yjs 同步完成，如果文档为空则从服务器加载
-    provider.on('sync', (isSynced) => {
+    const handleProviderSync = (isSynced) => {
       if (isSynced) {
         const yXmlFragment = ydoc.getXmlFragment('default')
         if (yXmlFragment.length === 0 && doc.content && editor.value) {
@@ -325,7 +325,9 @@ onMounted(async () => {
         }
         updateOutline()
       }
-    })
+    }
+    provider.on('sync', handleProviderSync)
+    if (provider.synced) handleProviderSync(true)
 
     // Yjs 可能已先于接口完成同步，此处补一次差异检查。
     scheduleAutoSave()
