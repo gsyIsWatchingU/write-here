@@ -405,16 +405,20 @@ function focusThread(commentId, scrollText) {
 </script>
 
 <style scoped>
-.comments-section { width: 100%; }
+.comments-section { width: 100%; min-width: 0; }
 .comments-header, .composer-footer, .reply-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.comments-header { position: sticky; top: 0; z-index: 2; padding: 2px 0 12px; background: var(--bg); border-bottom: 1px solid var(--border-soft); }
+.comments-header { position: sticky; top: 0; z-index: 2; padding: 2px 2px 13px; background: var(--bg); border-bottom: 1px solid var(--border-soft); }
 .eyebrow { color: var(--text-muted); font-size: 10px; letter-spacing: .14em; }
 h2 { margin: 2px 0 0; font-size: 17px; } h2 span { color: var(--text-muted); font-weight: 400; }
 .resolved-toggle { display: flex; flex: none; gap: 6px; align-items: center; color: var(--text-secondary); font-size: 11px; white-space: nowrap; }
-.comment-composer { margin: 14px 0; padding: 10px; background: var(--surface-hover); border: 1px solid var(--border); }
-.comment-composer.anchored { border-left: 4px solid var(--primary); }
-textarea { width: 100%; resize: vertical; border: 0; background: transparent; line-height: 1.65; outline: none; }
-.composer-footer { margin-top: 7px; } .composer-footer span { color: var(--text-muted); font-size: 10px; }
+.resolved-toggle input { width: 14px; height: 14px; padding: 0; accent-color: var(--primary-strong); }
+.comment-composer { margin-top: 16px; padding: 12px; background: var(--bg-gray); border: 1px solid var(--border-soft); }
+.comment-composer:focus-within { border-color: var(--border); outline: 2px solid var(--primary); outline-offset: 2px; }
+.comment-composer.anchored { border-left: 3px solid var(--primary-strong); }
+textarea { width: 100%; min-height: 76px; padding: 2px 0; resize: vertical; border: 0; background: transparent; line-height: 1.65; outline: none; }
+.composer-footer { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--border-soft); }
+.composer-footer span { color: var(--text-muted); font-size: 10px; }
+.composer-footer .primary { min-height: 34px; padding: 6px 12px; }
 .selected-quote, .thread-quote { margin-bottom: 9px; }
 .selected-quote > span, .thread-quote > span { color: var(--primary-strong); font-size: 10px; }
 blockquote { max-height: 82px; margin: 5px 0; padding: 6px 9px; overflow: hidden; color: var(--text-secondary); background: var(--bg); border-left: 3px solid var(--primary); font-size: 12px; line-height: 1.55; }
@@ -428,7 +432,7 @@ blockquote { max-height: 82px; margin: 5px 0; padding: 6px 9px; overflow: hidden
 .reply-list { margin: 10px 0 0 18px; padding-left: 10px; border-left: 2px solid var(--primary); }
 .reply-composer { margin: 10px 0 0 18px; padding: 9px; background: var(--surface-hover); border: 1px solid var(--border); }
 .reply-actions { justify-content: flex-end; margin-top: 7px; }
-.comment-empty, .login-prompt { padding: 22px 12px; text-align: center; color: var(--text-muted); border: 1px dashed var(--border); }
-.login-prompt { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 14px 0; }
+.comment-empty { margin-top: 12px; padding: 26px 12px; text-align: center; color: var(--text-muted); border-top: 1px solid var(--border-soft); }
+.login-prompt { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 16px; padding: 16px 12px; color: var(--text-muted); background: var(--bg-gray); border: 1px solid var(--border-soft); }
 @media (max-width: 760px) { .reply-list, .reply-composer { margin-left: 8px; } }
 </style>

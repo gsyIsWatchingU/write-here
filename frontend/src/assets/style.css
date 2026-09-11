@@ -240,7 +240,7 @@ a {
   border-color: var(--border);
 }
 
-#app :is(.doc-card, .login-card, .notification-dropdown, .collab-requests-dropdown, .modal, .outline-panel, .comments-section),
+#app :is(.doc-card, .login-card, .notification-dropdown, .collab-requests-dropdown, .modal, .outline-panel),
 #app .editor-page .editor-content,
 #app .shared-page .editor-wrapper {
   background: var(--bg);
