@@ -105,6 +105,7 @@ import EditorToolbar from '../components/EditorToolbar.vue'
 import CommentPanel from '../components/CommentPanel.vue'
 import EditorSelectionMenu from '../components/EditorSelectionMenu.vue'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
+import { handleCodeBlockTab } from '../utils/codeBlockIndent.js'
 
 const route = useRoute()
 const token = route.params.token
@@ -150,6 +151,9 @@ const editor = useEditor({
     Superscript,
   ],
   editable: false,
+  editorProps: {
+    handleKeyDown: handleCodeBlockTab,
+  },
   onUpdate: updateOutline,
 })
 

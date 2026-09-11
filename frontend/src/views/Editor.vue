@@ -176,6 +176,7 @@ import CommentPanel from '../components/CommentPanel.vue'
 import EditorSelectionMenu from '../components/EditorSelectionMenu.vue'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 import { normalizeImportedMarkdown } from '../utils/markdown'
+import { handleCodeBlockTab } from '../utils/codeBlockIndent.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -273,6 +274,9 @@ const editor = useEditor({
     }),
   ],
   editable: false,
+  editorProps: {
+    handleKeyDown: handleCodeBlockTab,
+  },
   onCreate() {
     editorReady.value = true
     updateOutline()
