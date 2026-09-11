@@ -152,8 +152,8 @@ function formatTime(value) {
   return new Date(value).toLocaleString('zh-CN')
 }
 
-function logout() {
-  clearUser()
+async function logout() {
+  await clearUser()
   router.push('/login')
 }
 

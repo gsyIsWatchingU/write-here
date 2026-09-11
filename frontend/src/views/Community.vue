@@ -177,8 +177,8 @@ async function requestCollaboration(docId) {
   }
 }
 
-function handleLogout() {
-  clearUser()
+async function handleLogout() {
+  await clearUser()
   router.push('/login')
 }
 

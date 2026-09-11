@@ -3,8 +3,11 @@ const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const path = require('path');
 const http = require('http');
+const { createHash, randomBytes, timingSafeEqual } = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { authenticateSession, createProblemsRouter, migrateProblems } = require('./problems');
+
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 // y-websocket server utils
 const Y = require('yjs');
@@ -14,7 +17,8 @@ const { setupWSConnection } = require('y-websocket/bin/utils');
 const app = express();
 const port = Number(process.env.PORT) || 3210;
 const host = process.env.HOST || '0.0.0.0';
-const MIN_PASSWORD_LENGTH = 6;
+const SSO_CLIENT_ID = 'horizon-docs';
+const SESSION_COOKIE = 'horizon_session';
 
 // 中间件
 app.use(cors());
@@ -163,6 +167,19 @@ function initDatabase() {
             }
         });
 
+        for (const [column, type] of [
+            ['email', 'TEXT'],
+            ['ssoSubject', 'TEXT']
+        ]) {
+            db.run(`ALTER TABLE users ADD COLUMN ${column} ${type}`, (err) => {
+                if (err && !err.message.includes('duplicate column name')) {
+                    console.error(`迁移用户 ${column} 列失败:`, err.message);
+                }
+            });
+        }
+        db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL');
+        db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_sso_subject ON users(ssoSubject) WHERE ssoSubject IS NOT NULL');
+
         db.run(`ALTER TABLE docs ADD COLUMN userId INTEGER NOT NULL DEFAULT 0`, (err) => {
             if (err && !err.message.includes('duplicate column name')) {
                 console.error('迁移 userId 列失败:', err.message);
@@ -230,49 +247,151 @@ function initDatabase() {
 
 // ==================== 用户 API ====================
 
+function appendCookie(res, name, value, maxAge) {
+    const secure = String(process.env.PUBLIC_URL || '').startsWith('https://') ? '; Secure' : '';
+    res.append('Set-Cookie', `${name}=${encodeURIComponent(value)}; Max-Age=${maxAge}; Path=/; HttpOnly; SameSite=Lax${secure}`);
+}
+
+function clearCookie(res, name) {
+    appendCookie(res, name, '', 0);
+}
+
+function readCookie(req, name) {
+    const entry = (req.get('cookie') || '')
+        .split(';')
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(`${name}=`));
+    return entry ? decodeURIComponent(entry.split('=').slice(1).join('=')) : '';
+}
+
+function safeEqual(left, right) {
+    const a = Buffer.from(String(left || ''));
+    const b = Buffer.from(String(right || ''));
+    return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function createLocalSession(userId, res) {
+    const token = randomBytes(32).toString('base64url');
+    return new Promise((resolve, reject) => {
+        db.run(
+            "INSERT INTO sessions (token, userId, expiresAt) VALUES (?, ?, datetime('now', '+30 days'))",
+            [token, userId],
+            (error) => {
+                if (error) return reject(error);
+                appendCookie(res, SESSION_COOKIE, token, 30 * 24 * 60 * 60);
+                resolve(token);
+            }
+        );
+    });
+}
+
+function ssoConfig() {
+    const authBaseUrl = String(process.env.SSO_AUTH_BASE_URL || '').replace(/\/$/, '');
+    const publicUrl = String(process.env.PUBLIC_URL || '').replace(/\/$/, '');
+    if (!authBaseUrl || !publicUrl) return null;
+    return { authBaseUrl, redirectUri: `${publicUrl}/auth/sso/callback` };
+}
+
+app.get('/auth/sso/start', (req, res) => {
+    const config = ssoConfig();
+    if (!config) return res.status(503).json({ error: '统一登录尚未配置' });
+    const state = randomBytes(24).toString('base64url');
+    const verifier = randomBytes(32).toString('base64url');
+    const challenge = createHash('sha256').update(verifier).digest('base64url');
+    appendCookie(res, 'horizon_sso_state', state, 10 * 60);
+    appendCookie(res, 'horizon_sso_verifier', verifier, 10 * 60);
+    const authorize = new URL('/api/sso/authorize', config.authBaseUrl);
+    authorize.searchParams.set('client_id', SSO_CLIENT_ID);
+    authorize.searchParams.set('redirect_uri', config.redirectUri);
+    authorize.searchParams.set('state', state);
+    authorize.searchParams.set('code_challenge', challenge);
+    authorize.searchParams.set('code_challenge_method', 'S256');
+    res.redirect(authorize.toString());
+});
+
+app.get('/auth/sso/callback', async (req, res) => {
+    const config = ssoConfig();
+    const state = readCookie(req, 'horizon_sso_state');
+    const verifier = readCookie(req, 'horizon_sso_verifier');
+    clearCookie(res, 'horizon_sso_state');
+    clearCookie(res, 'horizon_sso_verifier');
+    if (!config || !state || !verifier || !safeEqual(state, req.query.state) || !req.query.code) {
+        return res.redirect('/login?error=sso');
+    }
+    try {
+        const response = await fetch(`${config.authBaseUrl}/api/sso/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                code: req.query.code,
+                clientId: SSO_CLIENT_ID,
+                redirectUri: config.redirectUri,
+                codeVerifier: verifier
+            })
+        });
+        if (!response.ok) throw new Error('授权码兑换失败');
+        const { user } = await response.json();
+        const localUser = await new Promise((resolve, reject) => {
+            db.get(
+                'SELECT id, username, email, ssoSubject, isAdmin FROM users WHERE ssoSubject = ? OR email = ? OR username = ? LIMIT 1',
+                [user.id, user.email, user.email],
+                (findError, row) => {
+                    if (findError) return reject(findError);
+                    if (row) {
+                        return db.run(
+                            'UPDATE users SET email = ?, ssoSubject = ? WHERE id = ?',
+                            [user.email, user.id, row.id],
+                            (updateError) => updateError ? reject(updateError) : resolve({ ...row, email: user.email, ssoSubject: user.id })
+                        );
+                    }
+                    db.run(
+                        'INSERT INTO users (username, password, email, ssoSubject) VALUES (?, ?, ?, ?)',
+                        [user.email, `sso:${uuidv4()}`, user.email, user.id],
+                        function(insertError) {
+                            if (insertError) return reject(insertError);
+                            resolve({ id: this.lastID, username: user.email, email: user.email, ssoSubject: user.id, isAdmin: 0 });
+                        }
+                    );
+                }
+            );
+        });
+        await createLocalSession(localUser.id, res);
+        res.redirect('/');
+    } catch (error) {
+        console.error('统一登录失败:', error.message);
+        res.redirect('/login?error=sso');
+    }
+});
+
+app.get('/auth/forgot-password', (req, res) => {
+    const config = ssoConfig();
+    if (!config) return res.status(503).json({ error: '统一登录尚未配置' });
+    res.redirect(`${config.authBaseUrl}/forgot-password`);
+});
+
+app.get('/me', async (req, res) => {
+    const user = await authenticateSession(db, req).catch(() => null);
+    if (!user) return res.status(401).json({ error: '登录已过期，请重新登录' });
+    res.json({ id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin });
+});
+
+app.post('/logout', async (req, res) => {
+    const token = readCookie(req, SESSION_COOKIE);
+    if (token) {
+        await new Promise((resolve) => db.run('DELETE FROM sessions WHERE token = ?', [token], resolve));
+    }
+    clearCookie(res, SESSION_COOKIE);
+    res.status(204).end();
+});
+
 // 用户注册
 app.post('/register', (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).json({ error: '用户名和密码不能为空' });
-    }
-    if (password.length < MIN_PASSWORD_LENGTH) {
-        return res.status(400).json({ error: `密码至少需要 ${MIN_PASSWORD_LENGTH} 位` });
-    }
-    db.run(
-        'INSERT INTO users (username, password) VALUES (?, ?)',
-        [username, password],
-        function(err) {
-            if (err) {
-                if (err.code === 'SQLITE_CONSTRAINT') {
-                    return res.status(400).json({ error: '用户名已存在' });
-                }
-                return res.status(500).json({ error: err.message });
-            }
-            res.json({ id: this.lastID, username });
-        }
-    );
+    res.status(410).json({ error: '请使用统一账号注册' });
 });
 
 // 用户登录
 app.post('/login', (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).json({ error: '用户名和密码不能为空' });
-    }
-    db.get('SELECT id, username, isAdmin FROM users WHERE username = ? AND password = ?', [username, password], (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
-        if (!row) return res.status(401).json({ error: '用户名或密码错误' });
-        const token = uuidv4();
-        db.run(
-            "INSERT INTO sessions (token, userId, expiresAt) VALUES (?, ?, datetime('now', '+30 days'))",
-            [token, row.id],
-            (sessionError) => {
-                if (sessionError) return res.status(500).json({ error: sessionError.message });
-                res.json({ ...row, token });
-            }
-        );
-    });
+    res.status(410).json({ error: '请使用统一账号登录' });
 });
 
 // ==================== 文档 API ====================

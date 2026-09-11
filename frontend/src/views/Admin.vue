@@ -82,8 +82,8 @@ function openDoc(id) {
   router.push(`/doc/${id}`)
 }
 
-function handleLogout() {
-  clearUser()
+async function handleLogout() {
+  await clearUser()
   router.push('/login')
 }
 

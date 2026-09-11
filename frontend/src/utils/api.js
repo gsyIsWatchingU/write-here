@@ -17,13 +17,18 @@ export function setUser(user) {
   localStorage.setItem('currentUser', JSON.stringify(user))
 }
 
-export function clearUser() {
-  localStorage.removeItem('currentUser')
+export async function clearUser() {
+  try {
+    await fetch(`${BASE}/logout`, { method: 'POST', credentials: 'include' })
+  } finally {
+    localStorage.removeItem('currentUser')
+  }
 }
 
 async function request(path, options = {}) {
   const token = getUser()?.token
   const res = await fetch(`${BASE}${path}`, {
+    credentials: 'include',
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
@@ -38,6 +43,8 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  me: () => request('/me'),
+
   register: (username, password) =>
     request('/register', { method: 'POST', body: JSON.stringify({ username, password }) }),
 

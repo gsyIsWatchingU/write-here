@@ -342,8 +342,8 @@ async function handleDelete(id) {
   }
 }
 
-function handleLogout() {
-  clearUser()
+async function handleLogout() {
+  await clearUser()
   router.push('/login')
 }
 

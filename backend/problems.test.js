@@ -26,7 +26,13 @@ test('题目发布生成版本快照，并校验会话与嵌入令牌', async (t
         fs.rmSync(dir, { recursive: true, force: true });
     });
     await exec(db, `
-        CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, isAdmin INTEGER DEFAULT 0);
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            username TEXT,
+            email TEXT,
+            ssoSubject TEXT,
+            isAdmin INTEGER DEFAULT 0
+        );
         CREATE TABLE docs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             userId INTEGER NOT NULL,
@@ -57,6 +63,11 @@ test('题目发布生成版本快照，并校验会话与嵌入令牌', async (t
 
     const unauthorized = await fetch(`${base}/problem-items`);
     assert.equal(unauthorized.status, 401);
+
+    const cookieAuthorized = await fetch(`${base}/problem-items`, {
+        headers: { cookie: 'horizon_session=session-1' }
+    });
+    assert.equal(cookieAuthorized.status, 200);
 
     const createdResponse = await fetch(`${base}/problem-items`, {
         method: 'POST',
