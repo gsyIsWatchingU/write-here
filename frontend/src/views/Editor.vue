@@ -53,10 +53,11 @@
         </div>
       </div>
 
-      <SelectionCommentButton
+      <EditorSelectionMenu
         v-if="editor && commentsReady"
         :editor="editor"
-        :enabled="Boolean(user)"
+        :can-edit="canEdit"
+        :can-comment="Boolean(user)"
         @comment="openSelectionComment"
       />
 
@@ -172,7 +173,7 @@ import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import EditorToolbar from '../components/EditorToolbar.vue'
 import CommentPanel from '../components/CommentPanel.vue'
-import SelectionCommentButton from '../components/SelectionCommentButton.vue'
+import EditorSelectionMenu from '../components/EditorSelectionMenu.vue'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 import { normalizeImportedMarkdown } from '../utils/markdown'
 

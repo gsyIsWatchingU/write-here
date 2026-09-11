@@ -43,23 +43,13 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { BLOCK_OPTIONS, convertBlock as applyBlockConversion, getCurrentBlockType } from '../utils/editorBlocks'
 
 const props = defineProps({
   editor: { type: Object, required: true },
 })
 
-const blockOptions = [
-  { type: 'paragraph', label: '正文', icon: '¶' },
-  { type: 'heading-1', label: '标题 1', icon: 'H1' },
-  { type: 'heading-2', label: '标题 2', icon: 'H2' },
-  { type: 'heading-3', label: '标题 3', icon: 'H3' },
-  { type: 'heading-4', label: '标题 4', icon: 'H4' },
-  { type: 'bullet-list', label: '项目符号列表', icon: '•' },
-  { type: 'ordered-list', label: '编号列表', icon: '1.' },
-  { type: 'task-list', label: '待办事项', icon: '☑' },
-  { type: 'blockquote', label: '引用', icon: '❞' },
-  { type: 'code-block', label: '代码块', icon: '</>' },
-]
+const blockOptions = BLOCK_OPTIONS
 
 const menuRoot = ref(null)
 const visible = ref(false)
@@ -77,18 +67,6 @@ const positionStyle = computed(() => ({
 const currentBlockLabel = computed(() => (
   blockOptions.find((option) => option.type === currentBlockType.value)?.label || '正文'
 ))
-
-function getCurrentBlockType() {
-  for (let level = 1; level <= 4; level += 1) {
-    if (props.editor.isActive('heading', { level })) return `heading-${level}`
-  }
-  if (props.editor.isActive('taskList')) return 'task-list'
-  if (props.editor.isActive('bulletList')) return 'bullet-list'
-  if (props.editor.isActive('orderedList')) return 'ordered-list'
-  if (props.editor.isActive('blockquote')) return 'blockquote'
-  if (props.editor.isActive('codeBlock')) return 'code-block'
-  return 'paragraph'
-}
 
 function updatePosition() {
   if (animationFrame) cancelAnimationFrame(animationFrame)
@@ -122,42 +100,14 @@ function updatePosition() {
     const blockRect = blockElement.getBoundingClientRect()
     top.value = blockRect.top + 2
     left.value = Math.max(4, blockRect.left - 38)
-    currentBlockType.value = getCurrentBlockType()
+    currentBlockType.value = getCurrentBlockType(props.editor)
     visible.value = true
   })
 }
 
-function unwrapCurrentList(chain) {
-  if (props.editor.isActive('taskList')) chain.toggleTaskList()
-  else if (props.editor.isActive('bulletList')) chain.toggleBulletList()
-  else if (props.editor.isActive('orderedList')) chain.toggleOrderedList()
-  return chain
-}
-
 function convertBlock(type) {
-  let chain = props.editor.chain().focus()
-
-  if (type === 'paragraph') {
-    chain = unwrapCurrentList(chain)
-    chain.setParagraph().run()
-  } else if (type.startsWith('heading-')) {
-    chain = unwrapCurrentList(chain)
-    chain.setHeading({ level: Number(type.split('-')[1]) }).run()
-  } else if (type === 'bullet-list') {
-    if (!props.editor.isActive('bulletList')) chain.toggleBulletList().run()
-  } else if (type === 'ordered-list') {
-    if (!props.editor.isActive('orderedList')) chain.toggleOrderedList().run()
-  } else if (type === 'task-list') {
-    if (!props.editor.isActive('taskList')) chain.toggleTaskList().run()
-  } else if (type === 'blockquote') {
-    chain = unwrapCurrentList(chain)
-    if (!props.editor.isActive('blockquote')) chain.toggleBlockquote().run()
-  } else if (type === 'code-block') {
-    chain = unwrapCurrentList(chain)
-    chain.setCodeBlock().run()
-  }
-
-  currentBlockType.value = getCurrentBlockType()
+  applyBlockConversion(props.editor, type)
+  currentBlockType.value = getCurrentBlockType(props.editor)
   open.value = false
   nextTick(updatePosition)
 }

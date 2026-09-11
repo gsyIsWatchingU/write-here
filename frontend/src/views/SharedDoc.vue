@@ -22,10 +22,11 @@
           <editor-content :editor="editor" class="editor-content" />
         </div>
 
-        <SelectionCommentButton
+        <EditorSelectionMenu
           v-if="editor && docId"
           :editor="editor"
-          :enabled="Boolean(user)"
+          :can-edit="permission === 'edit'"
+          :can-comment="Boolean(user)"
           @comment="openSelectionComment"
         />
 
@@ -102,7 +103,7 @@ import { WebsocketProvider } from 'y-websocket'
 import { ySyncPlugin, yCursorPlugin, yUndoPlugin } from 'y-prosemirror'
 import EditorToolbar from '../components/EditorToolbar.vue'
 import CommentPanel from '../components/CommentPanel.vue'
-import SelectionCommentButton from '../components/SelectionCommentButton.vue'
+import EditorSelectionMenu from '../components/EditorSelectionMenu.vue'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 
 const route = useRoute()
