@@ -5,6 +5,8 @@
       ref="menuRoot"
       class="block-menu"
       :style="positionStyle"
+      @mouseenter="setHovered(true)"
+      @mouseleave="setHovered(false)"
     >
       <button
         class="block-menu-trigger"
@@ -13,7 +15,9 @@
         aria-label="打开当前块操作"
         title="当前块操作"
         @mousedown.prevent
-        @click.stop="open = !open"
+        @focus="setHovered(true)"
+        @blur="setHovered(false)"
+        @click.stop="toggleMenu"
       >
         <span aria-hidden="true">⋮⋮</span>
       </button>
@@ -57,7 +61,9 @@ const open = ref(false)
 const top = ref(0)
 const left = ref(0)
 const currentBlockType = ref('paragraph')
+const hovered = ref(false)
 let animationFrame = null
+let targetBlockElement = null
 
 const positionStyle = computed(() => ({
   top: `${top.value}px`,
@@ -68,38 +74,85 @@ const currentBlockLabel = computed(() => (
   blockOptions.find((option) => option.type === currentBlockType.value)?.label || '正文'
 ))
 
+function syncTargetHighlight() {
+  targetBlockElement?.classList.toggle('block-conversion-target', hovered.value || open.value)
+}
+
+function setTargetBlockElement(element) {
+  if (targetBlockElement === element) {
+    syncTargetHighlight()
+    return
+  }
+
+  targetBlockElement?.classList.remove('block-conversion-target')
+  targetBlockElement = element
+  syncTargetHighlight()
+}
+
+function setHovered(value) {
+  hovered.value = value
+  syncTargetHighlight()
+}
+
+function setOpen(value) {
+  open.value = value
+  syncTargetHighlight()
+}
+
+function toggleMenu() {
+  setOpen(!open.value)
+}
+
+function hideMenu() {
+  visible.value = false
+  hovered.value = false
+  setOpen(false)
+  setTargetBlockElement(null)
+}
+
+function getTargetTextBlock(editor, $from) {
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    if (!$from.node(depth).isTextblock) continue
+
+    const element = editor.view.nodeDOM($from.before(depth))
+    if (element instanceof HTMLElement) return element
+  }
+
+  return null
+}
+
 function updatePosition() {
   if (animationFrame) cancelAnimationFrame(animationFrame)
   animationFrame = requestAnimationFrame(() => {
     animationFrame = null
     const editor = props.editor
     if (!editor?.view || editor.isDestroyed || !editor.isFocused || !editor.isEditable) {
-      visible.value = false
-      open.value = false
+      hideMenu()
       return
     }
 
     const { $from, empty } = editor.state.selection
     if (!empty) {
-      visible.value = false
-      open.value = false
+      hideMenu()
       return
     }
     if ($from.depth < 1) {
-      visible.value = false
+      hideMenu()
       return
     }
 
-    const blockPosition = $from.before(1)
-    const blockElement = editor.view.nodeDOM(blockPosition)
+    const blockElement = getTargetTextBlock(editor, $from)
     if (!(blockElement instanceof HTMLElement)) {
-      visible.value = false
+      hideMenu()
       return
     }
 
     const blockRect = blockElement.getBoundingClientRect()
-    top.value = blockRect.top + 2
+    const cursorRect = editor.view.coordsAtPos($from.pos)
+    const cursorHeight = Math.max(1, cursorRect.bottom - cursorRect.top)
+    top.value = cursorRect.top + ((cursorHeight - 30) / 2)
     left.value = Math.max(4, blockRect.left - 38)
+    setTargetBlockElement(blockElement)
     currentBlockType.value = getCurrentBlockType(props.editor)
     visible.value = true
   })
@@ -108,19 +161,22 @@ function updatePosition() {
 function convertBlock(type) {
   applyBlockConversion(props.editor, type)
   currentBlockType.value = getCurrentBlockType(props.editor)
-  open.value = false
+  hovered.value = false
+  setOpen(false)
   nextTick(updatePosition)
 }
 
 function handleDocumentClick(event) {
-  if (!menuRoot.value?.contains(event.target)) open.value = false
+  if (!menuRoot.value?.contains(event.target)) {
+    hovered.value = false
+    setOpen(false)
+  }
 }
 
 function handleBlur() {
   requestAnimationFrame(() => {
     if (!menuRoot.value?.contains(document.activeElement)) {
-      visible.value = false
-      open.value = false
+      hideMenu()
     }
   })
 }
@@ -138,6 +194,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (animationFrame) cancelAnimationFrame(animationFrame)
+  setTargetBlockElement(null)
   props.editor.off('selectionUpdate', updatePosition)
   props.editor.off('focus', updatePosition)
   props.editor.off('transaction', updatePosition)
@@ -235,6 +292,13 @@ onBeforeUnmount(() => {
   text-align: right;
 }
 
+:global(#app .editor-content .block-conversion-target) {
+  background: rgb(151 179 155 / 24%) !important;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  transition: background-color 80ms steps(2, end), outline-color 80ms steps(2, end);
+}
+
 @media (max-width: 760px) {
   .block-menu-panel {
     left: -2px;
@@ -244,7 +308,8 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .block-menu-trigger,
-  .block-menu-option {
+  .block-menu-option,
+  :global(#app .editor-content .block-conversion-target) {
     transition: none;
   }
 }
