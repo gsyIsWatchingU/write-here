@@ -62,6 +62,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, clearUser, getUser } from '../utils/api'
+import { formatServerDateTime } from '../utils/dateTime'
 
 const router = useRouter()
 const user = ref(getUser())
@@ -149,7 +150,7 @@ function stripHtml(html) {
 }
 
 function formatTime(value) {
-  return new Date(value).toLocaleString('zh-CN')
+  return formatServerDateTime(value)
 }
 
 async function logout() {

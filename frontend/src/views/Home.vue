@@ -201,6 +201,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api, getUser, clearUser, getWebSocketUrl } from '../utils/api'
+import { formatServerDateTime } from '../utils/dateTime'
 
 const router = useRouter()
 const route = useRoute()
@@ -393,8 +394,7 @@ function stripHtml(html) {
 }
 
 function formatTime(t) {
-  if (!t) return ''
-  return new Date(t).toLocaleString('zh-CN')
+  return formatServerDateTime(t)
 }
 
 // 通知相关函数
