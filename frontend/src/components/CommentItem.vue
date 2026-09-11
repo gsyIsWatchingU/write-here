@@ -24,6 +24,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { formatServerDateTime } from '../utils/dateTime'
 
 const props = defineProps({
   comment: { type: Object, required: true },
@@ -40,8 +41,7 @@ const canRemove = computed(() => props.currentUserId && (
 ))
 
 function formatTime(value) {
-  if (!value) return ''
-  return new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return formatServerDateTime(value, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 </script>
 
