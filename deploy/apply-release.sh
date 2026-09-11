@@ -30,9 +30,18 @@ validate_path() {
   fi
 
   case "$relative_path" in
-    db|db/*|logs|logs/*|run|run/*|.env|.env.*|node_modules|node_modules/*|*/node_modules|*/node_modules/*)
+    db|db/*|logs|logs/*|run|run/*|node_modules|node_modules/*|*/node_modules|*/node_modules/*)
       echo "发布清单包含受保护路径：$relative_path" >&2
       exit 1
+      ;;
+  esac
+
+  case "$relative_path" in
+    .env|.env.*|*/.env|*/.env.*)
+      if [[ "$relative_path" != *.example ]]; then
+        echo "发布清单包含环境变量文件：$relative_path" >&2
+        exit 1
+      fi
       ;;
   esac
 }
