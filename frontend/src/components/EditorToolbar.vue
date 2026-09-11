@@ -29,6 +29,12 @@
         <option value="3">标题 3</option>
         <option value="4">标题 4</option>
       </select>
+      <button
+        class="icon-btn markdown-heading-btn"
+        type="button"
+        title="将全文中的 #～###### 转换为标题"
+        @click="recognizeMarkdownHeadings"
+      >{{ markdownHeadingLabel }}</button>
     </div>
 
     <span class="toolbar-divider"></span>
@@ -80,12 +86,16 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import EditorBlockMenu from './EditorBlockMenu.vue'
+import { convertMarkdownHeadings } from '../utils/markdownHeadings'
 
 const props = defineProps({
   editor: { type: Object, required: true }
 })
+
+const markdownHeadingLabel = ref('识别 MD 标题')
+let labelTimer = null
 
 const currentHeading = computed(() => {
   for (let i = 1; i <= 4; i++) {
@@ -102,6 +112,20 @@ function setHeading(e) {
     props.editor.chain().focus().toggleHeading({ level }).run()
   }
 }
+
+function recognizeMarkdownHeadings() {
+  const count = convertMarkdownHeadings(props.editor)
+  markdownHeadingLabel.value = count > 0 ? `已转换 ${count} 个` : '未发现标题'
+  if (labelTimer) clearTimeout(labelTimer)
+  labelTimer = setTimeout(() => {
+    markdownHeadingLabel.value = '识别 MD 标题'
+    labelTimer = null
+  }, 1800)
+}
+
+onBeforeUnmount(() => {
+  if (labelTimer) clearTimeout(labelTimer)
+})
 
 function insertTable() {
   props.editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
@@ -154,6 +178,12 @@ function setLink() {
   font-size: 13px;
   outline: none;
   background: #fff;
+}
+.markdown-heading-btn {
+  width: auto;
+  min-width: 92px;
+  padding-inline: 8px;
+  white-space: nowrap;
 }
 button:disabled {
   opacity: 0.3;
