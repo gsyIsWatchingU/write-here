@@ -47,6 +47,8 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { BLOCK_OPTIONS, convertBlock as applyBlockConversion, getCurrentBlockType } from '../utils/editorBlocks'
 
 const props = defineProps({
@@ -63,7 +65,36 @@ const left = ref(0)
 const currentBlockType = ref('paragraph')
 const hovered = ref(false)
 let animationFrame = null
-let targetBlockElement = null
+let targetBlockRange = null
+let highlightedRangeKey = ''
+
+const blockHighlightPluginKey = new PluginKey('blockConversionHighlight')
+const blockHighlightPlugin = new Plugin({
+  key: blockHighlightPluginKey,
+  state: {
+    init: () => DecorationSet.empty,
+    apply(transaction, decorations) {
+      const targetRange = transaction.getMeta(blockHighlightPluginKey)
+      if (targetRange === undefined) return decorations.map(transaction.mapping, transaction.doc)
+      if (!targetRange) return DecorationSet.empty
+
+      const node = transaction.doc.nodeAt(targetRange.from)
+      if (!node || targetRange.to !== targetRange.from + node.nodeSize) return DecorationSet.empty
+
+      return DecorationSet.create(transaction.doc, [
+        Decoration.node(targetRange.from, targetRange.to, {
+          class: 'block-conversion-target',
+          'data-block-conversion-target': 'true',
+        }),
+      ])
+    },
+  },
+  props: {
+    decorations(state) {
+      return blockHighlightPluginKey.getState(state)
+    },
+  },
+})
 
 const positionStyle = computed(() => ({
   top: `${top.value}px`,
@@ -75,17 +106,26 @@ const currentBlockLabel = computed(() => (
 ))
 
 function syncTargetHighlight() {
-  targetBlockElement?.classList.toggle('block-conversion-target', hovered.value || open.value)
+  const targetRange = hovered.value || open.value ? targetBlockRange : null
+  const nextRangeKey = targetRange ? `${targetRange.from}:${targetRange.to}` : ''
+  if (nextRangeKey === highlightedRangeKey) return
+
+  highlightedRangeKey = nextRangeKey
+  const editor = props.editor
+  if (!editor?.view || editor.isDestroyed) return
+  editor.view.dispatch(editor.state.tr.setMeta(blockHighlightPluginKey, targetRange))
 }
 
-function setTargetBlockElement(element) {
-  if (targetBlockElement === element) {
+function setTargetBlockRange(range) {
+  if (
+    targetBlockRange?.from === range?.from
+    && targetBlockRange?.to === range?.to
+  ) {
     syncTargetHighlight()
     return
   }
 
-  targetBlockElement?.classList.remove('block-conversion-target')
-  targetBlockElement = element
+  targetBlockRange = range
   syncTargetHighlight()
 }
 
@@ -107,15 +147,19 @@ function hideMenu() {
   visible.value = false
   hovered.value = false
   setOpen(false)
-  setTargetBlockElement(null)
+  setTargetBlockRange(null)
 }
 
 function getTargetTextBlock(editor, $from) {
   for (let depth = $from.depth; depth > 0; depth -= 1) {
-    if (!$from.node(depth).isTextblock) continue
+    const node = $from.node(depth)
+    if (!node.isTextblock) continue
 
-    const element = editor.view.nodeDOM($from.before(depth))
-    if (element instanceof HTMLElement) return element
+    const from = $from.before(depth)
+    const element = editor.view.nodeDOM(from)
+    if (element instanceof HTMLElement) {
+      return { element, from, to: from + node.nodeSize }
+    }
   }
 
   return null
@@ -141,18 +185,18 @@ function updatePosition() {
       return
     }
 
-    const blockElement = getTargetTextBlock(editor, $from)
-    if (!(blockElement instanceof HTMLElement)) {
+    const targetBlock = getTargetTextBlock(editor, $from)
+    if (!targetBlock) {
       hideMenu()
       return
     }
 
-    const blockRect = blockElement.getBoundingClientRect()
+    const blockRect = targetBlock.element.getBoundingClientRect()
     const cursorRect = editor.view.coordsAtPos($from.pos)
     const cursorHeight = Math.max(1, cursorRect.bottom - cursorRect.top)
     top.value = cursorRect.top + ((cursorHeight - 30) / 2)
     left.value = Math.max(4, blockRect.left - 38)
-    setTargetBlockElement(blockElement)
+    setTargetBlockRange({ from: targetBlock.from, to: targetBlock.to })
     currentBlockType.value = getCurrentBlockType(props.editor)
     visible.value = true
   })
@@ -182,6 +226,7 @@ function handleBlur() {
 }
 
 onMounted(() => {
+  props.editor.registerPlugin(blockHighlightPlugin)
   props.editor.on('selectionUpdate', updatePosition)
   props.editor.on('focus', updatePosition)
   props.editor.on('transaction', updatePosition)
@@ -194,7 +239,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (animationFrame) cancelAnimationFrame(animationFrame)
-  setTargetBlockElement(null)
+  setTargetBlockRange(null)
   props.editor.off('selectionUpdate', updatePosition)
   props.editor.off('focus', updatePosition)
   props.editor.off('transaction', updatePosition)
@@ -202,6 +247,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick)
   window.removeEventListener('resize', updatePosition)
   window.removeEventListener('scroll', updatePosition, true)
+  if (!props.editor.isDestroyed) props.editor.unregisterPlugin(blockHighlightPluginKey)
 })
 </script>
 
@@ -293,8 +339,8 @@ onBeforeUnmount(() => {
 }
 
 :global(#app .editor-content .block-conversion-target) {
-  background: rgb(151 179 155 / 24%) !important;
-  outline: 2px solid var(--primary);
+  background: var(--primary-hover) !important;
+  outline: 2px solid var(--primary-strong);
   outline-offset: 2px;
   transition: background-color 80ms steps(2, end), outline-color 80ms steps(2, end);
 }
