@@ -31,6 +31,7 @@ test('题目发布生成版本快照，并校验会话与嵌入令牌', async (t
             username TEXT,
             email TEXT,
             ssoSubject TEXT,
+            displayName TEXT,
             isAdmin INTEGER DEFAULT 0
         );
         CREATE TABLE docs (
