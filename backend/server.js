@@ -169,7 +169,8 @@ function initDatabase() {
 
         for (const [column, type] of [
             ['email', 'TEXT'],
-            ['ssoSubject', 'TEXT']
+            ['ssoSubject', 'TEXT'],
+            ['displayName', 'TEXT']
         ]) {
             db.run(`ALTER TABLE users ADD COLUMN ${column} ${type}`, (err) => {
                 if (err && !err.message.includes('duplicate column name')) {
@@ -292,6 +293,110 @@ function ssoConfig() {
     return { authBaseUrl, redirectUri: `${publicUrl}/auth/sso/callback` };
 }
 
+function accountBaseUrl() {
+    return String(process.env.SSO_AUTH_BASE_URL || '').replace(/\/$/, '');
+}
+
+async function requestUnifiedAccount(pathname, payload) {
+    const baseUrl = accountBaseUrl();
+    if (!baseUrl) throw Object.assign(new Error('统一账号服务尚未配置'), { statusCode: 503 });
+    const response = await fetch(`${baseUrl}/api/sso/${pathname}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: SSO_CLIENT_ID, ...payload })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw Object.assign(new Error(data.error || '统一账号服务请求失败'), { statusCode: response.status });
+    }
+    return data;
+}
+
+function upsertLocalAccountUser(user) {
+    const displayName = String(user.name || user.email.split('@')[0]).trim().slice(0, 40);
+    return new Promise((resolve, reject) => {
+        db.get(
+            'SELECT id, username, email, ssoSubject, displayName, isAdmin FROM users WHERE ssoSubject = ? OR email = ? OR username = ? LIMIT 1',
+            [user.id, user.email, user.email],
+            (findError, row) => {
+                if (findError) return reject(findError);
+                if (row) {
+                    return db.run(
+                        'UPDATE users SET email = ?, ssoSubject = ?, displayName = ? WHERE id = ?',
+                        [user.email, user.id, displayName, row.id],
+                        (updateError) => updateError
+                            ? reject(updateError)
+                            : resolve({ ...row, email: user.email, ssoSubject: user.id, displayName })
+                    );
+                }
+                db.run(
+                    'INSERT INTO users (username, password, email, ssoSubject, displayName) VALUES (?, ?, ?, ?, ?)',
+                    [user.email, `sso:${uuidv4()}`, user.email, user.id, displayName],
+                    function(insertError) {
+                        if (insertError) return reject(insertError);
+                        resolve({
+                            id: this.lastID,
+                            username: user.email,
+                            email: user.email,
+                            ssoSubject: user.id,
+                            displayName,
+                            isAdmin: 0
+                        });
+                    }
+                );
+            }
+        );
+    });
+}
+
+function localUserResponse(user) {
+    return {
+        id: user.id,
+        username: user.displayName || user.username,
+        email: user.email,
+        isAdmin: user.isAdmin
+    };
+}
+
+app.post('/auth/register-code', async (req, res) => {
+    try {
+        const data = await requestUnifiedAccount('register-code', { email: req.body.email });
+        res.json(data);
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ error: error.message });
+    }
+});
+
+app.post('/auth/register', async (req, res) => {
+    try {
+        const { user } = await requestUnifiedAccount('register', {
+            email: req.body.email,
+            password: req.body.password,
+            code: req.body.code,
+            name: req.body.name || undefined
+        });
+        const localUser = await upsertLocalAccountUser(user);
+        await createLocalSession(localUser.id, res);
+        res.status(201).json(localUserResponse(localUser));
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ error: error.message });
+    }
+});
+
+app.post('/auth/login', async (req, res) => {
+    try {
+        const { user } = await requestUnifiedAccount('login', {
+            email: req.body.email,
+            password: req.body.password
+        });
+        const localUser = await upsertLocalAccountUser(user);
+        await createLocalSession(localUser.id, res);
+        res.json(localUserResponse(localUser));
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ error: error.message });
+    }
+});
+
 app.get('/auth/sso/start', (req, res) => {
     const config = ssoConfig();
     if (!config) return res.status(503).json({ error: '统一登录尚未配置' });
@@ -331,30 +436,7 @@ app.get('/auth/sso/callback', async (req, res) => {
         });
         if (!response.ok) throw new Error('授权码兑换失败');
         const { user } = await response.json();
-        const localUser = await new Promise((resolve, reject) => {
-            db.get(
-                'SELECT id, username, email, ssoSubject, isAdmin FROM users WHERE ssoSubject = ? OR email = ? OR username = ? LIMIT 1',
-                [user.id, user.email, user.email],
-                (findError, row) => {
-                    if (findError) return reject(findError);
-                    if (row) {
-                        return db.run(
-                            'UPDATE users SET email = ?, ssoSubject = ? WHERE id = ?',
-                            [user.email, user.id, row.id],
-                            (updateError) => updateError ? reject(updateError) : resolve({ ...row, email: user.email, ssoSubject: user.id })
-                        );
-                    }
-                    db.run(
-                        'INSERT INTO users (username, password, email, ssoSubject) VALUES (?, ?, ?, ?)',
-                        [user.email, `sso:${uuidv4()}`, user.email, user.id],
-                        function(insertError) {
-                            if (insertError) return reject(insertError);
-                            resolve({ id: this.lastID, username: user.email, email: user.email, ssoSubject: user.id, isAdmin: 0 });
-                        }
-                    );
-                }
-            );
-        });
+        const localUser = await upsertLocalAccountUser(user);
         await createLocalSession(localUser.id, res);
         res.redirect('/');
     } catch (error) {
@@ -364,15 +446,15 @@ app.get('/auth/sso/callback', async (req, res) => {
 });
 
 app.get('/auth/forgot-password', (req, res) => {
-    const config = ssoConfig();
-    if (!config) return res.status(503).json({ error: '统一登录尚未配置' });
-    res.redirect(`${config.authBaseUrl}/forgot-password`);
+    const baseUrl = accountBaseUrl();
+    if (!baseUrl) return res.status(503).json({ error: '统一账号服务尚未配置' });
+    res.redirect(`${baseUrl}/forgot-password`);
 });
 
 app.get('/me', async (req, res) => {
     const user = await authenticateSession(db, req).catch(() => null);
     if (!user) return res.status(401).json({ error: '登录已过期，请重新登录' });
-    res.json({ id: user.id, username: user.username, email: user.email, isAdmin: user.isAdmin });
+    res.json(localUserResponse(user));
 });
 
 app.post('/logout', async (req, res) => {
@@ -592,7 +674,7 @@ app.get('/admin/docs', (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!user || user.isAdmin !== 1) return res.status(403).json({ error: '无管理员权限' });
         
-        db.all('SELECT docs.*, users.username FROM docs JOIN users ON docs.userId = users.id ORDER BY docs.updatedAt DESC', (err, rows) => {
+        db.all('SELECT docs.*, COALESCE(users.displayName, users.username) AS username FROM docs JOIN users ON docs.userId = users.id ORDER BY docs.updatedAt DESC', (err, rows) => {
             if (err) return res.status(500).json({ error: err.message });
             res.json(rows);
         });
@@ -613,7 +695,7 @@ app.get('/community/docs', (req, res) => {
     }
     
     db.all(`
-        SELECT docs.*, users.username 
+        SELECT docs.*, COALESCE(users.displayName, users.username) AS username
         FROM docs 
         JOIN users ON docs.userId = users.id 
         WHERE docs.visibility = 'public' 
@@ -677,7 +759,7 @@ app.post('/docs/:id/like', (req, res) => {
                             if (err) return res.status(500).json({ error: err.message });
                             // 发送通知给作者
                             if (doc.userId !== parseInt(userId)) {
-                                db.get('SELECT username FROM users WHERE id = ?', [userId], (userErr, actor) => {
+                                db.get('SELECT COALESCE(displayName, username) AS username FROM users WHERE id = ?', [userId], (userErr, actor) => {
                                     if (!userErr && actor) createNotification({
                                         userId: doc.userId,
                                         type: 'like',
@@ -818,7 +900,7 @@ app.get('/collaborations/mydocs', (req, res) => {
         `
         SELECT 
             docs.*,
-            users.username,
+            COALESCE(users.displayName, users.username) AS username,
             collaborations.id as collaborationId,
             collaborations.createdAt as collaborationCreatedAt,
             collaborations.updatedAt as collaborationUpdatedAt
@@ -843,7 +925,7 @@ app.get('/collaborations/requests', (req, res) => {
     if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
 
     db.all(`
-        SELECT collaborations.*, docs.title, users.username 
+        SELECT collaborations.*, docs.title, COALESCE(users.displayName, users.username) AS username
         FROM collaborations 
         JOIN docs ON collaborations.docId = docs.id 
         JOIN users ON collaborations.userId = users.id 
@@ -918,7 +1000,7 @@ app.get('/collaborations/doc/:docId', (req, res) => {
         if (!doc) return res.status(404).json({ error: '文档不存在或无权限' });
 
         db.all(`
-            SELECT collaborations.*, users.username 
+            SELECT collaborations.*, COALESCE(users.displayName, users.username) AS username
             FROM collaborations 
             JOIN users ON collaborations.userId = users.id 
             WHERE collaborations.docId = ? AND collaborations.status = 'approved' 
@@ -1195,7 +1277,7 @@ app.get('/comments/doc/:docId', (req, res) => {
         if (!allowed) return res.status(403).json({ error: '无权限查看评论' });
 
         db.all(`
-            SELECT comments.*, users.username,
+            SELECT comments.*, COALESCE(users.displayName, users.username) AS username,
                    COUNT(comment_likes.id) AS likeCount,
                    MAX(CASE WHEN comment_likes.userId = ? THEN 1 ELSE 0 END) AS liked
             FROM comments
@@ -1241,7 +1323,7 @@ app.post('/comments', (req, res) => {
         if (!doc) return res.status(404).json({ error: '文档不存在' });
         if (!allowed) return res.status(403).json({ error: '无权限评论此文档' });
 
-        db.get('SELECT id, username FROM users WHERE id = ?', [userId], (userErr, actor) => {
+        db.get('SELECT id, COALESCE(displayName, username) AS username FROM users WHERE id = ?', [userId], (userErr, actor) => {
             if (userErr) return res.status(500).json({ error: userErr.message });
             if (!actor) return res.status(404).json({ error: '用户不存在' });
 
@@ -1291,7 +1373,7 @@ app.post('/comments', (req, res) => {
                         });
 
                         db.get(`
-                            SELECT comments.*, users.username, 0 AS likeCount, 0 AS liked
+                            SELECT comments.*, COALESCE(users.displayName, users.username) AS username, 0 AS likeCount, 0 AS liked
                             FROM comments
                             JOIN users ON comments.userId = users.id
                             WHERE comments.id = ?
@@ -1435,7 +1517,7 @@ app.post('/comments/:id/like', (req, res) => {
 
     db.get(`
         SELECT comments.id, comments.docId, comments.userId AS authorId,
-               users.id AS actorId, users.username AS actorName, docs.title,
+               users.id AS actorId, COALESCE(users.displayName, users.username) AS actorName, docs.title,
                root.quoteText
         FROM comments
         JOIN docs ON comments.docId = docs.id
@@ -1499,7 +1581,7 @@ app.put('/comments/:id/resolve', (req, res) => {
     db.get(`
         SELECT comments.id, comments.userId, comments.parentId, comments.docId,
                comments.quoteText, docs.userId AS ownerId, docs.title,
-               users.username AS actorName
+               COALESCE(users.displayName, users.username) AS actorName
         FROM comments
         JOIN docs ON comments.docId = docs.id
         JOIN users ON users.id = ?
@@ -1543,7 +1625,7 @@ app.get('/notifications', (req, res) => {
     if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
     
     db.all(`
-        SELECT notifications.*, users.username AS actorName, docs.title AS docTitle,
+        SELECT notifications.*, COALESCE(users.displayName, users.username) AS actorName, docs.title AS docTitle,
                CASE
                    WHEN notifications.docId IS NULL THEN 1
                    WHEN docs.visibility = 'public' OR docs.userId = ? THEN 1

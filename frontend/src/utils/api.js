@@ -45,11 +45,14 @@ async function request(path, options = {}) {
 export const api = {
   me: () => request('/me'),
 
-  register: (username, password) =>
-    request('/register', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  requestRegistrationCode: (email) =>
+    request('/auth/register-code', { method: 'POST', body: JSON.stringify({ email }) }),
 
-  login: (username, password) =>
-    request('/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  register: (email, password, code, name) =>
+    request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, code, name }) }),
+
+  login: (email, password) =>
+    request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
 
   getDocs: (userId) =>
     request(`/docs?userId=${userId}`),

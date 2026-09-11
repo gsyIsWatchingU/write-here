@@ -62,7 +62,8 @@ async function authenticateSession(db, req) {
         : (cookies.horizon_session || '');
     if (!token) return null;
     return get(db, `
-        SELECT users.id, users.username, users.email, users.ssoSubject, users.isAdmin
+        SELECT users.id, COALESCE(users.displayName, users.username) AS username,
+               users.email, users.ssoSubject, users.displayName, users.isAdmin
         FROM sessions JOIN users ON users.id = sessions.userId
         WHERE sessions.token = ? AND sessions.expiresAt > CURRENT_TIMESTAMP
     `, [token]);
