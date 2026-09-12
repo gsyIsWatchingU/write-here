@@ -29,6 +29,29 @@ npm run dev
 
 服务器部署脚本、验证命令和运行维护说明见 [`deploy/README.md`](deploy/README.md)。生产环境由 Node.js 在同一端口提供前端页面、REST API 与 WebSocket 服务。
 
+## AI / MCP 接入
+
+1. 登录网站，在“我的文档”点击“`[MCP] AI 接入`”，生成个人 Token。明文只展示一次，可随时撤销。
+2. 在仓库根目录执行 `npm install --prefix mcp`。
+3. 将以下配置加入支持 stdio MCP 的 AI 客户端，并替换路径、网站地址和 Token：
+
+```json
+{
+  "mcpServers": {
+    "horizon-docs": {
+      "command": "node",
+      "args": ["<仓库绝对路径>/mcp/src/index.js"],
+      "env": {
+        "HORIZON_DOCS_URL": "<Horizon Docs 公网地址>",
+        "HORIZON_DOCS_TOKEN": "<个人 Token>"
+      }
+    }
+  }
+}
+```
+
+提供 `list_markdown_documents`、`get_markdown_document`、`create_markdown_document`、`update_markdown_document` 四个工具。新文档默认私密，Markdown 上限 2 MB；Token 只绑定当前用户，不保存账号密码。
+
 ## 技术栈
 
 ### 前端
@@ -64,6 +87,7 @@ write-here/
 ├── backend/                  # 后端（Express + SQLite + WS）
 │   ├── server.js             # 单文件服务：REST API + WS + DB 初始化/迁移
 │   └── package.json
+├── mcp/                      # stdio MCP 服务：将 AI 工具调用转为受 Token 保护的文档 API
 ├── db/                       # GPU 服务器运行时数据目录，不纳入 Git
 └── package.json              # 根目录一键脚本（dev / install:all）
 ```

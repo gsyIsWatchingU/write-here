@@ -5,6 +5,6 @@
   "scripts": {
     "dev": "npm run dev:frontend",
     "dev:frontend": "npm run dev --prefix frontend",
-    "install:all": "npm install && npm install --prefix frontend && npm install --prefix backend"
+    "install:all": "npm install && npm install --prefix frontend && npm install --prefix backend && npm install --prefix mcp"
   }
 }

@@ -34,12 +34,14 @@ jobs:
             package-lock.json
             frontend/package-lock.json
             backend/package-lock.json
+            mcp/package-lock.json
 
       - name: 安装依赖
         run: |
           npm ci
           npm ci --prefix frontend
           npm ci --prefix backend
+          npm ci --prefix mcp
 
       - name: 构建前端
         run: npm run build --prefix frontend
@@ -49,6 +51,9 @@ jobs:
 
       - name: 测试题目发布接口
         run: npm test --prefix backend
+
+      - name: 检查并测试 MCP 服务
+        run: npm run check --prefix mcp && npm test --prefix mcp
 
       - name: 生成部署包
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

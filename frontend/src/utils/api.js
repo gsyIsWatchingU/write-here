@@ -69,6 +69,16 @@ export const api = {
   deleteDoc: (id, userId) =>
     request(`/docs/${id}?userId=${userId}`, { method: 'DELETE' }),
 
+  // MCP 接入：Token 只绑定当前登录用户，明文仅在创建时返回。
+  getApiTokens: () =>
+    request('/api-tokens'),
+
+  createApiToken: (name) =>
+    request('/api-tokens', { method: 'POST', body: JSON.stringify({ name }) }),
+
+  revokeApiToken: (id) =>
+    request(`/api-tokens/${id}`, { method: 'DELETE' }),
+
   // 题库相关：需要登录会话；公开题面仅凭不可猜测的关联令牌读取。
   getProblems: () =>
     request('/problem-items'),

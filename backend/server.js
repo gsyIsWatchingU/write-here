@@ -6,6 +6,7 @@ const http = require('http');
 const { createHash, randomBytes, timingSafeEqual } = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { authenticateSession, createProblemsRouter, migrateProblems } = require('./problems');
+const { createMcpRouter, migrateMcp } = require('./mcp');
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
@@ -22,7 +23,7 @@ const SESSION_COOKIE = 'horizon_session';
 
 // 中间件
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '3mb' }));
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
@@ -241,6 +242,7 @@ function initDatabase() {
         }
 
         migrateProblems(db);
+        migrateMcp(db);
 
         console.log('数据库表初始化完成');
     });
@@ -529,7 +531,7 @@ app.put('/docs/:id', async (req, res) => {
     const sessionUser = await authenticateSession(db, req).catch(() => null);
     db.run(
         `UPDATE docs
-         SET title = ?, content = ?, updatedAt = CURRENT_TIMESTAMP
+         SET title = ?, content = ?, markdownContent = NULL, updatedAt = CURRENT_TIMESTAMP
          WHERE id = ? AND (
              userId = ? OR EXISTS (
                  SELECT 1 FROM collaborations
@@ -569,6 +571,7 @@ app.delete('/docs/:id', async (req, res) => {
 });
 
 app.use(createProblemsRouter({ db }));
+app.use(createMcpRouter({ db }));
 
 // ==================== 分享 API ====================
 
