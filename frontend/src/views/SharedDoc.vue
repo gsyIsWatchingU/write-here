@@ -14,7 +14,7 @@
     </div>
     <template v-else>
       <EditorToolbar v-if="editor && permission === 'edit'" :editor="editor" />
-      <div class="shared-layout">
+      <div class="shared-layout" :class="{ 'right-panel-collapsed': !sidePanelOpen }">
         <div class="editor-wrapper">
           <div class="doc-header">
             <h1>{{ docTitle }}</h1>
@@ -29,13 +29,30 @@
           @comment="openSelectionComment"
         />
 
-        <aside class="shared-side-panel" :class="{ 'mobile-open': sidePanelOpen }">
+        <button
+          v-if="sidePanelOpen"
+          type="button"
+          class="panel-edge-trigger right-panel-collapse"
+          title="收拢大纲与评论"
+          aria-label="收拢大纲与评论"
+          @click="sidePanelOpen = false"
+        >›</button>
+        <button
+          v-else
+          type="button"
+          class="panel-edge-trigger right-panel-reopen"
+          title="展开大纲与评论"
+          aria-label="展开大纲与评论"
+          @click="openSidePanel(activeSideTab)"
+        >‹</button>
+
+        <aside class="shared-side-panel" :class="{ 'mobile-open': sidePanelOpen, 'panel-collapsed': !sidePanelOpen }">
           <div class="side-panel-tabs">
             <button :class="{ active: activeSideTab === 'outline' }" @click="openSidePanel('outline')">大纲</button>
             <button :class="{ active: activeSideTab === 'comments' }" @click="openSidePanel('comments')">
               评论 <span v-if="commentCount">{{ commentCount }}</span>
             </button>
-            <button class="side-panel-close" title="关闭侧栏" @click="sidePanelOpen = false">×</button>
+            <button type="button" class="side-panel-close" title="收拢面板" aria-label="收拢面板" @click="sidePanelOpen = false">×</button>
           </div>
           <div v-show="activeSideTab === 'outline'" class="outline-content">
             <div v-if="outline.length === 0" class="empty-outline">暂无大纲内容</div>
@@ -66,7 +83,7 @@
           />
         </aside>
 
-        <button class="mobile-side-trigger" @click="openSidePanel(activeSideTab)">
+        <button v-if="!sidePanelOpen" class="mobile-side-trigger" @click="openSidePanel(activeSideTab)">
           大纲 / 评论<span v-if="commentCount"> · {{ commentCount }}</span>
         </button>
       </div>
@@ -109,6 +126,7 @@ import { scrollToOutlineHeading } from '../utils/outlineNavigation.js'
 
 const route = useRoute()
 const token = route.params.token
+const mobileMedia = window.matchMedia('(max-width: 760px)')
 
 const loading = ref(true)
 const error = ref('')
@@ -120,7 +138,7 @@ const user = ref(getUser())
 const outline = ref([])
 const contentReady = ref(false)
 const activeSideTab = ref(route.query.comment ? 'comments' : 'outline')
-const sidePanelOpen = ref(Boolean(route.query.comment))
+const sidePanelOpen = ref(Boolean(route.query.comment) || !mobileMedia.matches)
 const pendingCommentAnchor = ref(null)
 const commentCount = ref(0)
 
@@ -169,7 +187,7 @@ function updateOutline() {
 }
 
 function scrollToHeading(item) {
-  if (scrollToOutlineHeading(editor.value, item.position)) {
+  if (scrollToOutlineHeading(editor.value, item.position) && mobileMedia.matches) {
     sidePanelOpen.value = false
   }
 }
@@ -188,7 +206,12 @@ watch(() => route.query.comment, commentId => {
   if (commentId) openSidePanel('comments')
 })
 
+function handleViewportChange(event) {
+  sidePanelOpen.value = !event.matches
+}
+
 onMounted(async () => {
+  mobileMedia.addEventListener?.('change', handleViewportChange)
   try {
     const share = await api.getShare(token)
     docTitle.value = share.doc.title
@@ -243,6 +266,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   contentReady.value = false
+  mobileMedia.removeEventListener?.('change', handleViewportChange)
   provider?.destroy()
   ydoc?.destroy()
   editor.value?.destroy()
@@ -252,6 +276,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .shared-page {
   min-height: 100vh;
+  overflow-x: hidden;
   background: var(--bg-gray);
 }
 .topbar {
@@ -274,7 +299,8 @@ onBeforeUnmount(() => {
   background: #e6f7ff;
   color: var(--primary);
 }
-.shared-layout { padding: 24px 400px 40px 24px; }
+.shared-layout { padding: 24px 400px 40px 24px; transition: padding .2s ease; }
+.shared-layout.right-panel-collapsed { padding-right: 24px; }
 .loading, .error-page {
   text-align: center;
   padding: 80px 0;
@@ -317,13 +343,14 @@ onBeforeUnmount(() => {
   background: var(--bg);
   border: 2px solid var(--border);
   box-shadow: 5px 5px 0 var(--primary);
+  transition: transform .2s ease;
 }
 .side-panel-tabs {
   position: sticky;
   top: -14px;
   z-index: 4;
   display: grid;
-  grid-template-columns: 1fr 1fr 34px;
+  grid-template-columns: 1fr 1fr;
   margin: -14px -14px 14px;
   background: var(--bg);
   border-bottom: 2px solid var(--border);
@@ -341,6 +368,33 @@ onBeforeUnmount(() => {
 }
 .side-panel-tabs button.active { color: var(--text); background: var(--primary); font-weight: 700; }
 .side-panel-close, .mobile-side-trigger { display: none; }
+.panel-edge-trigger {
+  position: fixed;
+  top: 76px;
+  z-index: 95;
+  display: grid;
+  width: 32px;
+  height: 42px;
+  padding: 0;
+  place-items: center;
+  color: var(--text);
+  background: var(--primary);
+  border: 2px solid var(--border);
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+}
+.panel-edge-trigger:hover { background: var(--primary-strong); }
+.right-panel-collapse { right: 384px; }
+.right-panel-reopen { right: 0; }
+@media (min-width: 761px) {
+  .shared-side-panel.panel-collapsed {
+    transform: translateX(calc(100% + 32px));
+    pointer-events: none;
+  }
+}
 .empty-outline { padding: 24px 8px; color: var(--text-muted); text-align: center; }
 .outline-list { margin: 0; padding: 0; list-style: none; }
 .outline-item { padding: 6px 8px; color: var(--text-secondary); cursor: pointer; }
@@ -350,6 +404,8 @@ onBeforeUnmount(() => {
 .outline-item.level-4 { padding-left: 32px; }
 @media (max-width: 760px) {
   .shared-layout { padding: 12px 12px 56px; }
+  .editor-content :deep(table) { display: block; max-width: 100%; overflow-x: auto; }
+  .panel-edge-trigger { display: none; }
   .shared-side-panel {
     inset: auto 0 0;
     z-index: 210;
@@ -361,7 +417,18 @@ onBeforeUnmount(() => {
     box-shadow: 0 -5px 0 rgba(0, 0, 0, .12);
   }
   .shared-side-panel.mobile-open { transform: translateY(0); }
-  .side-panel-close { display: block; }
+  .side-panel-close {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    z-index: 2;
+    display: block;
+    width: 32px;
+    min-height: 32px;
+    padding: 0;
+    border: 1px solid var(--border);
+    background: var(--bg);
+  }
   .mobile-side-trigger {
     position: fixed;
     right: 12px;
@@ -379,7 +446,7 @@ onBeforeUnmount(() => {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .shared-side-panel { transition: none; }
+  .shared-layout, .shared-side-panel { transition: none; }
 }
 
 </style>

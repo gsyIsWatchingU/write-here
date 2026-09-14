@@ -46,7 +46,35 @@
 
     <EditorToolbar v-if="editor && editorReady && canEdit" :editor="editor" />
 
-    <div class="editor-main">
+    <div
+      class="editor-main"
+      :class="{
+        'left-panel-collapsed': !documentPanelOpen || docKind !== 'document',
+        'right-panel-collapsed': !sidePanelOpen,
+      }"
+    >
+      <DocumentDirectory
+        v-if="docKind === 'document'"
+        :documents="directoryDocuments"
+        :collaboration-documents="directoryCollaborationDocuments"
+        :active-document-id="docId"
+        :loading="directoryLoading"
+        :open="documentPanelOpen"
+        @close="documentPanelOpen = false"
+        @create="createDocumentFromDirectory"
+        @select="openDocumentFromDirectory"
+        @home="goBack"
+      />
+
+      <button
+        v-if="docKind === 'document' && !documentPanelOpen"
+        type="button"
+        class="panel-edge-trigger left-panel-reopen"
+        title="展开文档目录"
+        aria-label="展开文档目录"
+        @click="documentPanelOpen = true"
+      >›</button>
+
       <div class="document-column">
         <div class="editor-wrapper">
           <editor-content :editor="editor" class="editor-content" />
@@ -60,13 +88,30 @@
         @comment="openSelectionComment"
       />
 
-      <aside class="outline-panel side-panel" :class="{ 'mobile-open': sidePanelOpen }">
+      <button
+        v-if="sidePanelOpen"
+        type="button"
+        class="panel-edge-trigger right-panel-collapse"
+        title="收拢大纲与评论"
+        aria-label="收拢大纲与评论"
+        @click="sidePanelOpen = false"
+      >›</button>
+      <button
+        v-else
+        type="button"
+        class="panel-edge-trigger right-panel-reopen"
+        title="展开大纲与评论"
+        aria-label="展开大纲与评论"
+        @click="openSidePanel(activeSideTab)"
+      >‹</button>
+
+      <aside class="outline-panel side-panel" :class="{ 'mobile-open': sidePanelOpen, 'panel-collapsed': !sidePanelOpen }">
         <div class="side-panel-tabs">
           <button :class="{ active: activeSideTab === 'outline' }" @click="openSidePanel('outline')">大纲</button>
           <button :class="{ active: activeSideTab === 'comments' }" @click="openSidePanel('comments')">
             评论 <span v-if="commentCount">{{ commentCount }}</span>
           </button>
-          <button class="side-panel-close" title="关闭侧栏" @click="sidePanelOpen = false">×</button>
+          <button type="button" class="side-panel-close" title="收拢面板" aria-label="收拢面板" @click="sidePanelOpen = false">×</button>
         </div>
         <div v-show="activeSideTab === 'outline'" class="outline-content">
           <div v-if="outline.length === 0" class="empty-outline">
@@ -97,9 +142,14 @@
         />
       </aside>
 
-      <button class="mobile-side-trigger" @click="openSidePanel(activeSideTab)">
+      <button v-if="!sidePanelOpen && !documentPanelOpen" class="mobile-side-trigger" @click="openSidePanel(activeSideTab)">
         大纲 / 评论<span v-if="commentCount"> · {{ commentCount }}</span>
       </button>
+      <button
+        v-if="docKind === 'document' && !documentPanelOpen && !sidePanelOpen"
+        class="mobile-directory-trigger"
+        @click="documentPanelOpen = true"
+      >文档目录</button>
     </div>
 
     <!-- 分享弹窗 -->
@@ -142,7 +192,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
@@ -170,6 +220,7 @@ import MarkdownIt from 'markdown-it'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import EditorToolbar from '../components/EditorToolbar.vue'
+import DocumentDirectory from '../components/DocumentDirectory.vue'
 import CommentPanel from '../components/CommentPanel.vue'
 import SelectionCommentButton from '../components/SelectionCommentButton.vue'
 import CodeBlockWithCopy from '../extensions/codeBlockWithCopy.js'
@@ -182,6 +233,7 @@ const route = useRoute()
 const router = useRouter()
 const user = getUser()
 const docId = route.params.id
+const mobileMedia = window.matchMedia('(max-width: 760px)')
 
 const docTitle = ref('')
 const docKind = ref('document')
@@ -200,9 +252,24 @@ const commentsReady = ref(false)
 const contentReady = ref(false)
 const markdownFileInput = ref(null)
 const activeSideTab = ref(route.query.comment ? 'comments' : 'outline')
-const sidePanelOpen = ref(Boolean(route.query.comment))
+const sidePanelOpen = ref(Boolean(route.query.comment) || !mobileMedia.matches)
+const documentPanelOpen = ref(!mobileMedia.matches)
 const pendingCommentAnchor = ref(null)
 const commentCount = ref(0)
+const userDocuments = ref([])
+const collaborationDocuments = ref([])
+const directoryLoading = ref(false)
+
+const directoryDocuments = computed(() => userDocuments.value.map(document => (
+  String(document.id) === String(docId)
+    ? { ...document, title: docTitle.value || document.title }
+    : document
+)))
+const directoryCollaborationDocuments = computed(() => collaborationDocuments.value.map(document => (
+  String(document.id) === String(docId)
+    ? { ...document, title: docTitle.value || document.title }
+    : document
+)))
 
 const lowlight = createLowlight(common)
 const markdownParser = new MarkdownIt({
@@ -319,7 +386,7 @@ function scrollToHeading(id) {
   if (!editor.value) return
   
   const heading = outline.value.find(item => item.id === id)
-  if (heading && scrollToOutlineHeading(editor.value, heading.pos)) {
+  if (heading && scrollToOutlineHeading(editor.value, heading.pos) && mobileMedia.matches) {
     sidePanelOpen.value = false
   }
 }
@@ -327,6 +394,7 @@ function scrollToHeading(id) {
 function openSidePanel(tab) {
   activeSideTab.value = tab
   sidePanelOpen.value = true
+  if (mobileMedia.matches) documentPanelOpen.value = false
 }
 
 function openSelectionComment(anchor) {
@@ -338,8 +406,52 @@ watch(() => route.query.comment, commentId => {
   if (commentId) openSidePanel('comments')
 })
 
+function handleViewportChange(event) {
+  sidePanelOpen.value = !event.matches
+  documentPanelOpen.value = !event.matches
+}
+
+async function loadDocumentDirectory() {
+  directoryLoading.value = true
+  const [documentsResult, collaborationResult] = await Promise.allSettled([
+    api.getDocs(user.id),
+    api.getMyCollaborationDocs(user.id),
+  ])
+  userDocuments.value = documentsResult.status === 'fulfilled' ? documentsResult.value : []
+  collaborationDocuments.value = collaborationResult.status === 'fulfilled' ? collaborationResult.value : []
+  directoryLoading.value = false
+}
+
+async function canLeaveCurrentDocument() {
+  if (!canEdit.value) return true
+  const saved = await flushAutoSave()
+  if (!saved) alert('当前文档保存失败，请稍后重试')
+  return saved
+}
+
+async function openDocumentFromDirectory(id) {
+  if (String(id) === String(docId)) {
+    if (mobileMedia.matches) documentPanelOpen.value = false
+    return
+  }
+  if (!await canLeaveCurrentDocument()) return
+  window.location.assign(router.resolve(`/doc/${id}`).href)
+}
+
+async function createDocumentFromDirectory() {
+  if (!await canLeaveCurrentDocument()) return
+  try {
+    const document = await api.createDoc(user.id, '无标题文档', '<p></p>')
+    window.location.assign(router.resolve(`/doc/${document.id}`).href)
+  } catch (error) {
+    alert('新建文档失败：' + error.message)
+  }
+}
+
 // 加载文档
 onMounted(async () => {
+  mobileMedia.addEventListener?.('change', handleViewportChange)
+  loadDocumentDirectory()
   try {
     const doc = await api.getDoc(docId, user.id)
     docTitle.value = doc.title
@@ -404,6 +516,7 @@ onBeforeUnmount(() => {
   documentLoaded = false
   contentReady.value = false
   if (saveTimer) clearTimeout(saveTimer)
+  mobileMedia.removeEventListener?.('change', handleViewportChange)
   provider.awareness.off('change', updateCollabUsers)
   provider.destroy()
   ydoc.destroy()
@@ -562,6 +675,7 @@ function copyLink() {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
   background: var(--bg-gray);
 }
 .editor-topbar {
@@ -645,9 +759,12 @@ function copyLink() {
 }
 .editor-main {
   flex: 1;
-  padding: 24px 400px 24px 24px;
+  padding: 24px 400px 24px 304px;
   overflow-y: auto;
+  transition: padding .2s ease;
 }
+.editor-main.left-panel-collapsed { padding-left: 24px; }
+.editor-main.right-panel-collapsed { padding-right: 24px; }
 .file-input {
   display: none;
 }
@@ -682,13 +799,15 @@ function copyLink() {
   top: 120px;
   bottom: 24px;
   overflow-y: auto;
+  z-index: 90;
+  transition: transform .2s ease;
 }
 .side-panel-tabs {
   position: sticky;
   top: -14px;
   z-index: 4;
   display: grid;
-  grid-template-columns: 1fr 1fr 34px;
+  grid-template-columns: 1fr 1fr;
   margin: -14px -14px 14px;
   background: var(--bg);
   border-bottom: 2px solid var(--border);
@@ -710,8 +829,37 @@ function copyLink() {
   font-weight: 700;
 }
 .side-panel-close,
-.mobile-side-trigger {
+.mobile-side-trigger,
+.mobile-directory-trigger {
   display: none;
+}
+.panel-edge-trigger {
+  position: fixed;
+  top: 120px;
+  z-index: 95;
+  display: grid;
+  width: 32px;
+  height: 42px;
+  padding: 0;
+  place-items: center;
+  color: var(--text);
+  background: var(--primary);
+  border: 2px solid var(--border);
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+}
+.panel-edge-trigger:hover { background: var(--primary-strong); }
+.left-panel-reopen { left: 0; }
+.right-panel-collapse { right: 384px; }
+.right-panel-reopen { right: 0; }
+@media (min-width: 761px) {
+  .outline-panel.side-panel.panel-collapsed {
+    transform: translateX(calc(100% + 32px));
+    pointer-events: none;
+  }
 }
 .empty-outline {
   color: var(--text-muted);
@@ -788,6 +936,7 @@ function copyLink() {
 .share-options label { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .share-options select { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); }
 @media (max-width: 760px) {
+  .panel-edge-trigger { display: none; }
   .outline-panel.side-panel {
     position: fixed;
     inset: auto 0 0;
@@ -802,10 +951,26 @@ function copyLink() {
     box-shadow: 0 -5px 0 rgba(0, 0, 0, .12);
   }
   .outline-panel.side-panel.mobile-open { transform: translateY(0); }
-  .side-panel-close { display: block; }
-  .mobile-side-trigger {
+  .editor-content :deep(table) {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .side-panel-close {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    z-index: 2;
+    display: block;
+    width: 32px;
+    min-height: 32px;
+    padding: 0;
+    border: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .mobile-side-trigger,
+  .mobile-directory-trigger {
     position: fixed;
-    right: 12px;
     bottom: 12px;
     z-index: 150;
     display: block;
@@ -818,8 +983,10 @@ function copyLink() {
     box-shadow: 3px 3px 0 var(--border);
     font-family: inherit;
   }
+  .mobile-side-trigger { right: 12px; }
+  .mobile-directory-trigger { left: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .outline-panel.side-panel { transition: none; }
+  .editor-main, .outline-panel.side-panel { transition: none; }
 }
 </style>
