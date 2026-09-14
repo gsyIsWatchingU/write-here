@@ -5,6 +5,7 @@ import { EditorState } from '@tiptap/pm/state'
 import {
   findBlockGapInsertionIndex,
   getTopLevelInsertionPosition,
+  hasAdjacentEmptyTextBlock,
   insertParagraphInClickedGap,
 } from './blockGapInsertion.js'
 
@@ -49,6 +50,17 @@ test('顶层插入位置按前置块大小计算', () => {
   assert.equal(getTopLevelInsertionPosition(doc, 2), doc.content.size)
 })
 
+test('点击位置旁已有空行时不再重复新增', () => {
+  const doc = schema.node('doc', null, [
+    schema.node('paragraph', null, schema.text('第一行')),
+    schema.node('paragraph'),
+    schema.node('paragraph', null, schema.text('第二行')),
+  ])
+
+  assert.equal(hasAdjacentEmptyTextBlock(doc, 1), true)
+  assert.equal(hasAdjacentEmptyTextBlock(doc, 2), true)
+})
+
 test('点击块间空白会插入空段落并将光标放入新行', () => {
   const initialDoc = schema.node('doc', null, [
     schema.node('paragraph', null, schema.text('第一行')),
@@ -89,4 +101,41 @@ test('点击块间空白会插入空段落并将光标放入新行', () => {
   assert.equal(dispatched.selection.from, initialDoc.child(0).nodeSize + 1)
   assert.equal(focused, true)
   assert.equal(defaultPrevented, true)
+})
+
+test('已经自动新增空行后再次点击相邻空白不会继续插入', () => {
+  const initialDoc = schema.node('doc', null, [
+    schema.node('paragraph', null, schema.text('第一行')),
+    schema.node('paragraph'),
+    schema.node('paragraph', null, schema.text('第二行')),
+  ])
+  const state = EditorState.create({ doc: initialDoc })
+  let dispatched = false
+  let defaultPrevented = false
+  const view = {
+    editable: true,
+    state,
+    dom: {
+      children: [
+        { getBoundingClientRect: () => ({ top: 10, bottom: 40 }) },
+        { getBoundingClientRect: () => ({ top: 56, bottom: 80 }) },
+        { getBoundingClientRect: () => ({ top: 96, bottom: 130 }) },
+      ],
+    },
+    dispatch() {
+      dispatched = true
+    },
+    focus() {},
+  }
+  const event = {
+    button: 0,
+    clientY: 88,
+    preventDefault() {
+      defaultPrevented = true
+    },
+  }
+
+  assert.equal(insertParagraphInClickedGap(view, event), false)
+  assert.equal(dispatched, false)
+  assert.equal(defaultPrevented, false)
 })

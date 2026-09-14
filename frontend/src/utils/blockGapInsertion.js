@@ -22,6 +22,16 @@ export function getTopLevelInsertionPosition(doc, childIndex) {
   return position
 }
 
+export function hasAdjacentEmptyTextBlock(doc, childIndex) {
+  if (!doc || childIndex < 0 || childIndex > doc.childCount) return false
+
+  return [childIndex - 1, childIndex].some((index) => {
+    if (index < 0 || index >= doc.childCount) return false
+    const node = doc.child(index)
+    return node.isTextblock && node.content.size === 0
+  })
+}
+
 export function insertParagraphInClickedGap(view, event) {
   if (
     !view?.editable
@@ -38,6 +48,7 @@ export function insertParagraphInClickedGap(view, event) {
   const blockRects = blockElements.map(element => element.getBoundingClientRect())
   const childIndex = findBlockGapInsertionIndex(blockRects, event.clientY)
   if (childIndex < 0) return false
+  if (hasAdjacentEmptyTextBlock(view.state.doc, childIndex)) return false
 
   const position = getTopLevelInsertionPosition(view.state.doc, childIndex)
   const paragraphType = view.state.schema.nodes.paragraph
