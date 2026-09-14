@@ -227,6 +227,7 @@ import CodeBlockWithCopy from '../extensions/codeBlockWithCopy.js'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 import { normalizeImportedMarkdown } from '../utils/markdown'
 import { handleCodeBlockTab } from '../utils/codeBlockIndent.js'
+import { insertParagraphInClickedGap } from '../utils/blockGapInsertion.js'
 import { scrollToOutlineHeading } from '../utils/outlineNavigation.js'
 
 const route = useRoute()
@@ -343,6 +344,9 @@ const editor = useEditor({
   editable: false,
   editorProps: {
     handleKeyDown: handleCodeBlockTab,
+    handleDOMEvents: {
+      mousedown: insertParagraphInClickedGap,
+    },
   },
   onCreate() {
     editorReady.value = true

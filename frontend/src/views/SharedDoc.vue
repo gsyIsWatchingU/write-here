@@ -121,6 +121,7 @@ import SelectionCommentButton from '../components/SelectionCommentButton.vue'
 import CodeBlockWithCopy from '../extensions/codeBlockWithCopy.js'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 import { handleCodeBlockTab } from '../utils/codeBlockIndent.js'
+import { insertParagraphInClickedGap } from '../utils/blockGapInsertion.js'
 import { scrollToOutlineHeading } from '../utils/outlineNavigation.js'
 
 const route = useRoute()
@@ -170,6 +171,9 @@ const editor = useEditor({
   editable: false,
   editorProps: {
     handleKeyDown: handleCodeBlockTab,
+    handleDOMEvents: {
+      mousedown: insertParagraphInClickedGap,
+    },
   },
   onUpdate: updateOutline,
 })
