@@ -2,6 +2,7 @@ const { createHash, randomBytes } = require('crypto');
 const express = require('express');
 const MarkdownIt = require('markdown-it');
 const { authenticateSession } = require('./problems');
+const { createDocumentPublicId, documentIdentifierParams } = require('./documentIdentity');
 
 const TOKEN_PREFIX = 'whmcp_';
 const MAX_MARKDOWN_BYTES = 2 * 1024 * 1024;
@@ -104,14 +105,25 @@ function getPublicBaseUrl(req) {
 function documentResponse(req, row) {
     return {
         id: row.id,
+        documentId: row.publicId,
+        publicId: row.publicId,
         title: row.title,
         markdown: row.markdownContent ?? null,
         html: row.content,
         visibility: row.visibility,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
-        url: `${getPublicBaseUrl(req)}/doc/${row.id}`
+        url: `${getPublicBaseUrl(req)}/doc/${row.publicId}`
     };
+}
+
+function getOwnedDocumentByIdentifier(db, identifier, userId, columns) {
+    const [publicId, legacyId] = documentIdentifierParams(identifier);
+    return get(db, `
+        SELECT ${columns}
+        FROM docs
+        WHERE (publicId = ? OR id = ?) AND userId = ? AND kind = 'document'
+    `, [publicId, legacyId, userId]);
 }
 
 function createMcpRouter({ db }) {
@@ -204,7 +216,7 @@ function createMcpRouter({ db }) {
             if (!user) return;
             const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 50, 1), 100);
             const rows = await all(db, `
-                SELECT id, title, visibility, createdAt, updatedAt
+                SELECT id, publicId, title, visibility, createdAt, updatedAt
                 FROM docs
                 WHERE userId = ? AND kind = 'document'
                 ORDER BY updatedAt DESC
@@ -212,7 +224,8 @@ function createMcpRouter({ db }) {
             `, [user.id, limit]);
             res.json(rows.map((row) => ({
                 ...row,
-                url: `${getPublicBaseUrl(req)}/doc/${row.id}`
+                documentId: row.publicId,
+                url: `${getPublicBaseUrl(req)}/doc/${row.publicId}`
             })));
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -223,11 +236,12 @@ function createMcpRouter({ db }) {
         try {
             const user = await requireApiToken(req, res);
             if (!user) return;
-            const row = await get(db, `
-                SELECT id, title, content, markdownContent, visibility, createdAt, updatedAt
-                FROM docs
-                WHERE id = ? AND userId = ? AND kind = 'document'
-            `, [req.params.id, user.id]);
+            const row = await getOwnedDocumentByIdentifier(
+                db,
+                req.params.id,
+                user.id,
+                'id, publicId, title, content, markdownContent, visibility, createdAt, updatedAt'
+            );
             if (!row) return res.status(404).json({ error: '文档不存在或无权限访问' });
             res.json(documentResponse(req, row));
         } catch (error) {
@@ -246,12 +260,13 @@ function createMcpRouter({ db }) {
             if (markdownError) return res.status(400).json({ error: markdownError });
             if (!['private', 'public'].includes(visibility)) return res.status(400).json({ error: 'visibility 仅支持 private 或 public' });
             const normalized = normalizeMarkdown(req.body.markdown);
+            const publicId = createDocumentPublicId();
             const result = await run(db, `
-                INSERT INTO docs (userId, title, content, markdownContent, visibility, kind)
-                VALUES (?, ?, ?, ?, ?, 'document')
-            `, [user.id, title, markdownParser.render(normalized), normalized, visibility]);
+                INSERT INTO docs (publicId, userId, title, content, markdownContent, visibility, kind)
+                VALUES (?, ?, ?, ?, ?, ?, 'document')
+            `, [publicId, user.id, title, markdownParser.render(normalized), normalized, visibility]);
             const row = await get(db, `
-                SELECT id, title, content, markdownContent, visibility, createdAt, updatedAt
+                SELECT id, publicId, title, content, markdownContent, visibility, createdAt, updatedAt
                 FROM docs WHERE id = ?
             `, [result.lastID]);
             res.status(201).json(documentResponse(req, row));
@@ -292,16 +307,19 @@ function createMcpRouter({ db }) {
                 updates.push('visibility = ?');
                 values.push(req.body.visibility);
             }
-            values.push(req.params.id, user.id);
+            const [publicId, legacyId] = documentIdentifierParams(req.params.id);
+            values.push(publicId, legacyId, user.id);
             const result = await run(db, `
                 UPDATE docs SET ${updates.join(', ')}, updatedAt = CURRENT_TIMESTAMP
-                WHERE id = ? AND userId = ? AND kind = 'document'
+                WHERE (publicId = ? OR id = ?) AND userId = ? AND kind = 'document'
             `, values);
             if (!result.changes) return res.status(404).json({ error: '文档不存在或无权限修改' });
-            const row = await get(db, `
-                SELECT id, title, content, markdownContent, visibility, createdAt, updatedAt
-                FROM docs WHERE id = ? AND userId = ?
-            `, [req.params.id, user.id]);
+            const row = await getOwnedDocumentByIdentifier(
+                db,
+                req.params.id,
+                user.id,
+                'id, publicId, title, content, markdownContent, visibility, createdAt, updatedAt'
+            );
             res.json(documentResponse(req, row));
         } catch (error) {
             res.status(500).json({ error: error.message });

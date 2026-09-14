@@ -33,7 +33,7 @@
       <div v-else-if="problems.length === 0" class="empty">还没有题目，先创建第一道题。</div>
       <div v-else class="problem-grid">
         <article v-for="problem in problems" :key="problem.id" class="problem-card">
-          <div class="problem-card-main" @click="openProblem(problem.id)">
+          <div class="problem-card-main" @click="openProblem(problem)">
             <div class="problem-title-row">
               <h3>{{ problem.title }}</h3>
               <span class="status" :class="problem.publishStatus">
@@ -44,7 +44,7 @@
             <time>{{ formatTime(problem.updatedAt) }}</time>
           </div>
           <div class="problem-actions">
-            <button class="ghost" @click="openProblem(problem.id)">编辑题面</button>
+            <button class="ghost" @click="openProblem(problem)">编辑题面</button>
             <button v-if="problem.publishStatus !== 'published'" class="primary" @click="publish(problem.id)">发布</button>
             <template v-else>
               <button class="primary" @click="publish(problem.id)">发布新版本</button>
@@ -63,6 +63,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, clearUser, getUser } from '../utils/api'
 import { formatServerDateTime } from '../utils/dateTime'
+import { getDocumentPath } from '../utils/documentIdentity'
 
 const router = useRouter()
 const user = ref(getUser())
@@ -100,7 +101,7 @@ async function createProblem() {
   creating.value = true
   try {
     const problem = await api.createProblem()
-    router.push(`/doc/${problem.id}?from=problems`)
+    router.push({ path: getDocumentPath(problem), query: { from: 'problems' } })
   } catch (error) {
     showNotice(error.message, true)
   } finally {
@@ -108,8 +109,8 @@ async function createProblem() {
   }
 }
 
-function openProblem(id) {
-  router.push(`/doc/${id}?from=problems`)
+function openProblem(problem) {
+  router.push({ path: getDocumentPath(problem), query: { from: 'problems' } })
 }
 
 async function publish(id) {

@@ -8,6 +8,11 @@ const { v4: uuidv4 } = require('uuid');
 const { authenticateSession, createProblemsRouter, migrateProblems } = require('./problems');
 const { createMcpRouter, migrateMcp } = require('./mcp');
 const { createDocumentOrderRouter, migrateDocumentOrder } = require('./documentOrder');
+const {
+    createDocumentPublicId,
+    documentIdentifierParams,
+    migrateDocumentIdentity,
+} = require('./documentIdentity');
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
@@ -59,6 +64,7 @@ function initDatabase() {
         db.run(`
             CREATE TABLE IF NOT EXISTS docs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                publicId TEXT UNIQUE,
                 userId INTEGER NOT NULL DEFAULT 0,
                 title TEXT NOT NULL,
                 content TEXT NOT NULL DEFAULT '',
@@ -248,6 +254,8 @@ function initDatabase() {
         migrateDocumentOrder(db).catch((error) => {
             console.error('迁移文档排序字段失败:', error.message);
         });
+
+        migrateDocumentIdentity(db);
 
         console.log('数据库表初始化完成');
     });
@@ -505,9 +513,10 @@ app.get('/docs/:id', async (req, res) => {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
     const sessionUser = await authenticateSession(db, req).catch(() => null);
+    const [publicId, legacyId] = documentIdentifierParams(id);
     db.get(`SELECT * FROM docs
-            WHERE id = ? AND (userId = ? OR visibility = 'public')
-              AND (kind != 'problem' OR userId = ?)`, [id, userId, sessionUser?.id || -1], (err, row) => {
+            WHERE (publicId = ? OR id = ?) AND (userId = ? OR visibility = 'public')
+              AND (kind != 'problem' OR userId = ?)`, [publicId, legacyId, userId, sessionUser?.id || -1], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!row) return res.status(404).json({ error: '文档不存在或无权限访问' });
         res.json(row);
@@ -520,12 +529,13 @@ app.post('/docs', (req, res) => {
     if (!userId || !title) {
         return res.status(400).json({ error: '用户ID和标题不能为空' });
     }
+    const publicId = createDocumentPublicId();
     db.run(
-        'INSERT INTO docs (userId, title, content) VALUES (?, ?, ?)',
-        [userId, title, content || ''],
+        'INSERT INTO docs (publicId, userId, title, content) VALUES (?, ?, ?, ?)',
+        [publicId, userId, title, content || ''],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
-            res.json({ id: this.lastID, userId, title, content: content || '' });
+            res.json({ id: this.lastID, publicId, userId, title, content: content || '' });
         }
     );
 });
@@ -624,7 +634,7 @@ app.post('/shares', (req, res) => {
 app.get('/shares/:token', (req, res) => {
     const { token } = req.params;
     db.get(
-        `SELECT shares.*, docs.title, docs.content, docs.userId as ownerId, docs.createdAt as docCreatedAt, docs.updatedAt
+        `SELECT shares.*, docs.publicId, docs.title, docs.content, docs.userId as ownerId, docs.createdAt as docCreatedAt, docs.updatedAt
          FROM shares 
          JOIN docs ON shares.docId = docs.id 
          WHERE shares.token = ?`,
@@ -636,6 +646,7 @@ app.get('/shares/:token', (req, res) => {
                 permission: row.permission,
                 doc: {
                     id: row.docId,
+                    publicId: row.publicId,
                     title: row.title,
                     content: row.content,
                     ownerId: row.ownerId,
@@ -1748,8 +1759,15 @@ server.on('upgrade', (request, socket, head) => {
     // 处理 /ws 路径（Yjs 协同编辑）和 /notifications 路径（通知）
     const url = new URL(request.url, `http://${request.headers.host}`);
     if (url.pathname.startsWith('/ws')) {
-        wss.handleUpgrade(request, socket, head, (ws) => {
+        const upgrade = () => wss.handleUpgrade(request, socket, head, (ws) => {
             wss.emit('connection', ws, request);
+        });
+        const roomMatch = url.pathname.match(/^\/ws\/doc-([a-f0-9]{32})$/);
+        if (!roomMatch) return upgrade();
+        db.get('SELECT id FROM docs WHERE publicId = ?', [roomMatch[1]], (error, doc) => {
+            if (error || !doc) return socket.destroy();
+            request.url = `/ws/doc-${doc.id}${url.search}`;
+            upgrade();
         });
     } else if (url.pathname.startsWith('/notifications')) {
         // 处理通知的 WebSocket 连接

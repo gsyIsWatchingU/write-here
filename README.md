@@ -52,6 +52,8 @@ npm run dev
 
 提供 `list_markdown_documents`、`get_markdown_document`、`create_markdown_document`、`update_markdown_document` 四个工具。新文档默认私密，Markdown 上限 2 MB；Token 只绑定当前用户，不保存账号密码。
 
+普通文档地址使用 32 位随机哈希标识，不暴露递增数据库主键；旧数字地址仍可访问，并会自动替换为哈希地址。
+
 ## 技术栈
 
 ### 前端

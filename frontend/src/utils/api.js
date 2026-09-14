@@ -58,7 +58,7 @@ export const api = {
     request(`/docs?userId=${userId}`),
 
   getDoc: (id, userId) =>
-    request(`/docs/${id}?userId=${userId}`),
+    request(`/docs/${encodeURIComponent(id)}?userId=${userId}`),
 
   createDoc: (userId, title, content) =>
     request('/docs', { method: 'POST', body: JSON.stringify({ userId, title, content }) }),

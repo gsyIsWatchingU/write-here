@@ -55,7 +55,7 @@
         <p>还没有文档，点击上方按钮创建第一篇文档</p>
       </div>
       <div v-else class="doc-grid">
-        <div v-for="doc in docs" :key="doc.id" class="doc-card" @click="openDoc(doc.id)">
+        <div v-for="doc in docs" :key="doc.id" class="doc-card" @click="openDoc(doc)">
           <div class="doc-card-body">
             <h3 class="doc-title">{{ doc.title }}</h3>
             <p class="doc-preview">{{ stripHtml(doc.content) }}</p>
@@ -93,7 +93,7 @@
         <p>暂无参与协作的文档</p>
       </div>
       <div v-else class="doc-grid">
-        <div v-for="doc in collabDocs" :key="doc.id" class="doc-card" @click="openDoc(doc.id)">
+        <div v-for="doc in collabDocs" :key="doc.id" class="doc-card" @click="openDoc(doc)">
           <div class="doc-card-body">
             <div class="doc-title-row">
               <h3 class="doc-title">{{ doc.title }}</h3>
@@ -263,6 +263,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api, getUser, clearUser, getWebSocketUrl } from '../utils/api'
 import { formatServerDateTime } from '../utils/dateTime'
+import { getDocumentPath } from '../utils/documentIdentity'
 
 const router = useRouter()
 const route = useRoute()
@@ -402,14 +403,14 @@ async function loadCollabDocs() {
 async function createNewDoc() {
   try {
     const doc = await api.createDoc(user.value.id, '无标题文档', '<p></p>')
-    router.push(`/doc/${doc.id}`)
+    router.push(getDocumentPath(doc))
   } catch (e) {
     alert(e.message)
   }
 }
 
-function openDoc(id) {
-  router.push(`/doc/${id}`)
+function openDoc(doc) {
+  router.push(getDocumentPath(doc))
 }
 
 async function handleDelete(id) {
@@ -590,7 +591,12 @@ async function openNotification(notification) {
   if (!notification.docId) return
   showNotifications.value = false
   const query = notification.commentId ? { comment: notification.commentId } : undefined
-  router.push({ path: `/doc/${notification.docId}`, query })
+  try {
+    const doc = await api.getDoc(notification.docId, user.value.id)
+    router.push({ path: getDocumentPath(doc), query })
+  } catch (error) {
+    console.error(error)
+  }
 }
 
 function notificationTypeLabel(type) {

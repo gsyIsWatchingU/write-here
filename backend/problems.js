@@ -1,5 +1,6 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
+const { createDocumentPublicId } = require('./documentIdentity');
 
 function get(db, sql, params = []) {
     return new Promise((resolve, reject) => db.get(sql, params, (err, row) => err ? reject(err) : resolve(row)));
@@ -83,7 +84,7 @@ function createProblemsRouter({ db }) {
             const user = await requireUser(req, res);
             if (!user) return;
             const rows = await all(db, `
-                SELECT id, title, content, publishStatus, publishedVersion, publishedTitle,
+                SELECT id, publicId, title, content, publishStatus, publishedVersion, publishedTitle,
                        publishedAt, embedToken, createdAt, updatedAt
                 FROM docs
                 WHERE userId = ? AND kind = 'problem'
@@ -100,10 +101,11 @@ function createProblemsRouter({ db }) {
             const user = await requireUser(req, res);
             if (!user) return;
             const title = String(req.body.title || '无标题题目').trim().slice(0, 200);
+            const publicId = createDocumentPublicId();
             const result = await run(db, `
-                INSERT INTO docs (userId, title, content, kind, visibility, publishStatus, embedToken)
-                VALUES (?, ?, '<p></p>', 'problem', 'private', 'draft', ?)
-            `, [user.id, title || '无标题题目', uuidv4()]);
+                INSERT INTO docs (publicId, userId, title, content, kind, visibility, publishStatus, embedToken)
+                VALUES (?, ?, ?, '<p></p>', 'problem', 'private', 'draft', ?)
+            `, [publicId, user.id, title || '无标题题目', uuidv4()]);
             const problem = await get(db, 'SELECT * FROM docs WHERE id = ?', [result.lastID]);
             res.status(201).json(problem);
         } catch (error) {

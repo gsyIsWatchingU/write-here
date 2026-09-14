@@ -7,6 +7,7 @@ const http = require('node:http');
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const { createMcpRouter, hashToken, migrateMcp } = require('./mcp');
+const { migrateDocumentIdentity } = require('./documentIdentity');
 const { migrateProblems } = require('./problems');
 
 function exec(db, sql) {
@@ -42,6 +43,7 @@ test('MCP Token 以用户身份创建、读取和更新 Markdown 文档，撤销
         );
         CREATE TABLE docs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            publicId TEXT UNIQUE,
             userId INTEGER NOT NULL,
             title TEXT NOT NULL,
             content TEXT NOT NULL DEFAULT '',
@@ -57,6 +59,7 @@ test('MCP Token 以用户身份创建、读取和更新 Markdown 文档，撤销
         db.serialize(() => {
             migrateProblems(db);
             migrateMcp(db);
+            migrateDocumentIdentity(db);
             db.get('SELECT 1', (error) => error ? reject(error) : resolve());
         });
     });
@@ -105,12 +108,14 @@ test('MCP Token 以用户身份创建、读取和更新 Markdown 文档，撤销
     assert.match(created.html, /<h1>标题<\/h1>/);
     assert.match(created.html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
     assert.equal(created.visibility, 'private');
-    assert.match(created.url, new RegExp(`/doc/${created.id}$`));
+    assert.match(created.documentId, /^[a-f0-9]{32}$/);
+    assert.equal(created.publicId, created.documentId);
+    assert.match(created.url, new RegExp(`/doc/${created.documentId}$`));
 
     const owner = await get(db, 'SELECT userId FROM docs WHERE id = ?', [created.id]);
     assert.equal(owner.userId, 1);
 
-    const updateResponse = await fetch(`${base}/mcp-api/documents/${created.id}`, {
+    const updateResponse = await fetch(`${base}/mcp-api/documents/${created.documentId}`, {
         method: 'PUT',
         headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
         body: JSON.stringify({ markdown: '## 第二版', visibility: 'public' })
@@ -125,7 +130,7 @@ test('MCP Token 以用户身份创建、读取和更新 Markdown 文档，撤销
     const list = await (await fetch(`${base}/mcp-api/documents`, {
         headers: { authorization: `Bearer ${issued.token}` }
     })).json();
-    assert.deepEqual(list.map((doc) => doc.id), [otherDoc.id]);
+    assert.deepEqual(list.map((doc) => doc.documentId), [created.documentId]);
 
     const revokeResponse = await fetch(`${base}/api-tokens/${issued.id}`, {
         method: 'DELETE',

@@ -231,11 +231,13 @@ import { normalizeImportedMarkdown } from '../utils/markdown'
 import { handleCodeBlockTab } from '../utils/codeBlockIndent.js'
 import { insertParagraphInClickedGap } from '../utils/blockGapInsertion.js'
 import { scrollToOutlineHeading } from '../utils/outlineNavigation.js'
+import { getDocumentPath } from '../utils/documentIdentity.js'
 
 const route = useRoute()
 const router = useRouter()
 const user = getUser()
-const docId = route.params.id
+const routeDocumentIdentifier = String(route.params.id)
+const docId = ref(routeDocumentIdentifier)
 const mobileMedia = window.matchMedia('(max-width: 760px)')
 
 const docTitle = ref('')
@@ -264,12 +266,12 @@ const collaborationDocuments = ref([])
 const directoryLoading = ref(false)
 
 const directoryDocuments = computed(() => userDocuments.value.map(document => (
-  String(document.id) === String(docId)
+  String(document.id) === String(docId.value)
     ? { ...document, title: docTitle.value || document.title }
     : document
 )))
 const directoryCollaborationDocuments = computed(() => collaborationDocuments.value.map(document => (
-  String(document.id) === String(docId)
+  String(document.id) === String(docId.value)
     ? { ...document, title: docTitle.value || document.title }
     : document
 )))
@@ -284,7 +286,7 @@ const MAX_MARKDOWN_FILE_SIZE = 2 * 1024 * 1024
 // Yjs setup
 const ydoc = new Y.Doc()
 const wsUrl = getWebSocketUrl('/ws')
-const provider = new WebsocketProvider(wsUrl, `doc-${docId}`, ydoc)
+const provider = new WebsocketProvider(wsUrl, `doc-${routeDocumentIdentifier}`, ydoc)
 
 // 用户颜色
 const colors = ['#f44336','#e91e63','#9c27b0','#2196f3','#009688','#ff9800','#795548','#607d8b']
@@ -436,19 +438,21 @@ async function canLeaveCurrentDocument() {
 }
 
 async function openDocumentFromDirectory(id) {
-  if (String(id) === String(docId)) {
+  if (String(id) === String(docId.value)) {
     if (mobileMedia.matches) documentPanelOpen.value = false
     return
   }
   if (!await canLeaveCurrentDocument()) return
-  window.location.assign(router.resolve(`/doc/${id}`).href)
+  const document = [...userDocuments.value, ...collaborationDocuments.value]
+    .find(item => String(item.id) === String(id))
+  window.location.assign(router.resolve(getDocumentPath(document || id)).href)
 }
 
 async function createDocumentFromDirectory() {
   if (!await canLeaveCurrentDocument()) return
   try {
     const document = await api.createDoc(user.id, '无标题文档', '<p></p>')
-    window.location.assign(router.resolve(`/doc/${document.id}`).href)
+    window.location.assign(router.resolve(getDocumentPath(document)).href)
   } catch (error) {
     alert('新建文档失败：' + error.message)
   }
@@ -471,7 +475,11 @@ onMounted(async () => {
   mobileMedia.addEventListener?.('change', handleViewportChange)
   loadDocumentDirectory()
   try {
-    const doc = await api.getDoc(docId, user.id)
+    const doc = await api.getDoc(routeDocumentIdentifier, user.id)
+    docId.value = doc.id
+    if (doc.publicId && routeDocumentIdentifier !== doc.publicId) {
+      await router.replace({ path: getDocumentPath(doc), query: { ...route.query } })
+    }
     docTitle.value = doc.title
     docKind.value = doc.kind || 'document'
     docOwnerId.value = doc.userId
@@ -481,7 +489,7 @@ onMounted(async () => {
     if (isOwner.value) {
       canEdit.value = true
     } else {
-      const status = await api.getCollaborationStatus(docId, user.id)
+      const status = await api.getCollaborationStatus(docId.value, user.id)
       canEdit.value = status.status === 'approved'
     }
 
@@ -524,7 +532,7 @@ onMounted(async () => {
 async function updateVisibility() {
   if (!isOwner.value) return
   try {
-    await api.updateDocVisibility(docId, user.id, visibility.value)
+    await api.updateDocVisibility(docId.value, user.id, visibility.value)
   } catch (e) {
     alert('更新可见性失败：' + e.message)
   }
@@ -584,7 +592,7 @@ async function flushAutoSave() {
 
   saveStatus.value = '保存中...'
   const request = api
-    .updateDoc(docId, user.id, snapshot.title, snapshot.content)
+    .updateDoc(docId.value, user.id, snapshot.title, snapshot.content)
     .then(() => true, () => false)
   saveInFlight = request
   const saved = await request
@@ -654,7 +662,7 @@ async function openShare() {
   shareLink.value = ''
   sharePermission.value = 'read'
   try {
-    const shares = await api.getDocShares(docId, user.id)
+    const shares = await api.getDocShares(docId.value, user.id)
     if (shares && shares.length > 0) {
       shareLink.value = `${window.location.origin}/share/${shares[0].token}`
       sharePermission.value = shares[0].permission
@@ -666,7 +674,7 @@ async function openShare() {
 
 async function handleCreateShare() {
   try {
-    const share = await api.createShare(docId, user.id, sharePermission.value)
+    const share = await api.createShare(docId.value, user.id, sharePermission.value)
     shareLink.value = `${window.location.origin}/share/${share.token}`
   } catch (e) {
     alert(e.message)
@@ -675,7 +683,7 @@ async function handleCreateShare() {
 
 async function handleDeleteShare() {
   try {
-    await api.deleteShare(docId, user.id)
+    await api.deleteShare(docId.value, user.id)
     shareLink.value = ''
   } catch (e) {
     alert(e.message)

@@ -27,7 +27,7 @@ export class HorizonDocsClient {
   }
 
   getDocument(id) {
-    return this.request(`/mcp-api/documents/${id}`)
+    return this.request(`/mcp-api/documents/${encodeURIComponent(id)}`)
   }
 
   createDocument(input) {
@@ -38,7 +38,7 @@ export class HorizonDocsClient {
   }
 
   updateDocument(id, input) {
-    return this.request(`/mcp-api/documents/${id}`, {
+    return this.request(`/mcp-api/documents/${encodeURIComponent(id)}`, {
       method: 'PUT',
       body: JSON.stringify(input),
     })

@@ -7,6 +7,7 @@ const http = require('node:http');
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const { createProblemsRouter, migrateProblems } = require('./problems');
+const { migrateDocumentIdentity } = require('./documentIdentity');
 
 function exec(db, sql) {
     return new Promise((resolve, reject) => db.exec(sql, (err) => err ? reject(err) : resolve()));
@@ -36,6 +37,7 @@ test('题目发布生成版本快照，并校验会话与嵌入令牌', async (t
         );
         CREATE TABLE docs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            publicId TEXT UNIQUE,
             userId INTEGER NOT NULL,
             title TEXT NOT NULL,
             content TEXT NOT NULL DEFAULT '',
@@ -49,6 +51,7 @@ test('题目发布生成版本快照，并校验会话与嵌入令牌', async (t
     await new Promise((resolve, reject) => {
         db.serialize(() => {
             migrateProblems(db);
+            migrateDocumentIdentity(db);
             db.get('SELECT 1', (err) => err ? reject(err) : resolve());
         });
     });
@@ -77,6 +80,7 @@ test('题目发布生成版本快照，并校验会话与嵌入令牌', async (t
     });
     assert.equal(createdResponse.status, 201);
     const created = await createdResponse.json();
+    assert.match(created.publicId, /^[a-f0-9]{32}$/);
     await run(db, "UPDATE docs SET content = '<h2>版本一</h2>' WHERE id = ?", [created.id]);
 
     const publishedResponse = await fetch(`${base}/problem-items/${created.id}/publish`, {

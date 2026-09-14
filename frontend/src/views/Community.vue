@@ -34,7 +34,7 @@
         <p>社区还没有公开文档</p>
       </div>
       <div v-else class="doc-grid">
-        <div v-for="doc in docs" :key="doc.id" class="doc-card" @click="openDoc(doc.id)">
+        <div v-for="doc in docs" :key="doc.id" class="doc-card" @click="openDoc(doc)">
           <div class="doc-card-body">
             <div class="doc-header">
               <h3 class="doc-title">{{ doc.title }}</h3>
@@ -75,6 +75,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api, getUser, clearUser } from '../utils/api'
 import { formatServerDateTime } from '../utils/dateTime'
+import { getDocumentPath } from '../utils/documentIdentity'
 
 const router = useRouter()
 const route = useRoute()
@@ -150,8 +151,8 @@ function handleSort(value) {
   loadDocs()
 }
 
-function openDoc(id) {
-  router.push(`/doc/${id}`)
+function openDoc(doc) {
+  router.push(getDocumentPath(doc))
 }
 
 async function handleLike(docId, event) {

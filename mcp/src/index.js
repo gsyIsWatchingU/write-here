@@ -4,6 +4,11 @@ import { serveStdio } from '@modelcontextprotocol/server/stdio'
 import * as z from 'zod/v4'
 import { HorizonDocsClient } from './horizon-client.js'
 
+const documentIdentifierSchema = z.union([
+  z.string().regex(/^[a-f0-9]{32}$/),
+  z.number().int().positive(),
+]).describe('文档哈希；兼容旧数字 ID')
+
 function result(data) {
   return {
     content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
@@ -44,7 +49,7 @@ export function createServer(options = {}) {
     'list_markdown_documents',
     {
       title: '列出 Horizon Docs 文档',
-      description: '列出当前用户最近更新的普通文档，便于获得 documentId。',
+      description: '列出当前用户最近更新的普通文档，返回用于后续操作的 documentId 哈希。',
       inputSchema: z.object({
         limit: z.number().int().min(1).max(100).default(50).describe('返回数量，默认 50'),
       }),
@@ -58,7 +63,7 @@ export function createServer(options = {}) {
       title: '读取 Horizon Docs 文档',
       description: '读取当前用户的一篇普通文档。MCP 创建的文档会返回 Markdown 原文；网页创建的旧文档可能只有 HTML。',
       inputSchema: z.object({
-        documentId: z.number().int().positive().describe('文档 ID'),
+        documentId: documentIdentifierSchema,
       }),
     },
     withErrors(async ({ documentId }) => result(await client.getDocument(documentId))),
@@ -84,7 +89,7 @@ export function createServer(options = {}) {
       title: '更新 Markdown 文档',
       description: '更新当前用户的一篇普通文档。只传需要修改的字段，不支持操作他人文档或题库内容。',
       inputSchema: z.object({
-        documentId: z.number().int().positive().describe('文档 ID'),
+        documentId: documentIdentifierSchema,
         title: z.string().trim().min(1).max(200).optional().describe('新标题'),
         markdown: z.string().max(2 * 1024 * 1024).optional().describe('完整的新 Markdown 原文'),
         visibility: z.enum(['private', 'public']).optional().describe('新的可见性'),

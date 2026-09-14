@@ -40,7 +40,7 @@
           <div class="doc-card-footer">
             <span class="doc-time">{{ formatTime(doc.updatedAt) }}</span>
             <div class="doc-card-actions">
-              <button class="icon-btn" title="查看" @click="openDoc(doc.id)">→</button>
+              <button class="icon-btn" title="查看" @click="openDoc(doc)">→</button>
             </div>
           </div>
         </div>
@@ -54,6 +54,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, getUser, clearUser } from '../utils/api'
 import { formatServerDateTime } from '../utils/dateTime'
+import { getDocumentPath } from '../utils/documentIdentity'
 
 const router = useRouter()
 const user = ref(getUser())
@@ -79,8 +80,8 @@ async function loadDocs() {
   loading.value = false
 }
 
-function openDoc(id) {
-  router.push(`/doc/${id}`)
+function openDoc(doc) {
+  router.push(getDocumentPath(doc))
 }
 
 async function handleLogout() {
