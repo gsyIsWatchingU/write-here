@@ -8,12 +8,15 @@
     >
       <button
         class="block-menu-trigger"
+        :class="{ dragging }"
         type="button"
+        draggable="true"
         :aria-expanded="open"
-        aria-label="打开当前块操作"
-        title="当前块操作"
-        @mousedown.prevent
+        aria-label="拖动整块或打开块操作"
+        title="拖动整块；点击打开块操作"
         @click.stop="toggleMenu"
+        @dragstart="startDrag"
+        @dragend="finishDrag"
       >
         <span aria-hidden="true">⋮⋮</span>
       </button>
@@ -57,6 +60,13 @@
           </button>
         </div>
       </div>
+
+      <div
+        v-if="dragging && dropInsertionIndex !== null"
+        class="block-drop-indicator"
+        :style="dropIndicatorStyle"
+        aria-hidden="true"
+      ></div>
     </div>
   </Teleport>
 </template>
@@ -65,7 +75,12 @@
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { getBlockMenuAnchor } from '../utils/blockMenu.js'
+import {
+  getBlockInsertionIndex,
+  getBlockMenuAnchor,
+  getBlockMoveTargetIndex,
+  moveTopLevelBlock,
+} from '../utils/blockMenu.js'
 
 const props = defineProps({
   editor: { type: Object, required: true },
@@ -92,9 +107,17 @@ const left = ref(0)
 const currentBlockType = ref('paragraph')
 const canMoveUp = ref(false)
 const canMoveDown = ref(false)
+const dragging = ref(false)
+const dropInsertionIndex = ref(null)
+const dropTop = ref(0)
+const dropLeft = ref(0)
+const dropWidth = ref(0)
 let animationFrame = null
 let targetBlockRange = null
 let highlightedRangeKey = ''
+let draggedBlock = null
+let draggedElement = null
+let dragGhost = null
 
 const blockHighlightPluginKey = new PluginKey('blockConversionHighlight')
 const blockHighlightPlugin = new Plugin({
@@ -127,6 +150,12 @@ const blockHighlightPlugin = new Plugin({
 const positionStyle = computed(() => ({
   top: `${top.value}px`,
   left: `${left.value}px`,
+}))
+
+const dropIndicatorStyle = computed(() => ({
+  top: `${dropTop.value}px`,
+  left: `${dropLeft.value}px`,
+  width: `${dropWidth.value}px`,
 }))
 
 const currentBlockLabel = computed(() => (
@@ -194,25 +223,17 @@ function getCurrentBlock() {
   return { index, position, node }
 }
 
-function getTargetTextBlock(editor, $from) {
-  for (let depth = $from.depth; depth > 0; depth -= 1) {
-    const node = $from.node(depth)
-    if (!node.isTextblock) continue
-
-    const from = $from.before(depth)
-    const element = editor.view.nodeDOM(from)
-    if (element instanceof HTMLElement) {
-      return { element, from, to: from + node.nodeSize }
-    }
-  }
-
-  return null
+function getTopLevelBlockElement(editor, currentBlock) {
+  const element = editor.view.nodeDOM(currentBlock.position)
+  return element instanceof HTMLElement ? element : null
 }
 
 function updatePosition() {
+  if (dragging.value) return
   if (animationFrame) cancelAnimationFrame(animationFrame)
   animationFrame = requestAnimationFrame(() => {
     animationFrame = null
+    if (dragging.value) return
     const editor = props.editor
     if (!editor?.view || editor.isDestroyed || !editor.isFocused || !editor.isEditable) {
       hideMenu()
@@ -225,18 +246,20 @@ function updatePosition() {
       return
     }
 
-    const targetBlock = getTargetTextBlock(editor, editor.state.selection.$from)
-    if (!targetBlock) {
+    const blockElement = getTopLevelBlockElement(editor, currentBlock)
+    if (!blockElement) {
       hideMenu()
       return
     }
 
-    const blockRect = targetBlock.element.getBoundingClientRect()
-    const cursorRect = editor.view.coordsAtPos(editor.state.selection.$from.pos)
-    const cursorHeight = Math.max(1, cursorRect.bottom - cursorRect.top)
-    top.value = cursorRect.top + ((cursorHeight - 30) / 2)
+    const blockRect = blockElement.getBoundingClientRect()
+    const topOffset = Math.min(10, Math.max(0, (blockRect.height - 30) / 2))
+    top.value = blockRect.top + topOffset
     left.value = Math.max(4, blockRect.left - 38)
-    setTargetBlockRange({ from: targetBlock.from, to: targetBlock.to })
+    setTargetBlockRange({
+      from: currentBlock.position,
+      to: currentBlock.position + currentBlock.node.nodeSize,
+    })
     currentBlockType.value = getCurrentBlockType()
     canMoveUp.value = currentBlock.index > 0
     canMoveDown.value = currentBlock.index < editor.state.doc.childCount - 1
@@ -354,11 +377,154 @@ function deleteBlock() {
   nextTick(updatePosition)
 }
 
+function getTopLevelBlockEntries() {
+  const editor = props.editor
+  const entries = []
+
+  editor.state.doc.forEach((node, position, index) => {
+    const element = editor.view.nodeDOM(position)
+    if (!(element instanceof HTMLElement)) return
+    entries.push({ index, node, position, element, rect: element.getBoundingClientRect() })
+  })
+
+  return entries
+}
+
+function createDragGhost(label) {
+  const ghost = document.createElement('div')
+  ghost.className = 'block-drag-ghost'
+  ghost.textContent = `拖动${label}`
+  document.body.appendChild(ghost)
+  return ghost
+}
+
+function startDrag(event) {
+  const currentBlock = getCurrentBlock()
+  if (!currentBlock || !event.dataTransfer) {
+    event.preventDefault()
+    return
+  }
+
+  const element = getTopLevelBlockElement(props.editor, currentBlock)
+  if (!element) {
+    event.preventDefault()
+    return
+  }
+
+  draggedBlock = currentBlock
+  draggedElement = element
+  draggedElement.classList.add('is-block-dragging')
+  dragging.value = true
+  setOpen(false)
+
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('application/x-write-here-block', String(currentBlock.index))
+  dragGhost = createDragGhost(currentBlockLabel.value)
+  event.dataTransfer.setDragImage(dragGhost, 16, 16)
+}
+
+function isWithinEditor(event) {
+  const editorRect = props.editor.view.dom.getBoundingClientRect()
+  return event.clientX >= editorRect.left - 48
+    && event.clientX <= editorRect.right + 48
+    && event.clientY >= editorRect.top - 20
+    && event.clientY <= editorRect.bottom + 20
+}
+
+function handleDragOver(event) {
+  if (!dragging.value || !draggedBlock) return
+
+  if (!isWithinEditor(event)) {
+    dropInsertionIndex.value = null
+    return
+  }
+
+  event.preventDefault()
+  event.stopPropagation()
+
+  const entries = getTopLevelBlockEntries()
+  if (!entries.length) return
+
+  const insertionIndex = getBlockInsertionIndex(entries.map((entry) => entry.rect), event.clientY)
+  const targetIndex = getBlockMoveTargetIndex(
+    draggedBlock.index,
+    insertionIndex,
+    entries.length,
+  )
+
+  if (targetIndex === null) {
+    dropInsertionIndex.value = null
+    return
+  }
+
+  event.dataTransfer.dropEffect = 'move'
+  const boundaryY = insertionIndex < entries.length
+    ? entries[insertionIndex].rect.top
+    : entries[entries.length - 1].rect.bottom
+  const contentLeft = Math.min(...entries.map((entry) => entry.rect.left))
+  const contentRight = Math.max(...entries.map((entry) => entry.rect.right))
+
+  dropInsertionIndex.value = insertionIndex
+  dropTop.value = boundaryY - 1
+  dropLeft.value = contentLeft
+  dropWidth.value = Math.max(24, contentRight - contentLeft)
+}
+
+function handleDrop(event) {
+  if (!dragging.value || !draggedBlock) return
+
+  event.preventDefault()
+  event.stopPropagation()
+  if (!isWithinEditor(event) || dropInsertionIndex.value === null) {
+    finishDrag()
+    return
+  }
+  const { doc } = props.editor.state
+  if (draggedBlock.index >= doc.childCount) {
+    finishDrag()
+    return
+  }
+  const sourceNode = doc.child(draggedBlock.index)
+  const targetIndex = getBlockMoveTargetIndex(
+    draggedBlock.index,
+    dropInsertionIndex.value,
+    doc.childCount,
+  )
+
+  if (targetIndex === null || !sourceNode?.eq(draggedBlock.node)) {
+    finishDrag()
+    return
+  }
+
+  const move = moveTopLevelBlock(props.editor.state.tr, draggedBlock.index, targetIndex)
+  if (!move) {
+    finishDrag()
+    return
+  }
+
+  focusTransactionBlock(move.transaction, move.insertPosition)
+  props.editor.view.dispatch(move.transaction)
+  props.editor.commands.focus()
+  finishDrag()
+  nextTick(updatePosition)
+}
+
+function finishDrag() {
+  draggedElement?.classList.remove('is-block-dragging')
+  dragGhost?.remove()
+  draggedBlock = null
+  draggedElement = null
+  dragGhost = null
+  dragging.value = false
+  dropInsertionIndex.value = null
+}
+
 function handleDocumentClick(event) {
   if (!menuRoot.value?.contains(event.target)) setOpen(false)
 }
 
 function handleBlur() {
+  if (dragging.value) return
   requestAnimationFrame(() => {
     if (!menuRoot.value?.contains(document.activeElement)) {
       hideMenu()
@@ -373,6 +539,8 @@ onMounted(() => {
   props.editor.on('transaction', updatePosition)
   props.editor.on('blur', handleBlur)
   document.addEventListener('click', handleDocumentClick)
+  document.addEventListener('dragover', handleDragOver, true)
+  document.addEventListener('drop', handleDrop, true)
   window.addEventListener('resize', updatePosition)
   window.addEventListener('scroll', updatePosition, true)
   nextTick(updatePosition)
@@ -386,8 +554,11 @@ onBeforeUnmount(() => {
   props.editor.off('transaction', updatePosition)
   props.editor.off('blur', handleBlur)
   document.removeEventListener('click', handleDocumentClick)
+  document.removeEventListener('dragover', handleDragOver, true)
+  document.removeEventListener('drop', handleDrop, true)
   window.removeEventListener('resize', updatePosition)
   window.removeEventListener('scroll', updatePosition, true)
+  finishDrag()
   if (!props.editor.isDestroyed) props.editor.unregisterPlugin(blockHighlightPluginKey)
 })
 </script>
@@ -410,7 +581,11 @@ onBeforeUnmount(() => {
   font-family: inherit;
   font-size: 15px;
   line-height: 1;
-  cursor: pointer;
+  cursor: grab;
+}
+
+.block-menu-trigger.dragging {
+  cursor: grabbing;
 }
 
 .block-menu-trigger:hover,
@@ -497,6 +672,31 @@ onBeforeUnmount(() => {
 
 .block-menu-option.danger:hover {
   background: var(--danger-hover);
+}
+
+.block-drop-indicator {
+  position: fixed;
+  z-index: 125;
+  height: 3px;
+  pointer-events: none;
+  background: var(--primary-strong);
+  box-shadow: 0 0 0 1px var(--bg);
+}
+
+:global(.block-drag-ghost) {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  padding: 7px 10px;
+  color: var(--text);
+  background: var(--primary);
+  border: 2px solid var(--border);
+  font: 700 12px/1.2 var(--font-mono);
+  white-space: nowrap;
+}
+
+:global(#app .editor-content .is-block-dragging) {
+  opacity: 0.42;
 }
 
 :global(#app .editor-content .block-conversion-target) {
