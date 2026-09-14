@@ -330,6 +330,14 @@ a {
   border-radius: 0;
 }
 
+#app .editor-content :is(h1, h2, h3, h4, h5, h6) {
+  scroll-margin-top: 24px;
+}
+
+#app .editor-page .editor-content :is(h1, h2, h3, h4, h5, h6) {
+  scroll-margin-top: 120px;
+}
+
 #app .editor-content pre {
   margin: 16px 0;
   padding: 16px 18px;
@@ -556,6 +564,10 @@ a {
   #app .editor-main {
     padding: 12px;
     overflow: visible;
+  }
+
+  #app .editor-page .editor-content :is(h1, h2, h3, h4, h5, h6) {
+    scroll-margin-top: 170px;
   }
 
   #app .editor-page .editor-content {

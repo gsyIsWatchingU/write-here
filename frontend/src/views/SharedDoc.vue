@@ -105,6 +105,7 @@ import CommentPanel from '../components/CommentPanel.vue'
 import SelectionCommentButton from '../components/SelectionCommentButton.vue'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 import { handleCodeBlockTab } from '../utils/codeBlockIndent.js'
+import { scrollToOutlineHeading } from '../utils/outlineNavigation.js'
 
 const route = useRoute()
 const token = route.params.token
@@ -168,7 +169,9 @@ function updateOutline() {
 }
 
 function scrollToHeading(item) {
-  editor.value?.commands.focus({ at: item.position, scrollIntoView: true })
+  if (scrollToOutlineHeading(editor.value, item.position)) {
+    sidePanelOpen.value = false
+  }
 }
 
 function openSidePanel(tab) {

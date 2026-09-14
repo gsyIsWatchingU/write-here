@@ -176,6 +176,7 @@ import SelectionCommentButton from '../components/SelectionCommentButton.vue'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 import { normalizeImportedMarkdown } from '../utils/markdown'
 import { handleCodeBlockTab } from '../utils/codeBlockIndent.js'
+import { scrollToOutlineHeading } from '../utils/outlineNavigation.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -318,11 +319,8 @@ function scrollToHeading(id) {
   if (!editor.value) return
   
   const heading = outline.value.find(item => item.id === id)
-  if (heading) {
-    editor.value.commands.focus({
-      at: heading.pos,
-      scrollIntoView: true
-    })
+  if (heading && scrollToOutlineHeading(editor.value, heading.pos)) {
+    sidePanelOpen.value = false
   }
 }
 
