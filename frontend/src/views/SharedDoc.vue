@@ -282,7 +282,7 @@ onBeforeUnmount(() => {
 }
 .error-page button { margin-top: 16px; }
 .editor-wrapper {
-  max-width: 800px;
+  max-width: 1000px;
   margin: 0 auto;
   background: #fff;
   border-radius: 8px;

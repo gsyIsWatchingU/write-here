@@ -653,7 +653,7 @@ function copyLink() {
 }
 .document-column {
   width: 100%;
-  max-width: 800px;
+  max-width: 1000px;
   margin: 0 auto;
 }
 .editor-wrapper {
@@ -667,7 +667,7 @@ function copyLink() {
   border-radius: 8px;
   box-shadow: var(--shadow);
   width: 100%;
-  max-width: 800px;
+  max-width: 1000px;
   min-height: calc(100vh - 240px);
   padding: 40px 48px;
 }
