@@ -374,11 +374,11 @@ onBeforeUnmount(() => {
 .side-panel-tabs .side-panel-collapse {
   padding: 0;
   color: var(--text);
-  background: var(--primary);
+  background: transparent;
   font-size: 23px;
   line-height: 1;
 }
-.side-panel-tabs .side-panel-collapse:hover { background: var(--primary-strong); }
+.side-panel-tabs .side-panel-collapse:hover { background: var(--surface-hover); }
 .panel-edge-trigger {
   position: fixed;
   top: 76px;
