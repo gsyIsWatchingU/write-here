@@ -63,6 +63,7 @@
         @close="documentPanelOpen = false"
         @create="createDocumentFromDirectory"
         @select="openDocumentFromDirectory"
+        @reorder="reorderDocumentsFromDirectory"
         @home="goBack"
       />
 
@@ -89,15 +90,7 @@
       />
 
       <button
-        v-if="sidePanelOpen"
-        type="button"
-        class="panel-edge-trigger right-panel-collapse"
-        title="收拢大纲与评论"
-        aria-label="收拢大纲与评论"
-        @click="sidePanelOpen = false"
-      >›</button>
-      <button
-        v-else
+        v-if="!sidePanelOpen"
         type="button"
         class="panel-edge-trigger right-panel-reopen"
         title="展开大纲与评论"
@@ -107,6 +100,13 @@
 
       <aside class="outline-panel side-panel" :class="{ 'mobile-open': sidePanelOpen, 'panel-collapsed': !sidePanelOpen }">
         <div class="side-panel-tabs">
+          <button
+            type="button"
+            class="side-panel-collapse"
+            title="收拢大纲与评论"
+            aria-label="收拢大纲与评论"
+            @click="sidePanelOpen = false"
+          >›</button>
           <button :class="{ active: activeSideTab === 'outline' }" @click="openSidePanel('outline')">大纲</button>
           <button :class="{ active: activeSideTab === 'comments' }" @click="openSidePanel('comments')">
             评论 <span v-if="commentCount">{{ commentCount }}</span>
@@ -445,6 +445,18 @@ async function createDocumentFromDirectory() {
     window.location.assign(router.resolve(`/doc/${document.id}`).href)
   } catch (error) {
     alert('新建文档失败：' + error.message)
+  }
+}
+
+async function reorderDocumentsFromDirectory(documentIds) {
+  const previousDocuments = [...userDocuments.value]
+  const documentsById = new Map(previousDocuments.map(document => [String(document.id), document]))
+  userDocuments.value = documentIds.map(id => documentsById.get(String(id))).filter(Boolean)
+  try {
+    await api.reorderDocs(user.id, documentIds)
+  } catch (error) {
+    userDocuments.value = previousDocuments
+    alert('调整文档顺序失败：' + error.message)
   }
 }
 
@@ -807,7 +819,7 @@ function copyLink() {
   top: -14px;
   z-index: 4;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 32px 1fr 1fr;
   margin: -14px -14px 14px;
   background: var(--bg);
   border-bottom: 2px solid var(--border);
@@ -833,6 +845,14 @@ function copyLink() {
 .mobile-directory-trigger {
   display: none;
 }
+.side-panel-tabs .side-panel-collapse {
+  padding: 0;
+  color: var(--text);
+  background: var(--primary);
+  font-size: 23px;
+  line-height: 1;
+}
+.side-panel-tabs .side-panel-collapse:hover { background: var(--primary-strong); }
 .panel-edge-trigger {
   position: fixed;
   top: 120px;
@@ -853,7 +873,6 @@ function copyLink() {
 }
 .panel-edge-trigger:hover { background: var(--primary-strong); }
 .left-panel-reopen { left: 0; }
-.right-panel-collapse { right: 384px; }
 .right-panel-reopen { right: 0; }
 @media (min-width: 761px) {
   .outline-panel.side-panel.panel-collapsed {
@@ -937,6 +956,8 @@ function copyLink() {
 .share-options select { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); }
 @media (max-width: 760px) {
   .panel-edge-trigger { display: none; }
+  .side-panel-tabs { grid-template-columns: 1fr 1fr; }
+  .side-panel-tabs .side-panel-collapse { display: none; }
   .outline-panel.side-panel {
     position: fixed;
     inset: auto 0 0;

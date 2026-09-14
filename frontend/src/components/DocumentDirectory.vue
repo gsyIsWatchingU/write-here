@@ -26,10 +26,22 @@
           :key="document.id"
           type="button"
           class="document-entry"
-          :class="{ active: isActive(document.id) }"
-          :title="document.title || '无标题文档'"
-          @click="$emit('select', document.id)"
+          :data-document-id="document.id"
+          :class="{
+            active: isActive(document.id),
+            dragging: isDragging(document.id),
+            'drop-before': isDropTarget(document.id, 'before'),
+            'drop-after': isDropTarget(document.id, 'after'),
+          }"
+          :draggable="canReorder"
+          :title="canReorder ? `拖动调整顺序 · ${document.title || '无标题文档'}` : (document.title || '无标题文档')"
+          @click="selectDocument(document.id)"
+          @dragstart="handleDragStart($event, document.id)"
+          @dragover.prevent="handleDragOver($event, document.id)"
+          @drop.prevent="handleDrop(document.id)"
+          @dragend="resetDrag"
         >
+          <span class="drag-handle" aria-hidden="true">⋮⋮</span>
           <span class="document-icon" aria-hidden="true">▤</span>
           <span class="document-copy">
             <strong>{{ document.title || '无标题文档' }}</strong>
@@ -49,6 +61,7 @@
           :title="document.title || '无标题文档'"
           @click="$emit('select', document.id)"
         >
+          <span class="drag-handle placeholder" aria-hidden="true">⋮⋮</span>
           <span class="document-icon collaboration-icon" aria-hidden="true">◇</span>
           <span class="document-copy">
             <strong>{{ document.title || '无标题文档' }}</strong>
@@ -64,7 +77,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { filterDocumentDirectory } from '../utils/documentDirectory.js'
+import { filterDocumentDirectory, reorderDocumentDirectory } from '../utils/documentDirectory.js'
 import { formatServerDateTime } from '../utils/dateTime.js'
 
 const props = defineProps({
@@ -75,11 +88,16 @@ const props = defineProps({
   open: { type: Boolean, default: true },
 })
 
-defineEmits(['close', 'create', 'select', 'home'])
+const emit = defineEmits(['close', 'create', 'select', 'home', 'reorder'])
 
 const keyword = ref('')
+const draggedId = ref(null)
+const dropTargetId = ref(null)
+const dropPlacement = ref('before')
+let suppressClickUntil = 0
 const filteredDocuments = computed(() => filterDocumentDirectory(props.documents, keyword.value))
 const filteredCollaborationDocuments = computed(() => filterDocumentDirectory(props.collaborationDocuments, keyword.value))
+const canReorder = computed(() => !keyword.value.trim() && props.documents.length > 1)
 
 function isActive(id) {
   return String(id) === String(props.activeDocumentId)
@@ -87,6 +105,63 @@ function isActive(id) {
 
 function formatUpdatedAt(value) {
   return formatServerDateTime(value, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) || '刚刚更新'
+}
+
+function isDragging(id) {
+  return String(id) === String(draggedId.value)
+}
+
+function isDropTarget(id, placement) {
+  return String(id) === String(dropTargetId.value) && dropPlacement.value === placement
+}
+
+function selectDocument(id) {
+  if (Date.now() < suppressClickUntil) return
+  emit('select', id)
+}
+
+function handleDragStart(event, id) {
+  if (!canReorder.value) {
+    event.preventDefault()
+    return
+  }
+  draggedId.value = id
+  suppressClickUntil = Date.now() + 500
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('text/plain', String(id))
+}
+
+function handleDragOver(event, targetId) {
+  if (draggedId.value == null || String(draggedId.value) === String(targetId)) {
+    dropTargetId.value = null
+    return
+  }
+  const bounds = event.currentTarget.getBoundingClientRect()
+  dropTargetId.value = targetId
+  dropPlacement.value = event.clientY >= bounds.top + bounds.height / 2 ? 'after' : 'before'
+  event.dataTransfer.dropEffect = 'move'
+}
+
+function handleDrop(targetId) {
+  if (draggedId.value == null || String(draggedId.value) === String(targetId)) {
+    resetDrag()
+    return
+  }
+  const reordered = reorderDocumentDirectory(
+    props.documents,
+    draggedId.value,
+    targetId,
+    dropPlacement.value
+  )
+  if (reordered !== props.documents) emit('reorder', reordered.map(document => document.id))
+  resetDrag()
+}
+
+function resetDrag() {
+  if (draggedId.value != null) suppressClickUntil = Date.now() + 300
+  draggedId.value = null
+  dropTargetId.value = null
+  dropPlacement.value = 'before'
 }
 </script>
 
@@ -174,6 +249,7 @@ function formatUpdatedAt(value) {
   width: 100%;
   min-height: 46px;
   align-items: center;
+  justify-content: flex-start;
   gap: 9px;
   margin: 2px 0;
   padding: 6px 8px;
@@ -187,6 +263,21 @@ function formatUpdatedAt(value) {
 }
 .document-entry:hover { color: var(--text); background: var(--surface-hover); border-color: var(--border-soft); }
 .document-entry.active { color: var(--text); background: var(--primary); border-color: var(--border); }
+.document-entry[draggable="true"] { cursor: grab; }
+.document-entry.dragging { opacity: .45; cursor: grabbing; }
+.document-entry.drop-before { box-shadow: inset 0 3px 0 var(--primary-strong); }
+.document-entry.drop-after { box-shadow: inset 0 -3px 0 var(--primary-strong); }
+.drag-handle {
+  width: 10px;
+  flex: none;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  letter-spacing: -5px;
+  line-height: 1;
+  cursor: grab;
+}
+.drag-handle.placeholder { visibility: hidden; }
 .document-icon { display: grid; width: 25px; height: 25px; flex: none; place-items: center; border: 1px solid currentColor; font-size: 14px; }
 .collaboration-icon { background: var(--bg); }
 .document-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }

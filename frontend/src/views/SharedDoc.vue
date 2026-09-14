@@ -30,15 +30,7 @@
         />
 
         <button
-          v-if="sidePanelOpen"
-          type="button"
-          class="panel-edge-trigger right-panel-collapse"
-          title="收拢大纲与评论"
-          aria-label="收拢大纲与评论"
-          @click="sidePanelOpen = false"
-        >›</button>
-        <button
-          v-else
+          v-if="!sidePanelOpen"
           type="button"
           class="panel-edge-trigger right-panel-reopen"
           title="展开大纲与评论"
@@ -48,6 +40,13 @@
 
         <aside class="shared-side-panel" :class="{ 'mobile-open': sidePanelOpen, 'panel-collapsed': !sidePanelOpen }">
           <div class="side-panel-tabs">
+            <button
+              type="button"
+              class="side-panel-collapse"
+              title="收拢大纲与评论"
+              aria-label="收拢大纲与评论"
+              @click="sidePanelOpen = false"
+            >›</button>
             <button :class="{ active: activeSideTab === 'outline' }" @click="openSidePanel('outline')">大纲</button>
             <button :class="{ active: activeSideTab === 'comments' }" @click="openSidePanel('comments')">
               评论 <span v-if="commentCount">{{ commentCount }}</span>
@@ -350,7 +349,7 @@ onBeforeUnmount(() => {
   top: -14px;
   z-index: 4;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 32px 1fr 1fr;
   margin: -14px -14px 14px;
   background: var(--bg);
   border-bottom: 2px solid var(--border);
@@ -368,6 +367,14 @@ onBeforeUnmount(() => {
 }
 .side-panel-tabs button.active { color: var(--text); background: var(--primary); font-weight: 700; }
 .side-panel-close, .mobile-side-trigger { display: none; }
+.side-panel-tabs .side-panel-collapse {
+  padding: 0;
+  color: var(--text);
+  background: var(--primary);
+  font-size: 23px;
+  line-height: 1;
+}
+.side-panel-tabs .side-panel-collapse:hover { background: var(--primary-strong); }
 .panel-edge-trigger {
   position: fixed;
   top: 76px;
@@ -387,7 +394,6 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 .panel-edge-trigger:hover { background: var(--primary-strong); }
-.right-panel-collapse { right: 384px; }
 .right-panel-reopen { right: 0; }
 @media (min-width: 761px) {
   .shared-side-panel.panel-collapsed {
@@ -406,6 +412,8 @@ onBeforeUnmount(() => {
   .shared-layout { padding: 12px 12px 56px; }
   .editor-content :deep(table) { display: block; max-width: 100%; overflow-x: auto; }
   .panel-edge-trigger { display: none; }
+  .side-panel-tabs { grid-template-columns: 1fr 1fr; }
+  .side-panel-tabs .side-panel-collapse { display: none; }
   .shared-side-panel {
     inset: auto 0 0;
     z-index: 210;

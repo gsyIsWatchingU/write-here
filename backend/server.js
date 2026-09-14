@@ -7,6 +7,7 @@ const { createHash, randomBytes, timingSafeEqual } = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { authenticateSession, createProblemsRouter, migrateProblems } = require('./problems');
 const { createMcpRouter, migrateMcp } = require('./mcp');
+const { createDocumentOrderRouter, migrateDocumentOrder } = require('./documentOrder');
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
@@ -63,6 +64,7 @@ function initDatabase() {
                 content TEXT NOT NULL DEFAULT '',
                 visibility TEXT NOT NULL DEFAULT 'private',
                 likes INTEGER NOT NULL DEFAULT 0,
+                sortOrder INTEGER,
                 createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (userId) REFERENCES users(id)
@@ -243,6 +245,9 @@ function initDatabase() {
 
         migrateProblems(db);
         migrateMcp(db);
+        migrateDocumentOrder(db).catch((error) => {
+            console.error('迁移文档排序字段失败:', error.message);
+        });
 
         console.log('数据库表初始化完成');
     });
@@ -480,11 +485,15 @@ app.post('/login', (req, res) => {
 
 // ==================== 文档 API ====================
 
+app.use(createDocumentOrderRouter({ db }));
+
 // 获取所有文档（用户专属）
 app.get('/docs', (req, res) => {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
-    db.all("SELECT * FROM docs WHERE userId = ? AND kind = 'document' ORDER BY updatedAt DESC", [userId], (err, rows) => {
+    db.all(`SELECT * FROM docs
+            WHERE userId = ? AND kind = 'document'
+            ORDER BY sortOrder IS NOT NULL, sortOrder ASC, updatedAt DESC`, [userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });

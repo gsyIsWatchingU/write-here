@@ -69,6 +69,9 @@ export const api = {
   deleteDoc: (id, userId) =>
     request(`/docs/${id}?userId=${userId}`, { method: 'DELETE' }),
 
+  reorderDocs: (userId, documentIds) =>
+    request('/docs/order', { method: 'PUT', body: JSON.stringify({ userId, documentIds }) }),
+
   // MCP 接入：Token 只绑定当前登录用户，明文仅在创建时返回。
   getApiTokens: () =>
     request('/api-tokens'),
