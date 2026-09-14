@@ -158,7 +158,6 @@ import TaskItem from '@tiptap/extension-task-item'
 import Highlight from '@tiptap/extension-highlight'
 import TextAlign from '@tiptap/extension-text-align'
 import Underline from '@tiptap/extension-underline'
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import TextStyle from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
 import HorizontalRule from '@tiptap/extension-horizontal-rule'
@@ -173,6 +172,7 @@ import { WebsocketProvider } from 'y-websocket'
 import EditorToolbar from '../components/EditorToolbar.vue'
 import CommentPanel from '../components/CommentPanel.vue'
 import SelectionCommentButton from '../components/SelectionCommentButton.vue'
+import CodeBlockWithCopy from '../extensions/codeBlockWithCopy.js'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 import { normalizeImportedMarkdown } from '../utils/markdown'
 import { handleCodeBlockTab } from '../utils/codeBlockIndent.js'
@@ -256,7 +256,7 @@ const editor = useEditor({
     Highlight.configure({ multicolor: true }),
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
     Underline,
-    CodeBlockLowlight.configure({ lowlight }),
+    CodeBlockWithCopy.configure({ lowlight }),
     TextStyle,
     Color,
     HorizontalRule,

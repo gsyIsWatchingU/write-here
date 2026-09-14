@@ -353,6 +353,72 @@ a {
   tab-size: 2;
 }
 
+#app .editor-content .code-block-shell {
+  position: relative;
+  margin: 16px 0;
+}
+
+#app .editor-content .code-block-shell > pre {
+  min-height: 52px;
+  margin: 0;
+  padding-right: 56px;
+}
+
+#app .editor-content .code-block-copy-button {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  z-index: 2;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  place-items: center;
+  color: #566059;
+  background: #fff;
+  border: 1px solid #cbd2cc;
+  border-radius: 5px;
+  box-shadow: 2px 2px 0 rgba(151, 179, 155, .45);
+  cursor: pointer;
+  transition: color .15s ease, background-color .15s ease, transform .15s ease;
+}
+
+#app .editor-content .code-block-copy-button:hover,
+#app .editor-content .code-block-copy-button:focus-visible {
+  color: #223d2a;
+  background: #edf3ec;
+  outline: 2px solid #6f9276;
+  outline-offset: 1px;
+}
+
+#app .editor-content .code-block-copy-button:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 rgba(151, 179, 155, .45);
+}
+
+#app .editor-content .code-block-copy-button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#app .editor-content .code-block-copy-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 #app .editor-content pre code {
   padding: 0;
   color: inherit;
