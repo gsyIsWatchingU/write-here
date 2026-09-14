@@ -65,6 +65,7 @@
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { getBlockMenuAnchor } from '../utils/blockMenu.js'
 
 const props = defineProps({
   editor: { type: Object, required: true },
@@ -184,8 +185,8 @@ function getCurrentBlockType() {
 }
 
 function getCurrentBlock() {
-  const { $from, empty } = props.editor.state.selection
-  if (!empty || $from.depth < 1) return null
+  const $from = getBlockMenuAnchor(props.editor.state.selection)
+  if (!$from) return null
 
   const index = $from.index(0)
   const position = $from.before(1)
