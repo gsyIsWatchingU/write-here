@@ -60,8 +60,12 @@
                 v-for="(item, index) in outline"
                 :key="index"
                 :class="`outline-item level-${item.level}`"
+                :title="`H${item.level} · ${item.text}`"
                 @click="scrollToHeading(item)"
-              >{{ item.text }}</li>
+              >
+                <span class="outline-level" aria-hidden="true">H{{ item.level }}</span>
+                <span class="outline-text">{{ item.text }}</span>
+              </li>
             </ul>
           </div>
           <CommentPanel
@@ -407,11 +411,28 @@ onBeforeUnmount(() => {
 }
 .empty-outline { padding: 24px 8px; color: var(--text-muted); text-align: center; }
 .outline-list { margin: 0; padding: 0; list-style: none; }
-.outline-item { padding: 6px 8px; color: var(--text-secondary); cursor: pointer; }
+.outline-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 2px 0;
+  padding: 7px 8px;
+  color: var(--text-secondary);
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.45;
+  transition: background-color 80ms steps(2, end), color 80ms steps(2, end);
+}
 .outline-item:hover { color: var(--text); background: var(--surface-hover); }
-.outline-item.level-2 { padding-left: 16px; }
-.outline-item.level-3 { padding-left: 24px; }
-.outline-item.level-4 { padding-left: 32px; }
+.outline-level { width: 18px; flex: none; color: var(--text-muted); font-size: 10px; font-weight: 700; line-height: 1.9; }
+.outline-text { min-width: 0; overflow-wrap: anywhere; }
+.outline-item.level-1 { padding-left: 8px; color: var(--text); border-left-color: var(--border); font-size: 15px; font-weight: 700; }
+.outline-item.level-2 { padding-left: 16px; color: var(--text); font-size: 14px; font-weight: 600; }
+.outline-item.level-3 { padding-left: 24px; font-weight: 600; }
+.outline-item.level-4 { padding-left: 32px; font-size: 12px; }
+.outline-item.level-5 { padding-left: 40px; font-size: 12px; }
+.outline-item.level-6 { padding-left: 48px; color: var(--text-muted); font-size: 12px; }
 @media (max-width: 760px) {
   .shared-layout { padding: 12px 12px 56px; }
   .editor-content :deep(table) { display: block; max-width: 100%; overflow-x: auto; }

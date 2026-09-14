@@ -120,8 +120,10 @@
           <ul v-else class="outline-list">
             <li v-for="(item, index) in outline" :key="index" 
                 :class="'outline-item level-' + item.level"
+                :title="`H${item.level} · ${item.text}`"
                 @click="scrollToHeading(item.id)">
-              {{ item.text }}
+              <span class="outline-level" aria-hidden="true">H{{ item.level }}</span>
+              <span class="outline-text">{{ item.text }}</span>
             </li>
           </ul>
         </div>
@@ -896,33 +898,63 @@ function copyLink() {
   margin: 0;
 }
 .outline-item {
-  padding: 6px 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 7px 8px;
   margin: 2px 0;
-  border-radius: 4px;
+  color: var(--text-secondary);
+  border-left: 3px solid transparent;
+  border-radius: 0;
   cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.2s;
+  font-size: 13px;
+  line-height: 1.45;
+  transition: background-color 80ms steps(2, end), color 80ms steps(2, end);
 }
 .outline-item:hover {
+  color: var(--text);
   background: var(--bg-gray);
 }
+.outline-level {
+  width: 18px;
+  flex: none;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.9;
+}
+.outline-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .outline-item.level-1 {
-  font-weight: 600;
+  color: var(--text);
+  border-left-color: var(--border);
+  font-size: 15px;
+  font-weight: 700;
   padding-left: 8px;
 }
 .outline-item.level-2 {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
   padding-left: 16px;
 }
 .outline-item.level-3 {
+  font-weight: 600;
   padding-left: 24px;
 }
 .outline-item.level-4 {
+  font-size: 12px;
   padding-left: 32px;
 }
 .outline-item.level-5 {
+  font-size: 12px;
   padding-left: 40px;
 }
 .outline-item.level-6 {
+  color: var(--text-muted);
+  font-size: 12px;
   padding-left: 48px;
 }
 .editor-content :deep(.tiptap) {
