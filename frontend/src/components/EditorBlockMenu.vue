@@ -13,7 +13,7 @@
         aria-label="打开当前块操作"
         title="当前块操作"
         @mousedown.prevent
-        @click.stop="open = !open"
+        @click.stop="toggleMenu"
       >
         <span aria-hidden="true">⋮⋮</span>
       </button>
@@ -62,7 +62,8 @@
 </template>
 
 <script setup>
-import { TextSelection } from '@tiptap/pm/state'
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const props = defineProps({
@@ -91,6 +92,36 @@ const currentBlockType = ref('paragraph')
 const canMoveUp = ref(false)
 const canMoveDown = ref(false)
 let animationFrame = null
+let targetBlockRange = null
+let highlightedRangeKey = ''
+
+const blockHighlightPluginKey = new PluginKey('blockConversionHighlight')
+const blockHighlightPlugin = new Plugin({
+  key: blockHighlightPluginKey,
+  state: {
+    init: () => DecorationSet.empty,
+    apply(transaction, decorations) {
+      const targetRange = transaction.getMeta(blockHighlightPluginKey)
+      if (targetRange === undefined) return decorations.map(transaction.mapping, transaction.doc)
+      if (!targetRange) return DecorationSet.empty
+
+      const node = transaction.doc.nodeAt(targetRange.from)
+      if (!node || targetRange.to !== targetRange.from + node.nodeSize) return DecorationSet.empty
+
+      return DecorationSet.create(transaction.doc, [
+        Decoration.node(targetRange.from, targetRange.to, {
+          class: 'block-conversion-target',
+          'data-block-conversion-target': 'true',
+        }),
+      ])
+    },
+  },
+  props: {
+    decorations(state) {
+      return blockHighlightPluginKey.getState(state)
+    },
+  },
+})
 
 const positionStyle = computed(() => ({
   top: `${top.value}px`,
@@ -100,6 +131,45 @@ const positionStyle = computed(() => ({
 const currentBlockLabel = computed(() => (
   blockOptions.find((option) => option.type === currentBlockType.value)?.label || '正文'
 ))
+
+function syncTargetHighlight() {
+  const targetRange = open.value ? targetBlockRange : null
+  const nextRangeKey = targetRange ? `${targetRange.from}:${targetRange.to}` : ''
+  if (nextRangeKey === highlightedRangeKey) return
+
+  highlightedRangeKey = nextRangeKey
+  const editor = props.editor
+  if (!editor?.view || editor.isDestroyed) return
+  editor.view.dispatch(editor.state.tr.setMeta(blockHighlightPluginKey, targetRange))
+}
+
+function setTargetBlockRange(range) {
+  if (
+    targetBlockRange?.from === range?.from
+    && targetBlockRange?.to === range?.to
+  ) {
+    syncTargetHighlight()
+    return
+  }
+
+  targetBlockRange = range
+  syncTargetHighlight()
+}
+
+function setOpen(value) {
+  open.value = value
+  syncTargetHighlight()
+}
+
+function toggleMenu() {
+  setOpen(!open.value)
+}
+
+function hideMenu() {
+  visible.value = false
+  setOpen(false)
+  setTargetBlockRange(null)
+}
 
 function getCurrentBlockType() {
   for (let level = 1; level <= 4; level += 1) {
@@ -123,33 +193,49 @@ function getCurrentBlock() {
   return { index, position, node }
 }
 
+function getTargetTextBlock(editor, $from) {
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const node = $from.node(depth)
+    if (!node.isTextblock) continue
+
+    const from = $from.before(depth)
+    const element = editor.view.nodeDOM(from)
+    if (element instanceof HTMLElement) {
+      return { element, from, to: from + node.nodeSize }
+    }
+  }
+
+  return null
+}
+
 function updatePosition() {
   if (animationFrame) cancelAnimationFrame(animationFrame)
   animationFrame = requestAnimationFrame(() => {
     animationFrame = null
     const editor = props.editor
     if (!editor?.view || editor.isDestroyed || !editor.isFocused || !editor.isEditable) {
-      visible.value = false
-      open.value = false
+      hideMenu()
       return
     }
 
     const currentBlock = getCurrentBlock()
     if (!currentBlock) {
-      visible.value = false
-      open.value = false
+      hideMenu()
       return
     }
 
-    const blockElement = editor.view.nodeDOM(currentBlock.position)
-    if (!(blockElement instanceof HTMLElement)) {
-      visible.value = false
+    const targetBlock = getTargetTextBlock(editor, editor.state.selection.$from)
+    if (!targetBlock) {
+      hideMenu()
       return
     }
 
-    const blockRect = blockElement.getBoundingClientRect()
-    top.value = blockRect.top + 2
+    const blockRect = targetBlock.element.getBoundingClientRect()
+    const cursorRect = editor.view.coordsAtPos(editor.state.selection.$from.pos)
+    const cursorHeight = Math.max(1, cursorRect.bottom - cursorRect.top)
+    top.value = cursorRect.top + ((cursorHeight - 30) / 2)
     left.value = Math.max(4, blockRect.left - 38)
+    setTargetBlockRange({ from: targetBlock.from, to: targetBlock.to })
     currentBlockType.value = getCurrentBlockType()
     canMoveUp.value = currentBlock.index > 0
     canMoveDown.value = currentBlock.index < editor.state.doc.childCount - 1
@@ -188,7 +274,7 @@ function convertBlock(type) {
   }
 
   currentBlockType.value = getCurrentBlockType()
-  open.value = false
+  setOpen(false)
   nextTick(updatePosition)
 }
 
@@ -210,7 +296,7 @@ function duplicateBlock() {
   focusTransactionBlock(transaction, insertPosition)
   props.editor.view.dispatch(transaction)
   props.editor.commands.focus()
-  open.value = false
+  setOpen(false)
   nextTick(updatePosition)
 }
 
@@ -241,7 +327,7 @@ function moveBlock(direction) {
   focusTransactionBlock(transaction, insertPosition)
   props.editor.view.dispatch(transaction)
   props.editor.commands.focus()
-  open.value = false
+  setOpen(false)
   nextTick(updatePosition)
 }
 
@@ -263,24 +349,24 @@ function deleteBlock() {
 
   props.editor.view.dispatch(transaction)
   props.editor.commands.focus()
-  open.value = false
+  setOpen(false)
   nextTick(updatePosition)
 }
 
 function handleDocumentClick(event) {
-  if (!menuRoot.value?.contains(event.target)) open.value = false
+  if (!menuRoot.value?.contains(event.target)) setOpen(false)
 }
 
 function handleBlur() {
   requestAnimationFrame(() => {
     if (!menuRoot.value?.contains(document.activeElement)) {
-      visible.value = false
-      open.value = false
+      hideMenu()
     }
   })
 }
 
 onMounted(() => {
+  props.editor.registerPlugin(blockHighlightPlugin)
   props.editor.on('selectionUpdate', updatePosition)
   props.editor.on('focus', updatePosition)
   props.editor.on('transaction', updatePosition)
@@ -293,6 +379,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (animationFrame) cancelAnimationFrame(animationFrame)
+  setTargetBlockRange(null)
   props.editor.off('selectionUpdate', updatePosition)
   props.editor.off('focus', updatePosition)
   props.editor.off('transaction', updatePosition)
@@ -300,6 +387,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick)
   window.removeEventListener('resize', updatePosition)
   window.removeEventListener('scroll', updatePosition, true)
+  if (!props.editor.isDestroyed) props.editor.unregisterPlugin(blockHighlightPluginKey)
 })
 </script>
 
@@ -312,6 +400,7 @@ onBeforeUnmount(() => {
 .block-menu-trigger {
   width: 30px;
   height: 30px;
+  min-height: 30px;
   padding: 0;
   color: var(--text-muted);
   background: var(--bg);
@@ -409,6 +498,13 @@ onBeforeUnmount(() => {
   background: var(--danger-hover);
 }
 
+:global(#app .editor-content .block-conversion-target) {
+  background: var(--primary-hover) !important;
+  outline: 2px solid var(--primary-strong);
+  outline-offset: 2px;
+  transition: background-color 80ms steps(2, end), outline-color 80ms steps(2, end);
+}
+
 @media (max-width: 760px) {
   .block-menu-panel {
     left: -2px;
@@ -418,7 +514,8 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .block-menu-trigger,
-  .block-menu-option {
+  .block-menu-option,
+  :global(#app .editor-content .block-conversion-target) {
     transition: none;
   }
 }
