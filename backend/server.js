@@ -7,6 +7,7 @@ const { createHash, randomBytes, timingSafeEqual } = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { authenticateSession, createProblemsRouter, migrateProblems } = require('./problems');
 const { createMcpRouter, migrateMcp } = require('./mcp');
+const { createAsrRouter } = require('./asr');
 const { createDocumentOrderRouter, migrateDocumentOrder } = require('./documentOrder');
 const {
     createDocumentPublicId,
@@ -591,6 +592,8 @@ app.delete('/docs/:id', async (req, res) => {
 
 app.use(createProblemsRouter({ db }));
 app.use(createMcpRouter({ db }));
+// 语音转写：浏览器录音上传到本站后端，再转发给同机 GPU 上的 ASR 服务
+app.use(createAsrRouter({ db }));
 
 // ==================== 分享 API ====================
 

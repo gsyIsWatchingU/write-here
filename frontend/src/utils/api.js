@@ -191,4 +191,22 @@ export const api = {
 
   resolveComment: (id, userId, resolved) =>
     request(`/comments/${id}/resolve`, { method: 'PUT', body: JSON.stringify({ userId, resolved }) }),
+
+  // 语音转写：直接上传 16 kHz 单声道 WAV，由后端转发给 GPU 上的 ASR 服务
+  transcribeAudio: async (wav) => {
+    const res = await fetch(`${BASE}/asr/transcribe`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { Accept: 'application/json', 'Content-Type': 'audio/wav' },
+      body: wav,
+    })
+    let data = {}
+    try {
+      data = await res.json()
+    } catch (error) {
+      data = {}
+    }
+    if (!res.ok) throw new Error(data.error || '语音转写失败')
+    return data
+  },
 }

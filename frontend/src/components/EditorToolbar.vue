@@ -82,12 +82,19 @@
       <button class="icon-btn" @click="editor.chain().focus().undo().run()" :disabled="!editor.can().chain().focus().undo().run()" title="撤销">&#8617;</button>
       <button class="icon-btn" @click="editor.chain().focus().redo().run()" :disabled="!editor.can().chain().focus().redo().run()" title="重做">&#8618;</button>
     </div>
+
+    <span class="toolbar-divider"></span>
+
+    <div class="toolbar-group">
+      <VoiceInputButton :editor="editor" />
+    </div>
   </div>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, ref } from 'vue'
 import EditorBlockMenu from './EditorBlockMenu.vue'
+import VoiceInputButton from './VoiceInputButton.vue'
 import { convertMarkdownHeadings } from '../utils/markdownHeadings'
 
 const props = defineProps({

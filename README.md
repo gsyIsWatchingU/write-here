@@ -54,6 +54,17 @@ npm run dev
 
 普通文档地址使用 32 位随机哈希标识，不暴露递增数据库主键；旧数字地址仍可访问，并会自动替换为哈希地址。
 
+## 语音输入（GPU ASR）
+
+编辑器与可编辑分享页支持快捷键语音转写：
+
+- 按住 `Ctrl+Alt+M` 说话，松开即转写并插入光标处；也可以点击工具栏的麦克风按钮开始/停止。
+- 单次最长 60 秒，到时自动结束并转写；录音太短（不足 0.4 秒）不会发起请求。
+- 浏览器把麦克风采集为 16 kHz 单声道 PCM 并封装成 WAV，上传本站后端 `/asr/transcribe`；后端再转发给同机 GPU 上的 `Qwen3-ASR-1.7B`（vLLM 的 OpenAI 兼容 `/v1/audio/transcriptions`）。
+- 音频只在内存里转发，不落盘、不记录转写内容；接口需要登录会话，未登录返回 401。
+- 服务端可用环境变量覆盖：`ASR_URL`（默认 `http://127.0.0.1:8001`）、`ASR_MODEL`（默认 `qwen3-asr-1.7b`）、`ASR_API_KEY`、`ASR_TIMEOUT_MS`、`ASR_MAX_SECONDS`。
+- 麦克风需要 HTTPS 或 localhost；公网站点已满足，本地开发请用 `http://localhost:5273`。
+
 ## 技术栈
 
 ### 前端
