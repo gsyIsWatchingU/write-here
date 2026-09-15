@@ -7,6 +7,7 @@ import {
   getBlockMenuAnchor,
   getBlockMoveTargetIndex,
   moveTopLevelBlock,
+  shouldShowBlockMenu,
 } from './blockMenu.js'
 
 test('光标停留时返回当前块锚点', () => {
@@ -41,6 +42,64 @@ test('拖动整块时把原始插入边界换算为删除后的目标索引', ()
   assert.equal(getBlockMoveTargetIndex(1, 1, 4), null)
   assert.equal(getBlockMoveTargetIndex(1, 2, 4), null)
   assert.equal(getBlockMoveTargetIndex(4, 0, 4), null)
+})
+
+test('编辑器聚焦且命中内容块时显示块操作柄', () => {
+  assert.equal(shouldShowBlockMenu({
+    isDestroyed: false,
+    isEditable: true,
+    isFocused: true,
+    interacting: false,
+    hasTarget: true,
+  }), true)
+})
+
+test('点击操作柄导致编辑器失焦时仍保留块操作柄', () => {
+  // 代码块操作柄点击后编辑器 blur，如果按焦点判定就会被立刻收起，表现为「点了没反应」。
+  assert.equal(shouldShowBlockMenu({
+    isDestroyed: false,
+    isEditable: true,
+    isFocused: false,
+    interacting: true,
+    hasTarget: true,
+  }), true)
+})
+
+test('未聚焦且无交互时收起块操作柄', () => {
+  assert.equal(shouldShowBlockMenu({
+    isDestroyed: false,
+    isEditable: true,
+    isFocused: false,
+    interacting: false,
+    hasTarget: true,
+  }), false)
+})
+
+test('没有可用内容块时不显示块操作柄', () => {
+  assert.equal(shouldShowBlockMenu({
+    isDestroyed: false,
+    isEditable: true,
+    isFocused: true,
+    interacting: true,
+    hasTarget: false,
+  }), false)
+})
+
+test('编辑器只读或已销毁时不显示块操作柄', () => {
+  assert.equal(shouldShowBlockMenu({
+    isDestroyed: false,
+    isEditable: false,
+    isFocused: true,
+    interacting: true,
+    hasTarget: true,
+  }), false)
+  assert.equal(shouldShowBlockMenu({
+    isDestroyed: true,
+    isEditable: true,
+    isFocused: true,
+    interacting: true,
+    hasTarget: true,
+  }), false)
 })
 
 test('拖动代码块会原样移动整个顶层节点', () => {

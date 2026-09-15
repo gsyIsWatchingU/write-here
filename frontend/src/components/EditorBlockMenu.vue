@@ -5,6 +5,8 @@
       ref="menuRoot"
       class="block-menu"
       :style="positionStyle"
+      @pointerenter="pointerOnMenu = true"
+      @pointerleave="pointerOnMenu = false"
     >
       <button
         class="block-menu-trigger"
@@ -14,6 +16,7 @@
         :aria-expanded="open"
         aria-label="拖动整块或打开块操作"
         title="拖动整块；点击打开块操作"
+        @mousedown="markMenuPointer"
         @click.stop="toggleMenu"
         @dragstart="startDrag"
         @dragend="finishDrag"
@@ -80,6 +83,7 @@ import {
   getBlockMenuAnchor,
   getBlockMoveTargetIndex,
   moveTopLevelBlock,
+  shouldShowBlockMenu,
 } from '../utils/blockMenu.js'
 
 const props = defineProps({
@@ -108,6 +112,7 @@ const currentBlockType = ref('paragraph')
 const canMoveUp = ref(false)
 const canMoveDown = ref(false)
 const dragging = ref(false)
+const pointerOnMenu = ref(false)
 const dropInsertionIndex = ref(null)
 const dropTop = ref(0)
 const dropLeft = ref(0)
@@ -118,6 +123,7 @@ let highlightedRangeKey = ''
 let draggedBlock = null
 let draggedElement = null
 let dragGhost = null
+let suppressPositionSync = false
 
 const blockHighlightPluginKey = new PluginKey('blockConversionHighlight')
 const blockHighlightPlugin = new Plugin({
@@ -162,6 +168,17 @@ const currentBlockLabel = computed(() => (
   blockOptions.find((option) => option.type === currentBlockType.value)?.label || '正文'
 ))
 
+function dispatchHighlight(transaction) {
+  const editor = props.editor
+  if (!editor?.view || editor.isDestroyed) return
+  suppressPositionSync = true
+  try {
+    editor.view.dispatch(transaction)
+  } finally {
+    suppressPositionSync = false
+  }
+}
+
 function syncTargetHighlight() {
   const targetRange = open.value ? targetBlockRange : null
   const nextRangeKey = targetRange ? `${targetRange.from}:${targetRange.to}` : ''
@@ -170,7 +187,7 @@ function syncTargetHighlight() {
   highlightedRangeKey = nextRangeKey
   const editor = props.editor
   if (!editor?.view || editor.isDestroyed) return
-  editor.view.dispatch(editor.state.tr.setMeta(blockHighlightPluginKey, targetRange))
+  dispatchHighlight(editor.state.tr.setMeta(blockHighlightPluginKey, targetRange))
 }
 
 function setTargetBlockRange(range) {
@@ -186,8 +203,19 @@ function setTargetBlockRange(range) {
   syncTargetHighlight()
 }
 
+function isMenuInteracting() {
+  return dragging.value || open.value || pointerOnMenu.value
+}
+
+// 指针进入操作柄或面板时先记录交互状态：mousedown 会先于编辑器 blur 触发，
+// 这样失焦时不会误判为「点到别处」而收起操作柄。
+function markMenuPointer() {
+  pointerOnMenu.value = true
+}
+
 function setOpen(value) {
   open.value = value
+  if (value) visible.value = true
   syncTargetHighlight()
 }
 
@@ -197,6 +225,7 @@ function toggleMenu() {
 
 function hideMenu() {
   visible.value = false
+  pointerOnMenu.value = false
   setOpen(false)
   setTargetBlockRange(null)
 }
@@ -235,19 +264,22 @@ function updatePosition() {
     animationFrame = null
     if (dragging.value) return
     const editor = props.editor
-    if (!editor?.view || editor.isDestroyed || !editor.isFocused || !editor.isEditable) {
+    if (!editor?.view || editor.isDestroyed || !editor.isEditable) {
       hideMenu()
       return
     }
 
     const currentBlock = getCurrentBlock()
-    if (!currentBlock) {
-      hideMenu()
-      return
-    }
+    const blockElement = currentBlock ? getTopLevelBlockElement(editor, currentBlock) : null
+    const canShow = shouldShowBlockMenu({
+      isDestroyed: editor.isDestroyed,
+      isEditable: editor.isEditable,
+      isFocused: editor.isFocused,
+      interacting: isMenuInteracting(),
+      hasTarget: Boolean(currentBlock && blockElement),
+    })
 
-    const blockElement = getTopLevelBlockElement(editor, currentBlock)
-    if (!blockElement) {
+    if (!canShow) {
       hideMenu()
       return
     }
@@ -519,13 +551,33 @@ function finishDrag() {
   dropInsertionIndex.value = null
 }
 
+function handleTransaction() {
+  if (suppressPositionSync) return
+  updatePosition()
+}
+
 function handleDocumentClick(event) {
-  if (!menuRoot.value?.contains(event.target)) setOpen(false)
+  if (menuRoot.value?.contains(event.target)) return
+
+  const editorDom = props.editor?.view?.dom
+  if (editorDom instanceof HTMLElement && editorDom.contains(event.target)) {
+    // 点回正文：只收起菜单，操作柄继续跟随光标所在块。
+    setOpen(false)
+    return
+  }
+
+  hideMenu()
+}
+
+function handleKeyDown(event) {
+  if (event.key !== 'Escape' || !open.value) return
+  setOpen(false)
 }
 
 function handleBlur() {
   if (dragging.value) return
   requestAnimationFrame(() => {
+    if (isMenuInteracting()) return
     if (!menuRoot.value?.contains(document.activeElement)) {
       hideMenu()
     }
@@ -536,9 +588,10 @@ onMounted(() => {
   props.editor.registerPlugin(blockHighlightPlugin)
   props.editor.on('selectionUpdate', updatePosition)
   props.editor.on('focus', updatePosition)
-  props.editor.on('transaction', updatePosition)
+  props.editor.on('transaction', handleTransaction)
   props.editor.on('blur', handleBlur)
   document.addEventListener('click', handleDocumentClick)
+  document.addEventListener('keydown', handleKeyDown)
   document.addEventListener('dragover', handleDragOver, true)
   document.addEventListener('drop', handleDrop, true)
   window.addEventListener('resize', updatePosition)
@@ -551,9 +604,10 @@ onBeforeUnmount(() => {
   setTargetBlockRange(null)
   props.editor.off('selectionUpdate', updatePosition)
   props.editor.off('focus', updatePosition)
-  props.editor.off('transaction', updatePosition)
+  props.editor.off('transaction', handleTransaction)
   props.editor.off('blur', handleBlur)
   document.removeEventListener('click', handleDocumentClick)
+  document.removeEventListener('keydown', handleKeyDown)
   document.removeEventListener('dragover', handleDragOver, true)
   document.removeEventListener('drop', handleDrop, true)
   window.removeEventListener('resize', updatePosition)

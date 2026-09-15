@@ -4,6 +4,14 @@ export function getBlockMenuAnchor(selection) {
   return $from
 }
 
+// 飞书式判定：操作柄属于「当前正在操作的块」，而不是「编辑器是否聚焦」。
+// 点击操作柄、打开菜单或拖动过程中编辑器会失焦，此时操作柄必须继续可用。
+export function shouldShowBlockMenu({ isDestroyed, isEditable, isFocused, interacting, hasTarget }) {
+  if (isDestroyed || !isEditable) return false
+  if (!hasTarget) return false
+  return Boolean(isFocused) || Boolean(interacting)
+}
+
 export function getBlockInsertionIndex(blockRects, clientY) {
   const index = blockRects.findIndex((rect) => clientY < rect.top + (rect.height / 2))
   return index === -1 ? blockRects.length : index
