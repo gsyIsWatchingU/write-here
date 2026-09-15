@@ -1,50 +1,52 @@
 <template>
   <div class="editor-page">
-    <header class="editor-topbar">
-      <div class="topbar-left">
-        <button class="ghost" @click="goBack">&larr; 返回</button>
-        <input
-          v-model="docTitle"
-          class="title-input"
-          :placeholder="docKind === 'problem' ? '无标题题目' : '无标题文档'"
-          :readonly="!canEdit"
-          :class="{ readonly: !canEdit }"
-          @input="scheduleAutoSave"
-        />
-      </div>
-      <div class="topbar-right">
-        <div v-if="collabUsers.length > 0" class="collab-avatars">
-          <span
-            v-for="u in collabUsers"
-            :key="u.name"
-            class="collab-avatar"
-            :style="{ background: u.color }"
-            :title="u.name"
-          >{{ u.name[0] }}</span>
+    <div class="editor-sticky-head">
+      <header class="editor-topbar">
+        <div class="topbar-left">
+          <button class="ghost" @click="goBack">&larr; 返回</button>
+          <input
+            v-model="docTitle"
+            class="title-input"
+            :placeholder="docKind === 'problem' ? '无标题题目' : '无标题文档'"
+            :readonly="!canEdit"
+            :class="{ readonly: !canEdit }"
+            @input="scheduleAutoSave"
+          />
         </div>
-        <span v-if="saveStatus" class="save-status">{{ saveStatus }}</span>
-        <input
-          ref="markdownFileInput"
-          class="file-input"
-          type="file"
-          accept=".md,.markdown,text/markdown,text/plain"
-          @change="handleMarkdownImport"
-        />
-        <button v-if="canEdit" class="ghost" @click="openMarkdownPicker">导入 MD</button>
-        <div v-if="isOwner && docKind !== 'problem'" class="visibility-control">
-          <label>
-            <span>可见性：</span>
-            <select v-model="visibility" @change="updateVisibility">
-              <option value="private">私密</option>
-              <option value="public">公开</option>
-            </select>
-          </label>
+        <div class="topbar-right">
+          <div v-if="collabUsers.length > 0" class="collab-avatars">
+            <span
+              v-for="u in collabUsers"
+              :key="u.name"
+              class="collab-avatar"
+              :style="{ background: u.color }"
+              :title="u.name"
+            >{{ u.name[0] }}</span>
+          </div>
+          <span v-if="saveStatus" class="save-status">{{ saveStatus }}</span>
+          <input
+            ref="markdownFileInput"
+            class="file-input"
+            type="file"
+            accept=".md,.markdown,text/markdown,text/plain"
+            @change="handleMarkdownImport"
+          />
+          <button v-if="canEdit" class="ghost" @click="openMarkdownPicker">导入 MD</button>
+          <div v-if="isOwner && docKind !== 'problem'" class="visibility-control">
+            <label>
+              <span>可见性：</span>
+              <select v-model="visibility" @change="updateVisibility">
+                <option value="private">私密</option>
+                <option value="public">公开</option>
+              </select>
+            </label>
+          </div>
+          <button v-if="isOwner && docKind !== 'problem'" class="ghost" @click="openShare">分享</button>
         </div>
-        <button v-if="isOwner && docKind !== 'problem'" class="ghost" @click="openShare">分享</button>
-      </div>
-    </header>
+      </header>
 
-    <EditorToolbar v-if="editor && editorReady && canEdit" :editor="editor" />
+      <EditorToolbar v-if="editor && editorReady && canEdit" :editor="editor" />
+    </div>
 
     <div
       class="editor-main"
@@ -701,8 +703,15 @@ function copyLink() {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow-x: hidden;
+  /* 用 clip 代替 hidden：hidden 会让本页成为滚动容器，导致内部 sticky 吸顶失效。 */
+  overflow-x: clip;
   background: var(--bg-gray);
+}
+.editor-sticky-head {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg);
 }
 .editor-topbar {
   display: flex;
@@ -711,9 +720,6 @@ function copyLink() {
   padding: 8px 16px;
   background: #fff;
   box-shadow: var(--shadow);
-  z-index: 100;
-  position: sticky;
-  top: 0;
 }
 .topbar-left {
   display: flex;
@@ -777,11 +783,6 @@ function copyLink() {
   align-items: center;
   justify-content: center;
   font-weight: 600;
-}
-.toolbar-menu {
-  position: sticky;
-  top: 56px;
-  z-index: 99;
 }
 .editor-main {
   flex: 1;

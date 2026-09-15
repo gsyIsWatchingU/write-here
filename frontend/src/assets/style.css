@@ -622,7 +622,6 @@ a {
   }
 
   #app .toolbar-menu {
-    top: 112px;
     flex-wrap: nowrap;
     overflow-x: auto;
   }
