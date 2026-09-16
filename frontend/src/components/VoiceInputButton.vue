@@ -33,16 +33,12 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { api } from '../utils/api'
 import {
-  VOICE_HOLD_LABEL,
   VOICE_MAX_SECONDS,
-  VOICE_SHORTCUT_LABEL,
-  createShortcutDetector,
   createVoiceRecorder,
   describeVoiceError,
-  isVoiceHoldShortcut,
 } from '../utils/voiceInput'
 
 const props = defineProps({
@@ -56,8 +52,6 @@ const transcribing = ref(false)
 const message = ref('')
 const messageIsError = ref(false)
 let messageTimer = null
-let holdShortcut = false
-const detector = createShortcutDetector()
 
 const recorder = createVoiceRecorder({
   onAutoStop: (result) => submit(result)
@@ -66,7 +60,7 @@ const recorder = createVoiceRecorder({
 const buttonTitle = computed(() => {
   if (recording.value) return `停止录音并转写（最长 ${VOICE_MAX_SECONDS} 秒）`
   if (transcribing.value) return '正在转写…'
-  return `语音输入：点击本按钮，或${VOICE_SHORTCUT_LABEL}开始/停止，或${VOICE_HOLD_LABEL}按住说话`
+  return '语音输入：点击本按钮开始/停止录音'
 })
 
 function setMessage(text, { error = false, ttl = 2600 } = {}) {
@@ -145,55 +139,7 @@ function toggle() {
   else start()
 }
 
-function isFormField(target) {
-  if (!target || typeof target.closest !== 'function') return false
-  return Boolean(target.closest('input, textarea, select'))
-}
-
-function onKeyDown(event) {
-  if (isVoiceHoldShortcut(event)) {
-    if (isFormField(event.target)) return
-    event.preventDefault()
-    if (holdShortcut) return
-    holdShortcut = true
-    start()
-    return
-  }
-  detector.keydown(event)
-}
-
-function onKeyUp(event) {
-  if (isVoiceHoldShortcut(event)) {
-    if (!holdShortcut) return
-    holdShortcut = false
-    event.preventDefault()
-    stop()
-    return
-  }
-  if (detector.keyup(event)) {
-    if (isFormField(event.target)) return
-    event.preventDefault()
-    toggle()
-  }
-}
-
-function onWindowBlur() {
-  detector.reset()
-  if (!holdShortcut) return
-  holdShortcut = false
-  stop()
-}
-
-onMounted(() => {
-  window.addEventListener('keydown', onKeyDown)
-  window.addEventListener('keyup', onKeyUp)
-  window.addEventListener('blur', onWindowBlur)
-})
-
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onKeyDown)
-  window.removeEventListener('keyup', onKeyUp)
-  window.removeEventListener('blur', onWindowBlur)
   recorder.cancel()
   if (messageTimer) clearTimeout(messageTimer)
 })

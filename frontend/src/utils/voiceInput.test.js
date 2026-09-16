@@ -3,12 +3,10 @@ import assert from 'node:assert/strict'
 import {
   VOICE_MAX_SECONDS,
   VOICE_SAMPLE_RATE,
-  createShortcutDetector,
   createVoiceRecorder,
   describeVoiceError,
   downsampleTo16k,
   floatToPcm16,
-  isVoiceHoldShortcut,
   pcm16ToWav,
   wavDurationSeconds,
 } from './voiceInput.js'
@@ -52,69 +50,6 @@ test('downsampleTo16k 按比例降采样，同采样率时原样返回', () => {
 
   const unchanged = downsampleTo16k(source, VOICE_SAMPLE_RATE)
   assert.equal(unchanged, source)
-})
-
-test('isVoiceHoldShortcut 只认单独的 F2', () => {
-  assert.equal(isVoiceHoldShortcut({ key: 'F2', code: 'F2' }), true)
-  assert.equal(isVoiceHoldShortcut({ key: 'F2', code: 'F2', ctrlKey: true }), false)
-  assert.equal(isVoiceHoldShortcut({ key: 'F2', code: 'F2', shiftKey: true }), false)
-  assert.equal(isVoiceHoldShortcut({ key: 'F3', code: 'F3' }), false)
-  assert.equal(isVoiceHoldShortcut(null), false)
-})
-
-test('双击 Ctrl 触发切换，Ctrl+其它键与按住 Ctrl 都不触发', () => {
-  let time = 1000
-  const detector = createShortcutDetector({ now: () => time })
-
-  const tap = () => {
-    detector.keydown({ key: 'Control' })
-    time += 60
-    return detector.keyup({ key: 'Control' })
-  }
-
-  assert.equal(tap(), false)
-  time += 100
-  assert.equal(tap(), true)
-  time += 100
-  assert.equal(tap(), false)
-
-  // 两次轻点间隔超过 420ms 不算双击
-  time += 900
-  assert.equal(tap(), false)
-
-  // Ctrl+C 这类组合：中间按过别的键，之前那一下轻点不再配对
-  time += 100
-  detector.keydown({ key: 'Control' })
-  time += 40
-  detector.keydown({ key: 'c' })
-  time += 20
-  time += 10
-  assert.equal(detector.keyup({ key: 'Control' }), false)
-  assert.equal(tap(), false)
-
-  // 按住 Ctrl 超过阈值不算轻点
-  time += 500
-  detector.keydown({ key: 'Control' })
-  time += 600
-  assert.equal(detector.keyup({ key: 'Control' }), false)
-  time += 100
-  assert.equal(tap(), false)
-
-  // 长按 Ctrl 时系统会重复派发 keydown，累计时长仍要算「按住」
-  time += 100
-  detector.keydown({ key: 'Control' })
-  time += 300
-  detector.keydown({ key: 'Control', repeat: true })
-  time += 10
-  assert.equal(detector.keyup({ key: 'Control' }), false)
-  time += 80
-  assert.equal(tap(), false)
-
-  // 带其它修饰键的 Ctrl 组合直接忽略
-  time += 100
-  detector.keydown({ key: 'Control', shiftKey: true })
-  time += 30
-  assert.equal(detector.keyup({ key: 'Control' }), false)
 })
 
 test('describeVoiceError 把浏览器错误码翻译为中文提示', () => {
