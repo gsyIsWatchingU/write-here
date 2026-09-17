@@ -158,3 +158,4 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 - 2026-09-17：编辑器与可编辑分享页支持文档开头空行退格删除：光标位于文档第一行空文本块（空段落或空列表项）时按 Backspace 直接删除该行；通过 9 项新增单元测试（前端共 71 项）、前端生产构建，后端无改动。
 - 2026-09-17：文档末尾点击空白补行通过 7 项新增单元测试（前端共 78 项）、前端生产构建和后端语法检查；用临时无头 Chrome（CDP 驱动）加载真实 TipTap 编辑器完成 12 项浏览器验收并全部通过：空代码块为唯一块时点击下方空白新增普通段落且光标落在新行（选区位置与期望一致）、点击编辑器底部更下方的空白同样生效、末尾是代码块或列表时补行、末尾是段落或标题时不补行、点击代码块内部不补行、块间空白点击回归通过、补行后再次点击末尾空白不再插入；同时实测确认光标在代码块内按回车只得到块内换行、标题与段落末尾按回车才能直接产生普通段落。
+- 2026-09-17：`8135a71` 的文档末尾补行已通过 CI/CD 构建与 GPU 部署；服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 10 个业务表，`write-here` 与 `cloudflared-write-here` 均为 RUNNING），部署包内 `frontend/src/utils/blockGapInsertion.js` 含 `findTrailingInsertionIndex`、`shouldInsertTrailingParagraph`、`TRAILING_ESCAPE_TYPES` 三个新符号及其测试。
