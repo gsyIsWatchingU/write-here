@@ -45,7 +45,7 @@
         </div>
       </header>
 
-      <EditorToolbar v-if="editor && editorReady && canEdit" :editor="editor" />
+      <EditorToolbar v-if="editor && editorReady && canEdit" :editor="editor" @applied="handleAiPolished" />
     </div>
 
     <div
@@ -231,6 +231,7 @@ import CodeBlockWithCopy from '../extensions/codeBlockWithCopy.js'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 import { normalizeImportedMarkdown } from '../utils/markdown'
 import { handleCodeBlockTab } from '../utils/codeBlockIndent.js'
+import { handleBackspaceDeleteEmptyLine } from '../utils/emptyLineBackspace.js'
 import { insertParagraphInClickedGap } from '../utils/blockGapInsertion.js'
 import { scrollToOutlineHeading } from '../utils/outlineNavigation.js'
 import { getDocumentPath } from '../utils/documentIdentity.js'
@@ -349,7 +350,9 @@ const editor = useEditor({
   ],
   editable: false,
   editorProps: {
-    handleKeyDown: handleCodeBlockTab,
+    handleKeyDown: (view, event) => (
+      handleBackspaceDeleteEmptyLine(view, event) || handleCodeBlockTab(view, event)
+    ),
     handleDOMEvents: {
       mousedown: insertParagraphInClickedGap,
     },
@@ -620,6 +623,12 @@ async function goBack() {
   if (!canEdit.value) return router.push(returnPath)
   const saved = await flushAutoSave()
   if (saved) router.push(returnPath)
+}
+
+// AI 润色完成：正文已由组件替换，这里立即落盘，避免依赖自动保存定时器
+async function handleAiPolished() {
+  const saved = await flushAutoSave()
+  if (!saved) alert('AI 润色已完成，但自动保存失败，请检查网络后重试')
 }
 
 function openMarkdownPicker() {

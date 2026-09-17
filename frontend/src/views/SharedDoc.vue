@@ -125,6 +125,7 @@ import SelectionCommentButton from '../components/SelectionCommentButton.vue'
 import CodeBlockWithCopy from '../extensions/codeBlockWithCopy.js'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 import { handleCodeBlockTab } from '../utils/codeBlockIndent.js'
+import { handleBackspaceDeleteEmptyLine } from '../utils/emptyLineBackspace.js'
 import { insertParagraphInClickedGap } from '../utils/blockGapInsertion.js'
 import { scrollToOutlineHeading } from '../utils/outlineNavigation.js'
 
@@ -174,7 +175,9 @@ const editor = useEditor({
   ],
   editable: false,
   editorProps: {
-    handleKeyDown: handleCodeBlockTab,
+    handleKeyDown: (view, event) => (
+      handleBackspaceDeleteEmptyLine(view, event) || handleCodeBlockTab(view, event)
+    ),
     handleDOMEvents: {
       mousedown: insertParagraphInClickedGap,
     },
