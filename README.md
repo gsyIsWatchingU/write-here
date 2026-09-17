@@ -50,21 +50,35 @@ npm run dev
 }
 ```
 
-提供 `list_markdown_documents`、`get_markdown_document`、`create_markdown_document`、`update_markdown_document` 四个工具。新文档默认私密，Markdown 上限 2 MB；Token 只绑定当前用户，不保存账号密码。
+提供 8 个文档工具：
+
+- 查找：`list_markdown_documents`、`search_markdown_documents`
+- 读取：`get_markdown_document`、`read_document_content`（最多按 500 行分段读取，返回大纲与总行数）
+- 写入：`create_markdown_document`、`update_markdown_document`、`edit_markdown_document`（精确替换、追加、前置）
+- 整理：`move_markdown_document`（移动到开头、末尾或另一篇文档前后）
+
+局部修改可携带最近读取到的 `updatedAt`，防止覆盖并发更新。新文档默认私密，Markdown 上限 2 MB；Token 只绑定当前用户，不保存账号密码，也不能操作他人文档或题库内容。
 
 普通文档地址使用 32 位随机哈希标识，不暴露递增数据库主键；旧数字地址仍可访问，并会自动替换为哈希地址。
 
-## 语音输入（GPU ASR）
+## AI 润色
 
-编辑器与可编辑分享页支持快捷键语音转写：
+编辑器的“`AI 润色`”按钮可把整篇文档交给 Claude 润色：输入自己的润色要求后，后端在服务器本机调用 `claude` CLI，经 Anthropic 兼容接口接入 GPU 模型 API（三方 Key）完成润色，再将结果回填到正文并自动保存。
 
-- 快捷键：**双击 `Ctrl`** 开始/停止录音（不用按住）；也可以**按住 `F2`** 说话，松开即转写；或者点击工具栏的麦克风按钮。
-- 双击判定会把「按住 `Ctrl`」和 `Ctrl+C` 这类组合排除掉，不会误触发；转写结果插入光标处。
-- 单次最长 60 秒，到时自动结束并转写；录音太短（不足 0.4 秒）或没听到内容时不会插入文本。
-- 浏览器把麦克风采集为 16 kHz 单声道 PCM 并封装成 WAV，上传本站后端 `/asr/transcribe`；后端再转发给同机 GPU 上的 `Qwen3-ASR-1.7B`（vLLM 的 OpenAI 兼容 `/v1/audio/transcriptions`）。
-- 音频只在内存里转发，不落盘、不记录转写内容；接口需要登录会话，未登录返回 401。
-- 服务端可用环境变量覆盖：`ASR_URL`（默认 `http://127.0.0.1:8001`）、`ASR_MODEL`（默认 `qwen3-asr-1.7b`）、`ASR_API_KEY`、`ASR_TIMEOUT_MS`、`ASR_MAX_SECONDS`。
-- 麦克风需要 HTTPS 或 localhost；公网站点已满足，本地开发请用 `http://localhost:5273`。
+在 GPU 服务器的 `.env` 中配置（参考 `.env.example`）：
+
+```env
+CLAUDE_CLI_PATH=claude
+ANTHROPIC_BASE_URL=https://your-gpu-model-api.example   # Anthropic 兼容的 GPU 模型 API 地址
+ANTHROPIC_API_KEY=sk-your-third-party-key               # 三方 Key
+CLAUDE_MODEL=                                            # 可选：指定模型
+AI_POLISH_TIMEOUT_MS=180000                              # 可选：超时（毫秒）
+AI_POLISH_MAX_CHARS=100000                               # 可选：单次润色最大字数
+```
+
+- 未配置 `ANTHROPIC_BASE_URL` / `ANTHROPIC_API_KEY` 时，前端按钮会提示“未配置”且无法提交。
+- 润色过程使用 `claude -p --output-format text` 打印模式，并通过 `--disallowedTools` 禁用工具，只做纯文本改写；默认禁止 Bash/Read/Write 等工具，避免 Claude 读写服务器文件或执行命令。
+- 文档先在前端转为 Markdown 提交，Claude 返回 Markdown 后回填；表格、任务列表、代码块语言等结构会被保留。
 
 ## 技术栈
 

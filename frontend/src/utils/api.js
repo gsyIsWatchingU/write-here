@@ -209,4 +209,11 @@ export const api = {
     if (!res.ok) throw new Error(data.error || '语音转写失败')
     return data
   },
+
+  // AI 润色：后端调用本机 claude CLI 接入 GPU 模型 API，对整篇文档润色
+  getAiPolishStatus: () =>
+    request('/ai/polish/config'),
+
+  polishDocument: (content, instruction) =>
+    request('/ai/polish', { method: 'POST', body: JSON.stringify({ content, instruction }) }),
 }

@@ -88,6 +88,12 @@
     <div class="toolbar-group">
       <VoiceInputButton :editor="editor" />
     </div>
+
+    <span class="toolbar-divider"></span>
+
+    <div class="toolbar-group">
+      <AiPolishButton :editor="editor" @applied="emit('applied')" />
+    </div>
   </div>
 </template>
 
@@ -95,11 +101,14 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import EditorBlockMenu from './EditorBlockMenu.vue'
 import VoiceInputButton from './VoiceInputButton.vue'
+import AiPolishButton from './AiPolishButton.vue'
 import { convertMarkdownHeadings } from '../utils/markdownHeadings'
 
 const props = defineProps({
   editor: { type: Object, required: true }
 })
+
+const emit = defineEmits(['applied'])
 
 const markdownHeadingLabel = ref('识别 MD 标题')
 let labelTimer = null

@@ -8,6 +8,7 @@ const { v4: uuidv4 } = require('uuid');
 const { authenticateSession, createProblemsRouter, migrateProblems } = require('./problems');
 const { createMcpRouter, migrateMcp } = require('./mcp');
 const { createAsrRouter } = require('./asr');
+const { createAiPolishRouter } = require('./aiPolish');
 const { createDocumentOrderRouter, migrateDocumentOrder } = require('./documentOrder');
 const {
     createDocumentPublicId,
@@ -594,6 +595,8 @@ app.use(createProblemsRouter({ db }));
 app.use(createMcpRouter({ db }));
 // 语音转写：浏览器录音上传到本站后端，再转发给同机 GPU 上的 ASR 服务
 app.use(createAsrRouter({ db }));
+// AI 润色：后端在本机调用 claude CLI，通过 ANTHROPIC_BASE_URL / ANTHROPIC_API_KEY 接入 GPU 模型 API
+app.use(createAiPolishRouter({ db }));
 
 // ==================== 分享 API ====================
 
