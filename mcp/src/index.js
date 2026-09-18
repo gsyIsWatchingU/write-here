@@ -39,9 +39,9 @@ export function createServer(options = {}) {
     token: process.env.HORIZON_DOCS_TOKEN,
   })
   const server = new McpServer(
-    { name: 'horizon-docs', version: '1.0.0' },
+    { name: 'horizon-docs', version: '1.1.0' },
     {
-      instructions: '用于管理当前 Token 所属用户的 Horizon Docs 普通文档。创建内容时默认使用 private；只有用户明确要求公开时才设置 public。',
+      instructions: '用于查看、修改和整理当前 Token 所属用户的 Horizon Docs 普通文档。先检索或列出文档，再按需分段读取；局部修改优先使用 edit_markdown_document，并传入读取结果中的 updatedAt 防止覆盖并发更新。创建内容默认使用 private，只有用户明确要求公开时才设置 public。',
     },
   )
 
@@ -49,12 +49,27 @@ export function createServer(options = {}) {
     'list_markdown_documents',
     {
       title: '列出 Horizon Docs 文档',
-      description: '列出当前用户最近更新的普通文档，返回用于后续操作的 documentId 哈希。',
+      description: '列出当前用户的普通文档，返回用于后续操作的 documentId 哈希。',
       inputSchema: z.object({
         limit: z.number().int().min(1).max(100).default(50).describe('返回数量，默认 50'),
+        sort: z.enum(['updated', 'manual', 'title']).default('updated').describe('updated 最近更新；manual 手工顺序；title 标题'),
       }),
     },
-    withErrors(async ({ limit }) => result(await client.listDocuments(limit))),
+    withErrors(async ({ limit, sort }) => result(await client.listDocuments(limit, sort))),
+  )
+
+  server.registerTool(
+    'search_markdown_documents',
+    {
+      title: '搜索 Horizon Docs 文档',
+      description: '按标题或正文关键词搜索当前用户的普通文档，返回命中摘要、Markdown 大纲和更新时间。',
+      inputSchema: z.object({
+        query: z.string().trim().min(1).max(100).describe('要搜索的关键词'),
+        visibility: z.enum(['all', 'private', 'public']).default('all').describe('可见性筛选'),
+        limit: z.number().int().min(1).max(50).default(20).describe('返回数量，默认 20'),
+      }),
+    },
+    withErrors(async (input) => result(await client.searchDocuments(input))),
   )
 
   server.registerTool(
@@ -67,6 +82,20 @@ export function createServer(options = {}) {
       }),
     },
     withErrors(async ({ documentId }) => result(await client.getDocument(documentId))),
+  )
+
+  server.registerTool(
+    'read_document_content',
+    {
+      title: '分段读取文档正文',
+      description: '按行读取文档正文，并返回完整大纲、总行数、是否还有后续内容和 updatedAt。适合读取较长文档。',
+      inputSchema: z.object({
+        documentId: documentIdentifierSchema,
+        startLine: z.number().int().positive().default(1).describe('起始行，从 1 开始'),
+        lineCount: z.number().int().min(1).max(500).default(200).describe('读取行数，最多 500'),
+      }),
+    },
+    withErrors(async ({ documentId, ...options }) => result(await client.readDocument(documentId, options))),
   )
 
   server.registerTool(
@@ -87,7 +116,7 @@ export function createServer(options = {}) {
     'update_markdown_document',
     {
       title: '更新 Markdown 文档',
-      description: '更新当前用户的一篇普通文档。只传需要修改的字段，不支持操作他人文档或题库内容。',
+      description: '更新标题、可见性或完整 Markdown。仅修改局部正文时优先使用 edit_markdown_document，减少覆盖风险。',
       inputSchema: z.object({
         documentId: documentIdentifierSchema,
         title: z.string().trim().min(1).max(200).optional().describe('新标题'),
@@ -99,6 +128,44 @@ export function createServer(options = {}) {
       ),
     },
     withErrors(async ({ documentId, ...input }) => result(await client.updateDocument(documentId, input))),
+  )
+
+  server.registerTool(
+    'edit_markdown_document',
+    {
+      title: '局部修改 Markdown 文档',
+      description: '精确替换、追加或前置正文，不必重传整篇文档。建议把最近读取到的 updatedAt 作为 expectedUpdatedAt 传入。',
+      inputSchema: z.object({
+        documentId: documentIdentifierSchema,
+        operation: z.enum(['replace', 'append', 'prepend']).describe('replace 精确替换；append 末尾追加；prepend 开头插入'),
+        oldText: z.string().max(2 * 1024 * 1024).optional().describe('replace 时的原文；默认必须在文档中只出现一次'),
+        text: z.string().max(2 * 1024 * 1024).default('').describe('替换后的文本或要追加、前置的文本；replace 时允许为空以删除原文'),
+        replaceAll: z.boolean().default(false).describe('原文出现多次时是否全部替换'),
+        expectedUpdatedAt: z.string().max(64).optional().describe('最近读取到的 updatedAt，用于阻止覆盖并发更新'),
+      }).refine(
+        ({ operation, oldText, text }) => operation === 'replace' ? Boolean(oldText) : Boolean(text),
+        { message: 'replace 必须提供 oldText；append/prepend 必须提供非空 text' },
+      ),
+    },
+    withErrors(async ({ documentId, ...input }) => result(await client.editDocument(documentId, input))),
+  )
+
+  server.registerTool(
+    'move_markdown_document',
+    {
+      title: '调整文档顺序',
+      description: '将一篇文档移动到列表开头、末尾，或另一篇文档前后；仅影响当前用户的普通文档顺序。',
+      inputSchema: z.object({
+        documentId: documentIdentifierSchema.describe('要移动的文档哈希'),
+        position: z.enum(['first', 'last', 'before', 'after']).describe('目标位置'),
+        anchorDocumentId: documentIdentifierSchema.optional().describe('position 为 before/after 时必填的锚点文档哈希'),
+      }).refine(
+        ({ documentId, position, anchorDocumentId }) => !['before', 'after'].includes(position)
+          || (anchorDocumentId !== undefined && anchorDocumentId !== documentId),
+        { message: 'before/after 必须提供另一个 anchorDocumentId' },
+      ),
+    },
+    withErrors(async ({ documentId, ...input }) => result(await client.moveDocument(documentId, input))),
   )
 
   return server

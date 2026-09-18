@@ -22,12 +22,23 @@ export class HorizonDocsClient {
     return data
   }
 
-  listDocuments(limit = 50) {
-    return this.request(`/mcp-api/documents?limit=${encodeURIComponent(limit)}`)
+  listDocuments(limit = 50, sort = 'updated') {
+    const query = new URLSearchParams({ limit: String(limit), sort })
+    return this.request(`/mcp-api/documents?${query}`)
+  }
+
+  searchDocuments({ query, visibility = 'all', limit = 20 }) {
+    const params = new URLSearchParams({ q: query, visibility, limit: String(limit) })
+    return this.request(`/mcp-api/documents/search?${params}`)
   }
 
   getDocument(id) {
     return this.request(`/mcp-api/documents/${encodeURIComponent(id)}`)
+  }
+
+  readDocument(id, { startLine = 1, lineCount = 200 } = {}) {
+    const query = new URLSearchParams({ startLine: String(startLine), lineCount: String(lineCount) })
+    return this.request(`/mcp-api/documents/${encodeURIComponent(id)}/read?${query}`)
   }
 
   createDocument(input) {
@@ -40,6 +51,20 @@ export class HorizonDocsClient {
   updateDocument(id, input) {
     return this.request(`/mcp-api/documents/${encodeURIComponent(id)}`, {
       method: 'PUT',
+      body: JSON.stringify(input),
+    })
+  }
+
+  editDocument(id, input) {
+    return this.request(`/mcp-api/documents/${encodeURIComponent(id)}/content`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    })
+  }
+
+  moveDocument(id, input) {
+    return this.request(`/mcp-api/documents/${encodeURIComponent(id)}/order`, {
+      method: 'PATCH',
       body: JSON.stringify(input),
     })
   }

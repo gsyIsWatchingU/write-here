@@ -37,3 +37,33 @@ test('HorizonDocsClient 缺少 Token 时拒绝请求并传递接口错误', asyn
   })
   await assert.rejects(() => rejected.getDocument(1), /MCP Token 无效或已撤销/)
 })
+
+test('HorizonDocsClient 支持检索、分段读取、局部修改和排序', async () => {
+  const calls = []
+  const client = new HorizonDocsClient({
+    baseUrl: 'https://docs.example.com',
+    token: 'whmcp_test',
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options })
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    },
+  })
+
+  await client.listDocuments(10, 'manual')
+  await client.searchDocuments({ query: 'Agent MCP', visibility: 'private', limit: 5 })
+  await client.readDocument(7, { startLine: 21, lineCount: 40 })
+  await client.editDocument(7, { operation: 'replace', oldText: '旧内容', text: '新内容' })
+  await client.moveDocument(7, { position: 'before', anchorDocumentId: 8 })
+
+  assert.equal(calls[0].url, 'https://docs.example.com/mcp-api/documents?limit=10&sort=manual')
+  assert.equal(calls[1].url, 'https://docs.example.com/mcp-api/documents/search?q=Agent+MCP&visibility=private&limit=5')
+  assert.equal(calls[2].url, 'https://docs.example.com/mcp-api/documents/7/read?startLine=21&lineCount=40')
+  assert.equal(calls[3].options.method, 'PATCH')
+  assert.equal(calls[3].url, 'https://docs.example.com/mcp-api/documents/7/content')
+  assert.deepEqual(JSON.parse(calls[3].options.body), { operation: 'replace', oldText: '旧内容', text: '新内容' })
+  assert.equal(calls[4].options.method, 'PATCH')
+  assert.equal(calls[4].url, 'https://docs.example.com/mcp-api/documents/7/order')
+})

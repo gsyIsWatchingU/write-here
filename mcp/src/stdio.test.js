@@ -48,7 +48,16 @@ test('stdio MCP 可完成握手、列出工具并创建 Markdown 文档', async 
   const tools = await client.listTools()
   assert.deepEqual(
     tools.tools.map((tool) => tool.name).sort(),
-    ['create_markdown_document', 'get_markdown_document', 'list_markdown_documents', 'update_markdown_document'],
+    [
+      'create_markdown_document',
+      'edit_markdown_document',
+      'get_markdown_document',
+      'list_markdown_documents',
+      'move_markdown_document',
+      'read_document_content',
+      'search_markdown_documents',
+      'update_markdown_document',
+    ],
   )
 
   const call = await client.callTool({
@@ -62,5 +71,28 @@ test('stdio MCP 可完成握手、列出工具并创建 Markdown 文档', async 
     url: '/mcp-api/documents',
     authorization: 'Bearer whmcp_stdio_test',
     body: { title: 'MCP 文档', markdown: '# 正文', visibility: 'private' },
+  })
+
+  await client.callTool({
+    name: 'edit_markdown_document',
+    arguments: {
+      documentId: 42,
+      operation: 'replace',
+      oldText: '正文',
+      text: '新正文',
+      expectedUpdatedAt: '2026-09-14 10:00:00',
+    },
+  })
+  assert.deepEqual(requests[1], {
+    method: 'PATCH',
+    url: '/mcp-api/documents/42/content',
+    authorization: 'Bearer whmcp_stdio_test',
+    body: {
+      operation: 'replace',
+      oldText: '正文',
+      text: '新正文',
+      replaceAll: false,
+      expectedUpdatedAt: '2026-09-14 10:00:00',
+    },
   })
 })
