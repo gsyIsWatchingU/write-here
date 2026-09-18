@@ -1,6 +1,6 @@
 # 项目状态
 
-最后更新：2026-09-18
+最后更新：2026-09-19
 
 ## 当前阶段
 
@@ -71,6 +71,7 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - MCP 服务升级至 1.1.0：新增 `search_markdown_documents`（标题/正文关键词检索并返回摘要与大纲）、`read_document_content`（按行分段读取、返回完整大纲与总行数）、`edit_markdown_document`（replace/append/prepend 局部修改，支持 `expectedUpdatedAt` 并发保护）、`move_markdown_document`（调整文档顺序）四个工具；后端新增对应接口，含大纲提取、搜索长度与读取行数限制及并发更新校验。
 - 已新增公开只读 Markdown 接口（`GET /docs/:id/raw` 与 `GET /doc/:id/raw`）：无需登录，`public` 或已创建分享记录的普通文档可直接返回 Markdown 原文（旧 HTML 文档返回纯文本），供任何支持抓取链接的大模型直接读取；题库文档不开放。
 - 已新增远程 HTTP MCP 端点（`/mcp/:secret`，Streamable HTTP，stateless 模式）：后端挂载 `@modelcontextprotocol/node` 适配器，ChatGPT 等只支持远程 MCP 的客户端可填 `https://<站点>/mcp/<secret>` 直接连接；`MCP_HTTP_SECRET` 作访问密钥，未配置时端点 503，工具调用仍以 `HORIZON_DOCS_TOKEN` 鉴权后端。
+- 已优化文档加载的传输与查询开销：后端启用响应压缩、为带哈希的构建产物配置长缓存、列表类接口只回传正文预览片段、SQLite 改为 WAL 并补齐热查询索引（详见验证结果 2026-09-19）。
 
 ## 下一步
 
@@ -85,7 +86,10 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 - 新账号密码由统一账号中心哈希保存；旧版本地用户表仍保留兼容字段，后续可清理历史演示账号。
 - 旧版 `db/docs.db` 仍存在于 Git 历史；如曾包含敏感数据，需要单独执行历史清理。
-- 前端构建提示编辑器分块超过 500 kB，需要后续按需拆分。
+- 前端构建提示编辑器分块超过 500 kB，需要后续按需拆分。已通过压缩降到约 278 KB 传输量，但包本身仍未做 `manualChunks` 拆分（`lowlight` 全量语言是主要体积来源）。
+- 文档正文需等 Yjs 协同 sync 完成后才渲染，未接入本地持久化；网络较差时正文区会停在骨架屏。
+- 打开非本人文档时存在串行往返：先取文档，再取协作状态，最后等协同同步。
+- 2026-09-19 一轮优化未取得 GPT 第二意见：专用 Chrome 的 ChatGPT 通道报未登录且页面加载失败，方案改由仓库实测证据确定。
 - Quick Tunnel 使用随机地址，隧道或服务器重启后地址可能变化。
 - GPU 服务器容器重启后需确认 Supervisor 与两个 WriteHere 进程已恢复。
 - GPU 自托管 Runner 必须保持在线；当前由 Supervisor 的 `github-actions-write-here` 进程守护。
@@ -167,3 +171,4 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 2026-09-18：公开只读 Markdown 接口（`/docs/:id/raw` 与 `/doc/:id/raw`）通过 5 项集成测试（public+Markdown 返回 `text/markdown`、private 无分享 404、private 已分享 200、旧 HTML 文档返回 `text/plain`、不存在哈希 404）及 `node --check` 语法检查；已随 `4967b5c` 部署至 GPU 服务器。
 - 2026-09-18：远程 HTTP MCP 端点通过端到端测试（`@modelcontextprotocol/client` 连接 `http://127.0.0.1:3213/mcp/<secret>`：错误密钥 403、initialize 成功、8 个工具列出、`create_markdown_document` 创建与 `get_markdown_document` 回读均通过，已纳入 `mcp` 包 `npm test`）；`node --check` 通过；已随 `4967b5c` 部署至 GPU 服务器并通过公网验收。
 - 2026-09-18：`4967b5c` 已通过 CI/CD 构建与 GPU 部署：服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`write-here` 与 `cloudflared-write-here` 均 RUNNING；修复线上 HTTP MCP 端点 500（`deploy/start.sh` 补充 `npm ci --omit=dev --prefix mcp`）；服务器 `.env` 新增 `MCP_HTTP_SECRET`/`HORIZON_DOCS_URL`/`HORIZON_DOCS_TOKEN`（备份 `.env.bak-mcp-*`），`api_tokens` 新增 `MCP-HTTP-gsy`（userId=2）；公网实测 `/mcp/<secret>`——错误密钥 403、`@modelcontextprotocol/client` 连接成功并列出全部 8 个工具。
+- 2026-09-19：文档加载性能优化通过后端 25 项测试（含新增 4 项静态交付与传输量回归测试）、`node --check` 语法检查；实测最大 chunk `outlineNavigation` 由 835.8 KB 压到 278.3 KB，`assets/` 返回 `public, max-age=31536000, immutable`、`index.html` 返回 `no-cache`，列表接口正文由 10407 字符降为 200 字符预览，`journal_mode=wal`，`idx_docs_visibility`/`idx_shares_docId`/`idx_comments_docId`/`idx_notifications_userId` 四个索引已建立（未重复建 `docs(userId, kind)`，已有 `idx_docs_kind_owner` 可复用）。

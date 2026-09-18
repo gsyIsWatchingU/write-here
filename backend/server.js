@@ -1,6 +1,7 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
+const compression = require('compression');
 const path = require('path');
 const http = require('http');
 const { createHash, randomBytes, timingSafeEqual } = require('crypto');
@@ -31,6 +32,15 @@ const SESSION_COOKIE = 'horizon_session';
 
 // 中间件
 app.use(cors());
+// 响应压缩：构建产物里的编辑器共享 chunk 有 836 KB，此前是明文传输，是打开文档最重的一跳。
+// 排除项：WebSocket 走 noServer + upgrade，本就不经过 Express，无需处理；
+// MCP 的 Streamable HTTP 用 SSE 流式返回，压缩会缓冲住分片，必须排除。
+app.use(compression({
+    filter: (req, res) => {
+        if (typeof req.path === 'string' && req.path.startsWith('/mcp/')) return false;
+        return compression.filter(req, res);
+    }
+}));
 app.use(express.json({ limit: '3mb' }));
 
 app.get('/health', (req, res) => {
@@ -43,6 +53,10 @@ const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('数据库连接失败:', err.message);
     } else {
+        // WAL：读写不再互相阻塞。默认的 rollback journal 下，每次写（含打开文档时更新
+        // lastViewedAt）都要 fsync 并独占写锁，会让同期的列表/详情查询一起卡住。
+        db.run('PRAGMA journal_mode = WAL');
+        db.run('PRAGMA busy_timeout = 5000');
         console.log('数据库连接成功');
         initDatabase();
     }
@@ -265,6 +279,20 @@ function initDatabase() {
                 console.error('迁移 lastViewedAt 列失败:', err.message);
             }
         });
+
+        // 索引：补上没有索引的热查询路径。
+        // 注意 docs(userId, kind) 不另建——problems.js 已有 idx_docs_kind_owner(kind, userId, updatedAt)，
+        // 等值条件可重排后复用，再建一个只是增加写放大。
+        for (const statement of [
+            'CREATE INDEX IF NOT EXISTS idx_docs_visibility ON docs(visibility)',
+            'CREATE INDEX IF NOT EXISTS idx_shares_docId ON shares(docId)',
+            'CREATE INDEX IF NOT EXISTS idx_comments_docId ON comments(docId)',
+            'CREATE INDEX IF NOT EXISTS idx_notifications_userId ON notifications(userId, isRead)',
+        ]) {
+            db.run(statement, (err) => {
+                if (err) console.error('创建索引失败:', err.message);
+            });
+        }
 
         console.log('数据库表初始化完成');
     });
@@ -508,7 +536,12 @@ app.use(createDocumentOrderRouter({ db }));
 app.get('/docs', (req, res) => {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
-    db.all(`SELECT * FROM docs
+    // 只回传预览片段：列表页的卡片预览用不到正文全文，而 SELECT * 会随文档数量和长度线性膨胀，
+    // 是工作台变慢的主要原因之一（搜索接口早就用了 substr，这里保持一致）。
+    db.all(`SELECT id, publicId, userId, title, kind, visibility, likes, sortOrder,
+                   createdAt, updatedAt, lastViewedAt,
+                   substr(content, 1, 200) AS content
+            FROM docs
             WHERE userId = ? AND kind = 'document'
             ORDER BY COALESCE(lastViewedAt, updatedAt) DESC, updatedAt DESC`, [userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -773,7 +806,11 @@ app.get('/admin/docs', (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!user || user.isAdmin !== 1) return res.status(403).json({ error: '无管理员权限' });
         
-        db.all('SELECT docs.*, COALESCE(users.displayName, users.username) AS username FROM docs JOIN users ON docs.userId = users.id ORDER BY docs.updatedAt DESC', (err, rows) => {
+        db.all(`SELECT docs.id, docs.publicId, docs.userId, docs.title, docs.kind, docs.visibility,
+                       docs.likes, docs.sortOrder, docs.createdAt, docs.updatedAt, docs.lastViewedAt,
+                       substr(docs.content, 1, 200) AS content,
+                       COALESCE(users.displayName, users.username) AS username
+                FROM docs JOIN users ON docs.userId = users.id ORDER BY docs.updatedAt DESC`, (err, rows) => {
             if (err) return res.status(500).json({ error: err.message });
             res.json(rows);
         });
@@ -793,8 +830,12 @@ app.get('/community/docs', (req, res) => {
         orderBy = 'docs.likes DESC, docs.updatedAt DESC';
     }
     
+    // 同样只回传预览片段：公开文档列表会把所有公开文档的正文全文一起返回
     db.all(`
-        SELECT docs.*, COALESCE(users.displayName, users.username) AS username
+        SELECT docs.id, docs.publicId, docs.userId, docs.title, docs.kind, docs.visibility,
+               docs.likes, docs.sortOrder, docs.createdAt, docs.updatedAt, docs.lastViewedAt,
+               substr(docs.content, 1, 200) AS content,
+               COALESCE(users.displayName, users.username) AS username
         FROM docs 
         JOIN users ON docs.userId = users.id 
         WHERE docs.visibility = 'public' 
@@ -997,8 +1038,10 @@ app.get('/collaborations/mydocs', (req, res) => {
 
     db.all(
         `
-        SELECT 
-            docs.*,
+        SELECT
+            docs.id, docs.publicId, docs.userId, docs.title, docs.kind, docs.visibility,
+            docs.likes, docs.sortOrder, docs.createdAt, docs.updatedAt, docs.lastViewedAt,
+            substr(docs.content, 1, 200) AS content,
             COALESCE(users.displayName, users.username) AS username,
             collaborations.id as collaborationId,
             collaborations.createdAt as collaborationCreatedAt,
@@ -1798,9 +1841,21 @@ app.put('/notifications/:id/read', (req, res) => {
 
 // 生产环境由后端直接托管 Vite 构建产物，REST 与 WebSocket 使用同一来源。
 const frontendDistPath = path.join(__dirname, '../frontend/dist');
-app.use(express.static(frontendDistPath));
+// 缓存策略：assets 下的产物文件名带内容哈希，可以长缓存 + immutable；
+// index.html 是入口，必须每次回源校验，否则发版后客户端仍指向旧 chunk。
+app.use(express.static(frontendDistPath, {
+    setHeaders: (res, filePath) => {
+        const normalized = String(filePath).replace(/\\/g, '/');
+        if (normalized.includes('/assets/')) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else {
+            res.setHeader('Cache-Control', 'no-cache');
+        }
+    },
+}));
 app.get('*', (req, res, next) => {
     if (!req.accepts('html')) return next();
+    res.set('Cache-Control', 'no-cache');
     res.sendFile(path.join(frontendDistPath, 'index.html'), (err) => {
         if (err) next(err);
     });
