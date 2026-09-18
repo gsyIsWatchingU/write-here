@@ -259,6 +259,13 @@ function initDatabase() {
 
         migrateDocumentIdentity(db);
 
+        // 迁移：最近访问时间字段
+        db.run(`ALTER TABLE docs ADD COLUMN lastViewedAt DATETIME`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.error('迁移 lastViewedAt 列失败:', err.message);
+            }
+        });
+
         console.log('数据库表初始化完成');
     });
 }
@@ -503,7 +510,24 @@ app.get('/docs', (req, res) => {
     if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
     db.all(`SELECT * FROM docs
             WHERE userId = ? AND kind = 'document'
-            ORDER BY sortOrder IS NOT NULL, sortOrder ASC, updatedAt DESC`, [userId], (err, rows) => {
+            ORDER BY COALESCE(lastViewedAt, updatedAt) DESC, updatedAt DESC`, [userId], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+// 搜索文档（按标题和内容模糊匹配）
+app.get('/docs/search', (req, res) => {
+    const { userId, q } = req.query;
+    if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
+    if (!q || !q.trim()) return res.json([]);
+    const keyword = `%${q.trim()}%`;
+    db.all(`SELECT id, publicId, title, substr(content, 1, 200) as content, visibility, createdAt, updatedAt, lastViewedAt
+            FROM docs
+            WHERE userId = ? AND kind = 'document'
+              AND (title LIKE ? OR content LIKE ?)
+            ORDER BY COALESCE(lastViewedAt, updatedAt) DESC, updatedAt DESC
+            LIMIT 50`, [userId, keyword, keyword], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
@@ -521,7 +545,11 @@ app.get('/docs/:id', async (req, res) => {
               AND (kind != 'problem' OR userId = ?)`, [publicId, legacyId, userId, sessionUser?.id || -1], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!row) return res.status(404).json({ error: '文档不存在或无权限访问' });
-        res.json(row);
+        // 更新最近访问时间
+        db.run('UPDATE docs SET lastViewedAt = CURRENT_TIMESTAMP WHERE id = ?', [row.id], (updateErr) => {
+            if (updateErr) console.error('更新 lastViewedAt 失败:', updateErr.message);
+            res.json(row);
+        });
     });
 });
 
@@ -938,7 +966,7 @@ app.get('/collaborations/mydocs', (req, res) => {
         JOIN users ON docs.userId = users.id
         WHERE collaborations.userId = ?
           AND collaborations.status = 'approved'
-        ORDER BY docs.updatedAt DESC
+        ORDER BY COALESCE(docs.lastViewedAt, docs.updatedAt) DESC, docs.updatedAt DESC
         `,
         [userId],
         (err, rows) => {

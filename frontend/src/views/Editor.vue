@@ -79,7 +79,15 @@
       >›</button>
 
       <div class="document-column">
-        <div class="editor-wrapper">
+        <div v-if="docLoading" class="editor-skeleton">
+          <div class="skeleton-line skeleton-title"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line short"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line medium"></div>
+        </div>
+        <div class="editor-wrapper" v-show="!docLoading">
           <editor-content :editor="editor" class="editor-content" />
         </div>
       </div>
@@ -258,6 +266,7 @@ const canEdit = ref(false)
 const docOwnerId = ref(null)
 const commentsReady = ref(false)
 const contentReady = ref(false)
+const docLoading = ref(true)
 const markdownFileInput = ref(null)
 const activeSideTab = ref(route.query.comment ? 'comments' : 'outline')
 const sidePanelOpen = ref(Boolean(route.query.comment) || !mobileMedia.matches)
@@ -478,7 +487,8 @@ async function reorderDocumentsFromDirectory(documentIds) {
 // 加载文档
 onMounted(async () => {
   mobileMedia.addEventListener?.('change', handleViewportChange)
-  loadDocumentDirectory()
+  // 延迟加载文档目录，不阻塞主内容加载
+  setTimeout(loadDocumentDirectory, 200)
   try {
     const doc = await api.getDoc(routeDocumentIdentifier, user.id)
     docId.value = doc.id
@@ -508,6 +518,7 @@ onMounted(async () => {
       content: doc.content || ''
     })
     documentLoaded = true
+    docLoading.value = false
     saveStatus.value = canEdit.value ? '已保存' : ''
 
     // 等待 Yjs 同步完成，如果文档为空则从服务器加载
@@ -814,6 +825,34 @@ function copyLink() {
   display: flex;
   justify-content: center;
   min-width: 0;
+}
+.editor-skeleton {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 1000px;
+  min-height: calc(100vh - 240px);
+  padding: 40px 48px;
+}
+.skeleton-line {
+  height: 16px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+.skeleton-line.skeleton-title {
+  height: 28px;
+  width: 60%;
+  margin-bottom: 24px;
+}
+.skeleton-line.short { width: 40%; }
+.skeleton-line.medium { width: 75%; }
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 .editor-content {
   background: #fff;

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="home-page">
     <header class="topbar">
       <h1 class="logo brand-logo" @click="router.push('/')">
@@ -46,22 +46,30 @@
       <div class="toolbar">
         <h2>我的文档</h2>
         <div class="toolbar-actions">
+          <div class="search-box">
+            <input v-model.trim="searchQuery" class="search-input" placeholder="搜索文档标题或内容..." @input="handleSearchInput" @keyup.escape="clearSearch" />
+            <button v-if="searchQuery" class="search-clear" @click="clearSearch" aria-label="清除搜索">×</button>
+          </div>
           <button class="ghost" @click="openMcpModal">[MCP] AI 接入</button>
           <button class="primary" @click="createNewDoc">+ 新建文档</button>
         </div>
       </div>
-      <div v-if="loading" class="empty">加载中...</div>
-      <div v-else-if="docs.length === 0" class="empty">
+      <div v-if="loading && !searchQuery" class="empty">加载中...</div>
+      <div v-else-if="searchQuery && searchLoading" class="empty">搜索中...</div>
+      <div v-else-if="searchQuery && searchResults.length === 0" class="empty">
+        <p>没有找到与 "{{ searchQuery }}" 相关的文档</p>
+      </div>
+      <div v-else-if="!searchQuery && docs.length === 0" class="empty">
         <p>还没有文档，点击上方按钮创建第一篇文档</p>
       </div>
       <div v-else class="doc-grid">
-        <div v-for="doc in docs" :key="doc.id" class="doc-card" @click="openDoc(doc)">
+        <div v-for="doc in (searchQuery ? searchResults : docs)" :key="doc.id" class="doc-card" @click="openDoc(doc)">
           <div class="doc-card-body">
             <h3 class="doc-title">{{ doc.title }}</h3>
             <p class="doc-preview">{{ stripHtml(doc.content) }}</p>
           </div>
           <div class="doc-card-footer">
-            <span class="doc-time">{{ formatTime(doc.updatedAt) }}</span>
+            <span class="doc-time">{{ formatTime(doc.lastViewedAt || doc.updatedAt) }}</span>
             <div class="doc-card-actions">
               <button class="card-action-btn share-action" type="button" title="分享文档" aria-label="分享文档" @click.stop="openShare(doc)">
                 <svg class="card-action-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -102,7 +110,7 @@
             <p class="doc-preview">{{ stripHtml(doc.content) }}</p>
           </div>
           <div class="doc-card-footer">
-            <span class="doc-time">{{ formatTime(doc.updatedAt) }}</span>
+            <span class="doc-time">{{ formatTime(doc.lastViewedAt || doc.updatedAt) }}</span>
             <span class="doc-author">作者：{{ doc.username }}</span>
           </div>
         </div>
@@ -286,6 +294,10 @@ const isAdminActive = computed(() => {
 })
 const docs = ref([])
 const loading = ref(true)
+const searchQuery = ref('')
+const searchResults = ref([])
+const searchLoading = ref(false)
+let searchDebounceTimer = null
 const collabDocs = ref([])
 const loadingCollab = ref(true)
 const shareModal = ref(null)
@@ -324,6 +336,8 @@ onMounted(() => {
   loadCollabRequests()
   setupWebSocket()
   window.addEventListener('click', handleGlobalClick)
+  // 预加载编辑器组件，减少点击文档后的加载等待
+  import('../views/Editor.vue')
 })
 
 onUnmounted(() => {
@@ -398,6 +412,25 @@ async function loadCollabDocs() {
     collabDocs.value = []
   }
   loadingCollab.value = false
+}
+
+function handleSearchInput() {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+  const q = searchQuery.value.trim()
+  if (!q) { searchResults.value = []; searchLoading.value = false; return }
+  searchLoading.value = true
+  searchDebounceTimer = setTimeout(async () => {
+    try { searchResults.value = await api.searchDocs(user.value.id, q) }
+    catch (e) { console.error(e); searchResults.value = [] }
+    finally { searchLoading.value = false }
+  }, 250)
+}
+
+function clearSearch() {
+  searchQuery.value = ''
+  searchResults.value = []
+  searchLoading.value = false
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
 }
 
 async function createNewDoc() {
@@ -1181,4 +1214,10 @@ async function respondToCollaboration(requestId, status) {
     flex-direction: column;
   }
 }
+
+.search-box { position: relative; display: flex; align-items: center; }
+.search-input { width: 240px; padding: 6px 28px 6px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+.search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(0, 120, 255, 0.1); }
+.search-clear { position: absolute; right: 6px; width: 20px; height: 20px; border: none; background: var(--bg-gray); border-radius: 50%; font-size: 14px; line-height: 1; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; }
+.search-clear:hover { background: var(--border); color: var(--text-primary); }
 </style>

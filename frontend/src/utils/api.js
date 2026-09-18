@@ -57,6 +57,9 @@ export const api = {
   getDocs: (userId) =>
     request(`/docs?userId=${userId}`),
 
+  searchDocs: (userId, q) =>
+    request(`/docs/search?userId=${userId}&q=${encodeURIComponent(q)}`),
+
   getDoc: (id, userId) =>
     request(`/docs/${encodeURIComponent(id)}?userId=${userId}`),
 
