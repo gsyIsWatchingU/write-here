@@ -17,6 +17,7 @@ fi
 npm ci --prefix frontend
 npm run build --prefix frontend
 npm ci --omit=dev --prefix backend
+npm ci --omit=dev --prefix mcp
 
 mkdir -p db logs run
 
