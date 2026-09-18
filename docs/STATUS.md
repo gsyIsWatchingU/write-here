@@ -70,6 +70,7 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 工作台已支持按标题与正文搜索文档：新增 `/docs/search` 接口、前端搜索框（250ms 防抖）与空结果提示；打开文档时记录 `lastViewedAt`，工作台与协作列表按最近访问优先排序，文档卡片时间显示最近访问时间；编辑器新增打开时的骨架屏占位并预加载组件以减少加载等待。
 - MCP 服务升级至 1.1.0：新增 `search_markdown_documents`（标题/正文关键词检索并返回摘要与大纲）、`read_document_content`（按行分段读取、返回完整大纲与总行数）、`edit_markdown_document`（replace/append/prepend 局部修改，支持 `expectedUpdatedAt` 并发保护）、`move_markdown_document`（调整文档顺序）四个工具；后端新增对应接口，含大纲提取、搜索长度与读取行数限制及并发更新校验。
 - 已新增公开只读 Markdown 接口（`GET /docs/:id/raw` 与 `GET /doc/:id/raw`）：无需登录，`public` 或已创建分享记录的普通文档可直接返回 Markdown 原文（旧 HTML 文档返回纯文本），供任何支持抓取链接的大模型直接读取；题库文档不开放。
+- 已新增远程 HTTP MCP 端点（`/mcp/:secret`，Streamable HTTP，stateless 模式）：后端挂载 `@modelcontextprotocol/node` 适配器，ChatGPT 等只支持远程 MCP 的客户端可填 `https://<站点>/mcp/<secret>` 直接连接；`MCP_HTTP_SECRET` 作访问密钥，未配置时端点 503，工具调用仍以 `HORIZON_DOCS_TOKEN` 鉴权后端。
 
 ## 下一步
 
@@ -164,3 +165,4 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 2026-09-17：`8135a71` 的文档末尾补行已通过 CI/CD 构建与 GPU 部署；服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 10 个业务表，`write-here` 与 `cloudflared-write-here` 均为 RUNNING），部署包内 `frontend/src/utils/blockGapInsertion.js` 含 `findTrailingInsertionIndex`、`shouldInsertTrailingParagraph`、`TRAILING_ESCAPE_TYPES` 三个新符号及其测试。
 - 2026-09-18：工作台搜索与最近访问排序、MCP 1.1.0 工具（搜索/分段读取/局部编辑/调整顺序）通过前端 78 项测试、后端 21 项测试、MCP 4 项测试、前端生产构建和后端语法检查；`d1d246e` 已通过 CI/CD 构建与 GPU 部署，服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 10 个业务表，`write-here` 与 `cloudflared-write-here` 均为 RUNNING）。
 - 2026-09-18：公开只读 Markdown 接口（`/docs/:id/raw` 与 `/doc/:id/raw`）通过 5 项集成测试（public+Markdown 返回 `text/markdown`、private 无分享 404、private 已分享 200、旧 HTML 文档返回 `text/plain`、不存在哈希 404）及 `node --check` 语法检查；尚未提交推送与线上部署。
+- 2026-09-18：远程 HTTP MCP 端点通过端到端测试（`@modelcontextprotocol/client` 连接 `http://127.0.0.1:3213/mcp/<secret>`：错误密钥 403、initialize 成功、8 个工具列出、`create_markdown_document` 创建与 `get_markdown_document` 回读均通过，已纳入 `mcp` 包 `npm test`）；`node --check` 通过；尚未提交推送与线上部署。

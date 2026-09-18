@@ -645,6 +645,24 @@ app.delete('/docs/:id', async (req, res) => {
 
 app.use(createProblemsRouter({ db }));
 app.use(createMcpRouter({ db }));
+// HTTP MCP 端点：供 ChatGPT 等只支持远程 MCP 的客户端连接（/mcp/:secret，secret 取 MCP_HTTP_SECRET）。
+// 首个请求时惰性加载 mcp 包的 Streamable HTTP 中间件，避免 CJS/ESM 启动时序问题。
+let mcpHttpMiddleware = null;
+app.use('/mcp/:secret', async (req, res, next) => {
+    try {
+        if (!process.env.MCP_HTTP_SECRET) {
+            return res.status(503).json({ error: '未配置 MCP_HTTP_SECRET，HTTP MCP 端点未开放' });
+        }
+        if (!mcpHttpMiddleware) {
+            const { createMcpHttpMiddleware } = await import('../mcp/src/http.js');
+            mcpHttpMiddleware = createMcpHttpMiddleware({ secret: process.env.MCP_HTTP_SECRET });
+        }
+        return mcpHttpMiddleware(req, res, next);
+    } catch (error) {
+        console.error('MCP HTTP 端点加载失败:', error.message);
+        return res.status(500).json({ error: 'MCP HTTP 端点不可用' });
+    }
+});
 // 语音转写：浏览器录音上传到本站后端，再转发给同机 GPU 上的 ASR 服务
 app.use(createAsrRouter({ db }));
 // AI 润色：后端在本机调用 claude CLI，通过 ANTHROPIC_BASE_URL / ANTHROPIC_API_KEY 接入 GPU 模型 API

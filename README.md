@@ -72,6 +72,23 @@ npm run dev
 
 任何支持抓取链接的大模型都能直接读取，无需 Token 和登录。
 
+### 远程 HTTP MCP 端点（供 ChatGPT 等客户端）
+
+项目默认的 MCP 是 stdio 模式（适配 Claude Desktop、Cursor 等本地客户端）。**ChatGPT 只支持远程 MCP，无法直连 stdio 进程**，因此后端额外暴露一个 Streamable HTTP 端点：
+
+- 地址：`https://<站点>/mcp/<secret>`，`<secret>` 为环境变量 `MCP_HTTP_SECRET`（自行设定，兼作访问密钥，防止公网端点被任意使用）
+- 客户端接入：ChatGPT（Plus/Pro 订阅，设置 → 开发者模式 → 添加自定义 MCP 连接器）直接填该 URL，无需 OAuth
+- 工具内部仍以 `HORIZON_DOCS_TOKEN`（网站"MCP AI 接入"中生成的个人 Token）鉴权后端 API，需在 GPU 服务器 `.env` 配置：
+
+```env
+MCP_HTTP_SECRET=自行设定的访问密钥
+HORIZON_DOCS_URL=http://127.0.0.1:3210   # MCP 调用后端 API 的地址（同机可用本机地址）
+HORIZON_DOCS_TOKEN=whmcp_xxx             # 网站生成的有效个人 Token
+```
+
+- 未配置 `MCP_HTTP_SECRET` 时端点返回 503，不对外暴露。
+- 已通过 `@modelcontextprotocol/client` 端到端验证：连接初始化、列出 8 个工具、创建文档、回读文档全部通过。
+
 ## AI 润色
 
 编辑器的“`AI 润色`”按钮可把整篇文档交给 Claude 润色：输入自己的润色要求后，后端在服务器本机调用 `claude` CLI，经 Anthropic 兼容接口接入 GPU 模型 API（三方 Key）完成润色，再将结果回填到正文并自动保存。
