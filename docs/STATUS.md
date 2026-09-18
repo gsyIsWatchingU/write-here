@@ -1,6 +1,6 @@
 # 项目状态
 
-最后更新：2026-09-17
+最后更新：2026-09-18
 
 ## 当前阶段
 
@@ -67,6 +67,8 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 编辑器与可编辑分享页已支持 GPU 语音转写：点击工具栏麦克风按钮开始/停止录音，浏览器把麦克风采集为 16 kHz 单声道 WAV 上传 `/asr/transcribe`，后端转发同机 GPU 的 `Qwen3-ASR-1.7B` 后插入光标处。
 - 编辑器已新增“AI 润色”按钮：输入润色要求后，后端在服务器本机调用 `claude` CLI（`claude -p --output-format text`，经 `ANTHROPIC_BASE_URL` / `ANTHROPIC_API_KEY` 接入 GPU 模型 API 三方 Key），对整篇文档润色后回填正文并自动保存；正文先在前端经 `turndown` 转 Markdown 提交，返回 Markdown 经 markdown-it（含任务列表插件）回填，表格、代码块语言与任务列表结构保留。
 - 编辑器和可编辑分享页支持在文档末尾补行：当末尾块无法用回车直接产生普通段落时（代码块、列表、引用、表格等），点击该块下方的空白会在文档末尾插入一个空段落并把光标放进去；末尾是段落或标题时保持原有的回车行为不变，补行后末尾变成空段落，再次点击空白不会继续插入。
+- 工作台已支持按标题与正文搜索文档：新增 `/docs/search` 接口、前端搜索框（250ms 防抖）与空结果提示；打开文档时记录 `lastViewedAt`，工作台与协作列表按最近访问优先排序，文档卡片时间显示最近访问时间；编辑器新增打开时的骨架屏占位并预加载组件以减少加载等待。
+- MCP 服务升级至 1.1.0：新增 `search_markdown_documents`（标题/正文关键词检索并返回摘要与大纲）、`read_document_content`（按行分段读取、返回完整大纲与总行数）、`edit_markdown_document`（replace/append/prepend 局部修改，支持 `expectedUpdatedAt` 并发保护）、`move_markdown_document`（调整文档顺序）四个工具；后端新增对应接口，含大纲提取、搜索长度与读取行数限制及并发更新校验。
 
 ## 下一步
 
@@ -159,3 +161,4 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 2026-09-17：编辑器与可编辑分享页支持文档开头空行退格删除：光标位于文档第一行空文本块（空段落或空列表项）时按 Backspace 直接删除该行；通过 9 项新增单元测试（前端共 71 项）、前端生产构建，后端无改动。
 - 2026-09-17：文档末尾点击空白补行通过 7 项新增单元测试（前端共 78 项）、前端生产构建和后端语法检查；用临时无头 Chrome（CDP 驱动）加载真实 TipTap 编辑器完成 12 项浏览器验收并全部通过：空代码块为唯一块时点击下方空白新增普通段落且光标落在新行（选区位置与期望一致）、点击编辑器底部更下方的空白同样生效、末尾是代码块或列表时补行、末尾是段落或标题时不补行、点击代码块内部不补行、块间空白点击回归通过、补行后再次点击末尾空白不再插入；同时实测确认光标在代码块内按回车只得到块内换行、标题与段落末尾按回车才能直接产生普通段落。
 - 2026-09-17：`8135a71` 的文档末尾补行已通过 CI/CD 构建与 GPU 部署；服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 10 个业务表，`write-here` 与 `cloudflared-write-here` 均为 RUNNING），部署包内 `frontend/src/utils/blockGapInsertion.js` 含 `findTrailingInsertionIndex`、`shouldInsertTrailingParagraph`、`TRAILING_ESCAPE_TYPES` 三个新符号及其测试。
+- 2026-09-18：工作台搜索与最近访问排序、MCP 1.1.0 工具（搜索/分段读取/局部编辑/调整顺序）通过前端 78 项测试、后端 21 项测试、MCP 4 项测试、前端生产构建和后端语法检查；`d1d246e` 已通过 CI/CD 构建与 GPU 部署，服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 10 个业务表，`write-here` 与 `cloudflared-write-here` 均为 RUNNING）。
