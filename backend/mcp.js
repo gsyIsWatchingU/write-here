@@ -704,5 +704,6 @@ module.exports = {
     extractOutline,
     hashToken,
     migrateMcp,
-    normalizeMarkdown
+    normalizeMarkdown,
+    stripHtml
 };

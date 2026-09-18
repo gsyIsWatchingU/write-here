@@ -69,6 +69,7 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 编辑器和可编辑分享页支持在文档末尾补行：当末尾块无法用回车直接产生普通段落时（代码块、列表、引用、表格等），点击该块下方的空白会在文档末尾插入一个空段落并把光标放进去；末尾是段落或标题时保持原有的回车行为不变，补行后末尾变成空段落，再次点击空白不会继续插入。
 - 工作台已支持按标题与正文搜索文档：新增 `/docs/search` 接口、前端搜索框（250ms 防抖）与空结果提示；打开文档时记录 `lastViewedAt`，工作台与协作列表按最近访问优先排序，文档卡片时间显示最近访问时间；编辑器新增打开时的骨架屏占位并预加载组件以减少加载等待。
 - MCP 服务升级至 1.1.0：新增 `search_markdown_documents`（标题/正文关键词检索并返回摘要与大纲）、`read_document_content`（按行分段读取、返回完整大纲与总行数）、`edit_markdown_document`（replace/append/prepend 局部修改，支持 `expectedUpdatedAt` 并发保护）、`move_markdown_document`（调整文档顺序）四个工具；后端新增对应接口，含大纲提取、搜索长度与读取行数限制及并发更新校验。
+- 已新增公开只读 Markdown 接口（`GET /docs/:id/raw` 与 `GET /doc/:id/raw`）：无需登录，`public` 或已创建分享记录的普通文档可直接返回 Markdown 原文（旧 HTML 文档返回纯文本），供任何支持抓取链接的大模型直接读取；题库文档不开放。
 
 ## 下一步
 
@@ -162,3 +163,4 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 2026-09-17：文档末尾点击空白补行通过 7 项新增单元测试（前端共 78 项）、前端生产构建和后端语法检查；用临时无头 Chrome（CDP 驱动）加载真实 TipTap 编辑器完成 12 项浏览器验收并全部通过：空代码块为唯一块时点击下方空白新增普通段落且光标落在新行（选区位置与期望一致）、点击编辑器底部更下方的空白同样生效、末尾是代码块或列表时补行、末尾是段落或标题时不补行、点击代码块内部不补行、块间空白点击回归通过、补行后再次点击末尾空白不再插入；同时实测确认光标在代码块内按回车只得到块内换行、标题与段落末尾按回车才能直接产生普通段落。
 - 2026-09-17：`8135a71` 的文档末尾补行已通过 CI/CD 构建与 GPU 部署；服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 10 个业务表，`write-here` 与 `cloudflared-write-here` 均为 RUNNING），部署包内 `frontend/src/utils/blockGapInsertion.js` 含 `findTrailingInsertionIndex`、`shouldInsertTrailingParagraph`、`TRAILING_ESCAPE_TYPES` 三个新符号及其测试。
 - 2026-09-18：工作台搜索与最近访问排序、MCP 1.1.0 工具（搜索/分段读取/局部编辑/调整顺序）通过前端 78 项测试、后端 21 项测试、MCP 4 项测试、前端生产构建和后端语法检查；`d1d246e` 已通过 CI/CD 构建与 GPU 部署，服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 10 个业务表，`write-here` 与 `cloudflared-write-here` 均为 RUNNING）。
+- 2026-09-18：公开只读 Markdown 接口（`/docs/:id/raw` 与 `/doc/:id/raw`）通过 5 项集成测试（public+Markdown 返回 `text/markdown`、private 无分享 404、private 已分享 200、旧 HTML 文档返回 `text/plain`、不存在哈希 404）及 `node --check` 语法检查；尚未提交推送与线上部署。

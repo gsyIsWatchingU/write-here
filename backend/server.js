@@ -6,7 +6,7 @@ const http = require('http');
 const { createHash, randomBytes, timingSafeEqual } = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { authenticateSession, createProblemsRouter, migrateProblems } = require('./problems');
-const { createMcpRouter, migrateMcp } = require('./mcp');
+const { createMcpRouter, migrateMcp, stripHtml } = require('./mcp');
 const { createAsrRouter } = require('./asr');
 const { createAiPolishRouter } = require('./aiPolish');
 const { createDocumentOrderRouter, migrateDocumentOrder } = require('./documentOrder');
@@ -550,6 +550,30 @@ app.get('/docs/:id', async (req, res) => {
             if (updateErr) console.error('更新 lastViewedAt 失败:', updateErr.message);
             res.json(row);
         });
+    });
+});
+
+// 公开只读接口：返回原始 Markdown 原文，供大模型 / AI 工具直接抓取（无需登录）
+// 放行条件：文档已公开（visibility='public'）或已创建分享记录；题库文档不公开。
+// 用法：GET /docs/:id/raw 或 GET /doc/:id/raw，:id 为 32 位哈希或旧数字 ID。
+app.get(['/docs/:id/raw', '/doc/:id/raw'], (req, res) => {
+    const { id } = req.params;
+    const [publicId, legacyId] = documentIdentifierParams(id);
+    db.get(`
+        SELECT d.id, d.title, d.content, d.markdownContent, d.visibility, d.updatedAt
+        FROM docs d
+        WHERE (d.publicId = ? OR d.id = ?)
+          AND (d.kind IS NULL OR d.kind != 'problem')
+          AND (d.visibility = 'public'
+               OR EXISTS (SELECT 1 FROM shares s WHERE s.docId = d.id))
+    `, [publicId, legacyId], (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!row) return res.status(404).json({ error: '文档不存在或未授权公开访问' });
+        const hasMarkdown = row.markdownContent !== null && row.markdownContent !== undefined;
+        const body = hasMarkdown ? row.markdownContent : stripHtml(row.content);
+        res.set('Content-Type', hasMarkdown ? 'text/markdown; charset=utf-8' : 'text/plain; charset=utf-8');
+        res.set('X-Content-Type-Options', 'nosniff');
+        res.send(body);
     });
 });
 

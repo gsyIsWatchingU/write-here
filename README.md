@@ -61,6 +61,17 @@ npm run dev
 
 普通文档地址使用 32 位随机哈希标识，不暴露递增数据库主键；旧数字地址仍可访问，并会自动替换为哈希地址。
 
+### 公开只读 Markdown 接口（无需 Token）
+
+不配置 MCP 时，把文档链接改写成只读接口也能让大模型直接抓到 Markdown 原文：
+
+- 格式：`GET /docs/:id/raw` 或 `GET /doc/:id/raw`，`:id` 为 32 位哈希（或旧数字 ID）
+- 放行条件：文档已公开（`visibility = 'public'`）或已创建过分享记录；题库文档不开放
+- 有 Markdown 原文时返回 `text/markdown`；只有 HTML 的旧文档返回 `text/plain` 纯文本
+- 示例：`https://<站点>/doc/2197c55ef20fbe51dbe22589b5ba662e/raw`
+
+任何支持抓取链接的大模型都能直接读取，无需 Token 和登录。
+
 ## AI 润色
 
 编辑器的“`AI 润色`”按钮可把整篇文档交给 Claude 润色：输入自己的润色要求后，后端在服务器本机调用 `claude` CLI，经 Anthropic 兼容接口接入 GPU 模型 API（三方 Key）完成润色，再将结果回填到正文并自动保存。
