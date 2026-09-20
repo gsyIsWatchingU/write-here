@@ -13,7 +13,12 @@
       <button class="primary" @click="$router.push('/login')">去登录</button>
     </div>
     <template v-else>
-      <EditorToolbar v-if="editor && permission === 'edit'" :editor="editor" />
+      <EditorToolbar
+        v-if="editor && permission === 'edit'"
+        :editor="editor"
+        @image-status="reportImageStatus"
+      />
+      <div v-if="imageNotice" class="image-notice" :class="{ error: imageNoticeError }">{{ imageNotice }}</div>
       <div class="shared-layout" :class="{ 'right-panel-collapsed': !sidePanelOpen }">
         <div class="editor-wrapper">
           <div class="doc-header">
@@ -98,8 +103,8 @@
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
+import { TextSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
-import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import Table from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
@@ -123,7 +128,11 @@ import EditorToolbar from '../components/EditorToolbar.vue'
 import CommentPanel from '../components/CommentPanel.vue'
 import SelectionCommentButton from '../components/SelectionCommentButton.vue'
 import CodeBlockWithCopy from '../extensions/codeBlockWithCopy.js'
+import { DocImage, ImageGroup } from '../extensions/docImage.js'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
+import { promoteInlineImages } from '../utils/legacyImageHtml.js'
+import { insertUploadedImages } from '../utils/editorImages.js'
+import { isImageFile } from '../utils/imageUpload.js'
 import { handleCodeBlockTab } from '../utils/codeBlockIndent.js'
 import { handleBackspaceDeleteEmptyLine } from '../utils/emptyLineBackspace.js'
 import { insertParagraphInClickedGap } from '../utils/blockGapInsertion.js'
@@ -146,6 +155,31 @@ const activeSideTab = ref(route.query.comment ? 'comments' : 'outline')
 const sidePanelOpen = ref(Boolean(route.query.comment) || !mobileMedia.matches)
 const pendingCommentAnchor = ref(null)
 const commentCount = ref(0)
+const imageNotice = ref('')
+const imageNoticeError = ref(false)
+let imageNoticeTimer = null
+
+function reportImageStatus(status) {
+  if (imageNoticeTimer) {
+    clearTimeout(imageNoticeTimer)
+    imageNoticeTimer = null
+  }
+  if (!status || status.type === 'empty') {
+    imageNotice.value = ''
+    return
+  }
+  imageNotice.value = status.text || ''
+  imageNoticeError.value = status.type === 'error'
+  if (status.type === 'pending') return
+  imageNoticeTimer = setTimeout(() => {
+    imageNotice.value = ''
+    imageNoticeTimer = null
+  }, 3200)
+}
+
+async function insertImageFiles(files) {
+  await insertUploadedImages(editor.value, files, { onStatus: reportImageStatus })
+}
 
 const lowlight = createLowlight(common)
 
@@ -155,7 +189,8 @@ let provider = null
 const editor = useEditor({
   extensions: [
     StarterKit.configure({ history: false, codeBlock: false }),
-    Image.configure({ inline: true }),
+    DocImage,
+    ImageGroup,
     Link.configure({ openOnClick: true }),
     Table.configure({ resizable: true }),
     TableRow,
@@ -178,6 +213,27 @@ const editor = useEditor({
     handleKeyDown: (view, event) => (
       handleBackspaceDeleteEmptyLine(view, event) || handleCodeBlockTab(view, event)
     ),
+    handlePaste: (view, event) => {
+      const files = Array.from(event.clipboardData?.files || [])
+      if (!files.some(isImageFile)) return false
+      event.preventDefault()
+      insertImageFiles(files)
+      return true
+    },
+    handleDrop: (view, event, _slice, moved) => {
+      if (moved) return false
+      const files = Array.from(event.dataTransfer?.files || [])
+      if (!files.some(isImageFile)) return false
+      event.preventDefault()
+      const position = view.posAtCoords({ left: event.clientX, top: event.clientY })
+      if (position) {
+        view.dispatch(
+          view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(position.pos)))
+        )
+      }
+      insertImageFiles(files)
+      return true
+    },
     handleDOMEvents: {
       mousedown: insertParagraphInClickedGap,
     },
@@ -254,7 +310,7 @@ onMounted(async () => {
 
       provider.on('sync', (isSynced) => {
         if (isSynced && yXmlFragment.length === 0 && share.doc.content) {
-          editor.value.commands.setContent(share.doc.content)
+          editor.value.commands.setContent(promoteInlineImages(share.doc.content))
         }
         if (isSynced) {
           contentReady.value = true
@@ -263,7 +319,7 @@ onMounted(async () => {
       })
     } else {
       // 只读模式
-      editor.value.commands.setContent(share.doc.content)
+      editor.value.commands.setContent(promoteInlineImages(share.doc.content))
       contentReady.value = true
       updateOutline()
     }
@@ -276,6 +332,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   contentReady.value = false
+  if (imageNoticeTimer) clearTimeout(imageNoticeTimer)
   mobileMedia.removeEventListener?.('change', handleViewportChange)
   provider?.destroy()
   ydoc?.destroy()

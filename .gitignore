@@ -17,6 +17,9 @@ run/
 db/*.db
 db/*.db-*
 
+# Uploaded document images (content-addressed, runtime only)
+db/uploads/
+
 # Environment variables
 .env
 .env.local

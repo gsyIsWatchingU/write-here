@@ -482,6 +482,99 @@ a {
   border-radius: 0;
 }
 
+/* 文档插图：块级节点，默认居中（飞书口径），align 走 figure 的 data-align */
+#app .editor-content figure.doc-image {
+  margin: 10px 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+}
+
+#app .editor-content figure.doc-image[data-align='left'] {
+  justify-content: flex-start;
+}
+
+#app .editor-content figure.doc-image[data-align='right'] {
+  justify-content: flex-end;
+}
+
+#app .editor-content figure.doc-image img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  margin: 0;
+}
+
+/* 多图同行：按宽高比分配宽度（--doc-image-ratio 由节点渲染），
+   容器变窄时靠 flex-wrap + min 基准自动折行，窄容器直接单列 */
+#app .editor-content .doc-image-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  /* stretch：同一行里高度有零头差异时对齐上沿，不留参差 */
+  align-items: stretch;
+  margin: 10px 0;
+}
+
+#app .editor-content .doc-image-group[data-align='left'] {
+  justify-content: flex-start;
+}
+
+#app .editor-content .doc-image-group[data-align='right'] {
+  justify-content: flex-end;
+}
+
+#app .editor-content .doc-image-group > figure.doc-image {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+/* 两张及以上：基准 0 + 按宽高比放大 ⇒ 宽度严格正比于宽高比，同行自然等高。
+   min-width 同时是折行阈值：容器连 160px 都塞不下时才换行，不会挤成细条。 */
+#app .editor-content .doc-image-group:not([data-count='1']) > figure.doc-image {
+  flex: var(--doc-image-ratio, 1) 1 0;
+  min-width: 160px;
+}
+
+#app .editor-content .doc-image-group:not([data-count='1']) > figure.doc-image img {
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  #app .editor-content .doc-image-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #app .editor-content .doc-image-group > figure.doc-image,
+  #app .editor-content .doc-image-group:not([data-count='1']) > figure.doc-image {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  #app .editor-content .doc-image-group:not([data-count='1']) > figure.doc-image img {
+    width: auto;
+    max-width: 100%;
+  }
+}
+
+/* 上传进度/结果提示：不打断写作，贴在正文上方 */
+#app .image-notice {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-muted, #666);
+  background: var(--surface-hover, #f4f4f4);
+  border: 1px solid var(--border, #111);
+}
+
+#app .image-notice.error {
+  color: var(--danger, #c0392b);
+}
+
 #app .editor-content mark {
   background: var(--primary);
   border-radius: 0;

@@ -213,6 +213,31 @@ export const api = {
     return data
   },
 
+  // 文档插图：直接上传图片二进制，后端按内容寻址落盘并返回不可变 URL
+  uploadImage: async (file, { width, height } = {}) => {
+    const token = getUser()?.token
+    const res = await fetch(`${BASE}/images/upload`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': file.type || 'application/octet-stream',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(width ? { 'X-Image-Width': String(width) } : {}),
+        ...(height ? { 'X-Image-Height': String(height) } : {}),
+      },
+      body: file,
+    })
+    let data = {}
+    try {
+      data = await res.json()
+    } catch (error) {
+      data = {}
+    }
+    if (!res.ok) throw new Error(data.error || '图片上传失败')
+    return data
+  },
+
   // AI 润色：后端调用本机 claude CLI 接入 GPU 模型 API，对整篇文档润色
   getAiPolishStatus: () =>
     request('/ai/polish/config'),

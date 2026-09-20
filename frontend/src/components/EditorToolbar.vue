@@ -65,7 +65,7 @@
 
     <div class="toolbar-group">
       <button class="icon-btn" @click="insertTable" title="插入表格">&#9638;</button>
-      <button class="icon-btn" @click="addImage" title="插入图片">▧</button>
+      <button class="icon-btn" @click="pickImages" :disabled="uploading" title="插入图片（可多选、支持粘贴与拖入）">▧</button>
       <button class="icon-btn" @click="setLink" title="插入链接">↗</button>
     </div>
 
@@ -94,6 +94,15 @@
     <div class="toolbar-group">
       <AiPolishButton :editor="editor" @applied="emit('applied')" />
     </div>
+
+    <input
+      ref="imageFileInput"
+      class="image-file-input"
+      type="file"
+      accept="image/png,image/jpeg,image/webp,image/gif"
+      multiple
+      @change="onImagesPicked"
+    >
   </div>
 </template>
 
@@ -103,12 +112,16 @@ import EditorBlockMenu from './EditorBlockMenu.vue'
 import VoiceInputButton from './VoiceInputButton.vue'
 import AiPolishButton from './AiPolishButton.vue'
 import { convertMarkdownHeadings } from '../utils/markdownHeadings'
+import { insertUploadedImages } from '../utils/editorImages.js'
 
 const props = defineProps({
   editor: { type: Object, required: true }
 })
 
-const emit = defineEmits(['applied'])
+const emit = defineEmits(['applied', 'image-status'])
+
+const imageFileInput = ref(null)
+const uploading = ref(false)
 
 const markdownHeadingLabel = ref('识别 MD 标题')
 let labelTimer = null
@@ -147,10 +160,19 @@ function insertTable() {
   props.editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
 }
 
-function addImage() {
-  const url = prompt('请输入图片链接地址：')
-  if (url) {
-    props.editor.chain().focus().setImage({ src: url }).run()
+function pickImages() {
+  imageFileInput.value?.click()
+}
+
+async function onImagesPicked(event) {
+  const files = Array.from(event.target?.files || [])
+  event.target.value = ''
+  if (files.length === 0) return
+  uploading.value = true
+  try {
+    await insertUploadedImages(props.editor, files, { onStatus: (status) => emit('image-status', status) })
+  } finally {
+    uploading.value = false
   }
 }
 
@@ -200,6 +222,10 @@ function setLink() {
   min-width: 92px;
   padding-inline: 8px;
   white-space: nowrap;
+}
+/* 文件选择框只由工具栏按钮触发，本身不占位 */
+.image-file-input {
+  display: none;
 }
 button:disabled {
   opacity: 0.3;

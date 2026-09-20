@@ -1,6 +1,6 @@
 # 项目状态
 
-最后更新：2026-09-19
+最后更新：2026-09-20
 
 ## 当前阶段
 
@@ -72,6 +72,7 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 已新增公开只读 Markdown 接口（`GET /docs/:id/raw` 与 `GET /doc/:id/raw`）：无需登录，`public` 或已创建分享记录的普通文档可直接返回 Markdown 原文（旧 HTML 文档返回纯文本），供任何支持抓取链接的大模型直接读取；题库文档不开放。
 - 已新增远程 HTTP MCP 端点（`/mcp/:secret`，Streamable HTTP，stateless 模式）：后端挂载 `@modelcontextprotocol/node` 适配器，ChatGPT 等只支持远程 MCP 的客户端可填 `https://<站点>/mcp/<secret>` 直接连接；`MCP_HTTP_SECRET` 作访问密钥，未配置时端点 503，工具调用仍以 `HORIZON_DOCS_TOKEN` 鉴权后端。
 - 已优化文档加载的传输与查询开销：后端启用响应压缩、为带哈希的构建产物配置长缓存、列表类接口只回传正文预览片段、SQLite 改为 WAL 并补齐热查询索引（详见验证结果 2026-09-19）。
+- 文档已支持插图：新增 `POST /images/upload` 上传接口（magic number 校验、10 MB / 8000 万像素上限、sha256 内容寻址去重、tmp+rename 原子写，文件落 `db/uploads/` 且不进 Git）；编辑器图片由行内节点改为块级节点 `DocImage`（默认居中，对齐走 `data-align`），多图同行合并为 `ImageGroup`；支持工具栏选择、粘贴和拖放三种插入方式，一次最多 6 张、并发 3；旧文档里的行内 `<p><img></p>` 在 Yjs 同步和 Markdown 导入时自动提升为块级图片，不会丢图；同行图片按宽高比分配宽度，因此自然等高并铺满整行，容器变窄时自动折行，窄屏单列。
 
 ## 下一步
 
@@ -90,6 +91,7 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 文档正文需等 Yjs 协同 sync 完成后才渲染，未接入本地持久化；网络较差时正文区会停在骨架屏。
 - 打开非本人文档时存在串行往返：先取文档，再取协作状态，最后等协同同步。
 - 2026-09-19 一轮优化未取得 GPT 第二意见：专用 Chrome 的 ChatGPT 通道报未登录且页面加载失败，方案改由仓库实测证据确定。
+- `/uploads` 是不带权限校验的静态目录（拿到 URL 即可读），后续需补带鉴权的图片读取层；已上传但文档里已删除的图片不做孤儿回收。
 - Quick Tunnel 使用随机地址，隧道或服务器重启后地址可能变化。
 - GPU 服务器容器重启后需确认 Supervisor 与两个 WriteHere 进程已恢复。
 - GPU 自托管 Runner 必须保持在线；当前由 Supervisor 的 `github-actions-write-here` 进程守护。
@@ -172,4 +174,6 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 2026-09-18：远程 HTTP MCP 端点通过端到端测试（`@modelcontextprotocol/client` 连接 `http://127.0.0.1:3213/mcp/<secret>`：错误密钥 403、initialize 成功、8 个工具列出、`create_markdown_document` 创建与 `get_markdown_document` 回读均通过，已纳入 `mcp` 包 `npm test`）；`node --check` 通过；已随 `4967b5c` 部署至 GPU 服务器并通过公网验收。
 - 2026-09-18：`4967b5c` 已通过 CI/CD 构建与 GPU 部署：服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`write-here` 与 `cloudflared-write-here` 均 RUNNING；修复线上 HTTP MCP 端点 500（`deploy/start.sh` 补充 `npm ci --omit=dev --prefix mcp`）；服务器 `.env` 新增 `MCP_HTTP_SECRET`/`HORIZON_DOCS_URL`/`HORIZON_DOCS_TOKEN`（备份 `.env.bak-mcp-*`），`api_tokens` 新增 `MCP-HTTP-gsy`（userId=2）；公网实测 `/mcp/<secret>`——错误密钥 403、`@modelcontextprotocol/client` 连接成功并列出全部 8 个工具。
 - 2026-09-19：文档加载性能优化通过后端 25 项测试（含新增 4 项静态交付与传输量回归测试）、`node --check` 语法检查；实测最大 chunk `outlineNavigation` 由 835.8 KB 压到 278.3 KB，`assets/` 返回 `public, max-age=31536000, immutable`、`index.html` 返回 `no-cache`，列表接口正文由 10407 字符降为 200 字符预览，`journal_mode=wal`，`idx_docs_visibility`/`idx_shares_docId`/`idx_comments_docId`/`idx_notifications_userId` 四个索引已建立（未重复建 `docs(userId, kind)`，已有 `idx_docs_kind_owner` 可复用）。
+- 2026-09-20：文档插图功能通过前端 93 项测试（新增 14 项：布局比例、插入结构、旧 HTML 迁移、上传保序/失败隔离）、后端 32 项测试（新增 7 项：类型识别、分片路径、原子写、401/400/413、去重与元数据落库）、MCP `npm run check` 与 5 项测试、前端生产构建、`node --check backend/server.js` 与 `backend/imageUpload.js`。
+- 2026-09-20：用临时无头 Chrome（CDP 驱动真实 `input[type=file]` + 真实后端 + 真实 PNG）完成 14 项浏览器验收并全部通过：单张插入 `<figure class="doc-image" data-align="center">`、图片 URL 为 `/uploads/xx/yy/<64hex>.png`、图片真实加载（642×163）、左右留白各 369px（视觉居中）；两张合成 `doc-image-group` 且同行等高（893×230 与 483×230，行宽 1384 = 容器宽，未重叠）、`flex-grow` 按宽高比取 3.94 / 2.13 而非等分；`setContent(getHTML())` 往返结构不变（刷新不丢图）；旧行内 `<p><img src="/uploads/legacy.png"></p>` 被提升为块级 figure 而非丢弃。验收页与脚本均为临时文件，已删除。
 - 2026-09-19：`cd15eec` 已通过 CI/CD 构建与 GPU 部署；服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 10 个业务表，`write-here` 与 `cloudflared-write-here` 均 RUNNING）；公网实测最大 chunk `outlineNavigation-DJYAhHe4.js` 由 855,894 B 压到 284,986 B（-66.7%），响应头为 `content-encoding: gzip` + `cache-control: public, max-age=31536000, immutable`，`index.html` 为 `no-cache`。

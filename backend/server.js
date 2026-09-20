@@ -10,6 +10,7 @@ const { authenticateSession, createProblemsRouter, migrateProblems } = require('
 const { createMcpRouter, migrateMcp, stripHtml } = require('./mcp');
 const { createAsrRouter } = require('./asr');
 const { createAiPolishRouter } = require('./aiPolish');
+const { createImageUploadRouter, migrateImages } = require('./imageUpload');
 const { createDocumentOrderRouter, migrateDocumentOrder } = require('./documentOrder');
 const {
     createDocumentPublicId,
@@ -272,6 +273,8 @@ function initDatabase() {
         });
 
         migrateDocumentIdentity(db);
+
+        migrateImages(db);
 
         // 迁移：最近访问时间字段
         db.run(`ALTER TABLE docs ADD COLUMN lastViewedAt DATETIME`, (err) => {
@@ -700,6 +703,13 @@ app.use('/mcp/:secret', async (req, res, next) => {
 app.use(createAsrRouter({ db }));
 // AI 润色：后端在本机调用 claude CLI，通过 ANTHROPIC_BASE_URL / ANTHROPIC_API_KEY 接入 GPU 模型 API
 app.use(createAiPolishRouter({ db }));
+// 文档插图：二进制落在 db/uploads（内容寻址、不可变），元数据进 images 表
+const uploadsDir = process.env.UPLOAD_DIR || path.join(__dirname, '../db/uploads');
+app.use(createImageUploadRouter({ db, uploadDir: uploadsDir }));
+app.use('/uploads', express.static(uploadsDir, {
+    fallthrough: false,
+    setHeaders: (res) => res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'),
+}));
 
 // ==================== 分享 API ====================
 

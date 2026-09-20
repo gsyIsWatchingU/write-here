@@ -45,7 +45,12 @@
         </div>
       </header>
 
-      <EditorToolbar v-if="editor && editorReady && canEdit" :editor="editor" @applied="handleAiPolished" />
+      <EditorToolbar
+        v-if="editor && editorReady && canEdit"
+        :editor="editor"
+        @applied="handleAiPolished"
+        @image-status="reportImageStatus"
+      />
     </div>
 
     <div
@@ -87,6 +92,7 @@
           <div class="skeleton-line"></div>
           <div class="skeleton-line medium"></div>
         </div>
+        <div v-if="imageNotice" class="image-notice" :class="{ error: imageNoticeError }">{{ imageNotice }}</div>
         <div class="editor-wrapper" v-show="!docLoading">
           <editor-content :editor="editor" class="editor-content" />
         </div>
@@ -207,9 +213,9 @@
 import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
+import { TextSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import Table from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
@@ -236,8 +242,12 @@ import DocumentDirectory from '../components/DocumentDirectory.vue'
 import CommentPanel from '../components/CommentPanel.vue'
 import SelectionCommentButton from '../components/SelectionCommentButton.vue'
 import CodeBlockWithCopy from '../extensions/codeBlockWithCopy.js'
+import { DocImage, ImageGroup } from '../extensions/docImage.js'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 import { normalizeImportedMarkdown } from '../utils/markdown'
+import { promoteInlineImages } from '../utils/legacyImageHtml.js'
+import { insertUploadedImages } from '../utils/editorImages.js'
+import { isImageFile } from '../utils/imageUpload.js'
 import { handleCodeBlockTab } from '../utils/codeBlockIndent.js'
 import { handleBackspaceDeleteEmptyLine } from '../utils/emptyLineBackspace.js'
 import { insertParagraphInClickedGap } from '../utils/blockGapInsertion.js'
@@ -276,6 +286,32 @@ const commentCount = ref(0)
 const userDocuments = ref([])
 const collaborationDocuments = ref([])
 const directoryLoading = ref(false)
+const imageNotice = ref('')
+const imageNoticeError = ref(false)
+let imageNoticeTimer = null
+
+function reportImageStatus(status) {
+  if (imageNoticeTimer) {
+    clearTimeout(imageNoticeTimer)
+    imageNoticeTimer = null
+  }
+  if (!status || status.type === 'empty') {
+    imageNotice.value = ''
+    return
+  }
+  imageNotice.value = status.text || ''
+  imageNoticeError.value = status.type === 'error'
+  // 上传中不自动收起，等结果出来再决定
+  if (status.type === 'pending') return
+  imageNoticeTimer = setTimeout(() => {
+    imageNotice.value = ''
+    imageNoticeTimer = null
+  }, 3200)
+}
+
+async function insertImageFiles(files) {
+  await insertUploadedImages(editor.value, files, { onStatus: reportImageStatus })
+}
 
 const directoryDocuments = computed(() => userDocuments.value.map(document => (
   String(document.id) === String(docId.value)
@@ -329,7 +365,9 @@ const editor = useEditor({
       codeBlock: false,
     }),
     Placeholder.configure({ placeholder: '开始编写文档...' }),
-    Image.configure({ inline: true }),
+    // 图片是块级节点：默认居中，多图同行自适应（见 extensions/docImage.js）
+    DocImage,
+    ImageGroup,
     Link.configure({ openOnClick: false }),
     Table.configure({ resizable: true }),
     TableRow,
@@ -362,6 +400,28 @@ const editor = useEditor({
     handleKeyDown: (view, event) => (
       handleBackspaceDeleteEmptyLine(view, event) || handleCodeBlockTab(view, event)
     ),
+    // 粘贴/拖入本地图片是插图的默认入口：此前没有任何文件处理，粘进去什么都不发生
+    handlePaste: (view, event) => {
+      const files = Array.from(event.clipboardData?.files || [])
+      if (!files.some(isImageFile)) return false
+      event.preventDefault()
+      insertImageFiles(files)
+      return true
+    },
+    handleDrop: (view, event, _slice, moved) => {
+      if (moved) return false
+      const files = Array.from(event.dataTransfer?.files || [])
+      if (!files.some(isImageFile)) return false
+      event.preventDefault()
+      const position = view.posAtCoords({ left: event.clientX, top: event.clientY })
+      if (position) {
+        view.dispatch(
+          view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(position.pos)))
+        )
+      }
+      insertImageFiles(files)
+      return true
+    },
     handleDOMEvents: {
       mousedown: insertParagraphInClickedGap,
     },
@@ -526,7 +586,8 @@ onMounted(async () => {
       if (isSynced) {
         const yXmlFragment = ydoc.getXmlFragment('default')
         if (yXmlFragment.length === 0 && doc.content && editor.value) {
-          editor.value.commands.setContent(doc.content)
+          // 旧文档里图片是行内节点，放进块级 schema 会被静默丢弃，先提升成块
+          editor.value.commands.setContent(promoteInlineImages(doc.content))
         }
         contentReady.value = true
         updateOutline()
@@ -558,6 +619,7 @@ onBeforeUnmount(() => {
   documentLoaded = false
   contentReady.value = false
   if (saveTimer) clearTimeout(saveTimer)
+  if (imageNoticeTimer) clearTimeout(imageNoticeTimer)
   mobileMedia.removeEventListener?.('change', handleViewportChange)
   provider.awareness.off('change', updateCollabUsers)
   provider.destroy()
@@ -663,7 +725,7 @@ async function handleMarkdownImport(event) {
     if (hasContent && !window.confirm('导入会替换当前正文，是否继续？')) return
 
     const markdown = normalizeImportedMarkdown(await file.text())
-    editor.value.commands.setContent(markdownParser.render(markdown))
+    editor.value.commands.setContent(promoteInlineImages(markdownParser.render(markdown)))
     updateOutline()
 
     if (!docTitle.value.trim() || docTitle.value === '无标题文档') {
