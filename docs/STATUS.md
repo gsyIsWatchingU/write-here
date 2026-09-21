@@ -96,6 +96,7 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - Quick Tunnel 使用随机地址，隧道或服务器重启后地址可能变化。
 - GPU 服务器容器重启后需确认 Supervisor 与两个 WriteHere 进程已恢复。
 - GPU 自托管 Runner 必须保持在线；当前由 Supervisor 的 `github-actions-write-here` 进程守护。
+- 退出登录只保证本地登出即时生效；若 `/logout` 请求失败（离线、后端不可达），服务端会话记录会残留到过期，期间该 token 仍有效。当前演示级认证下可接受，做生产级鉴权时应一并收紧（例如短会话有效期 + 服务端主动失效）。
 
 ## 验证结果
 
@@ -179,4 +180,6 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 2026-09-20：用临时无头 Chrome（CDP 驱动真实 `input[type=file]` + 真实后端 + 真实 PNG）完成 14 项浏览器验收并全部通过：单张插入 `<figure class="doc-image" data-align="center">`、图片 URL 为 `/uploads/xx/yy/<64hex>.png`、图片真实加载（642×163）、左右留白各 369px（视觉居中）；两张合成 `doc-image-group` 且同行等高（893×230 与 483×230，行宽 1384 = 容器宽，未重叠）、`flex-grow` 按宽高比取 3.94 / 2.13 而非等分；`setContent(getHTML())` 往返结构不变（刷新不丢图）；旧行内 `<p><img src="/uploads/legacy.png"></p>` 被提升为块级 figure 而非丢弃。验收页与脚本均为临时文件，已删除。
 - 2026-09-20：`39aa79c` 的文档插图功能已通过 CI/CD 构建与 GPU 部署；服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 11 个业务表——新增 `images`，`write-here` 与 `cloudflared-write-here` 均 RUNNING）；线上实测 `POST /images/upload` 未登录返回 401，`db/uploads/` 目录已创建且可写，线上 `frontend/dist` 产物包含 `doc-image`（JS）与 `doc-image-group`（CSS）。
 - 2026-09-19：`cd15eec` 已通过 CI/CD 构建与 GPU 部署；服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 10 个业务表，`write-here` 与 `cloudflared-write-here` 均 RUNNING）；公网实测最大 chunk `outlineNavigation-DJYAhHe4.js` 由 855,894 B 压到 284,986 B（-66.7%），响应头为 `content-encoding: gzip` + `cache-control: public, max-age=31536000, immutable`，`index.html` 为 `no-cache`。
-- 2026-09-21：图片选中态修复通过 96 项前端测试和生产构建；临时无头 Chrome 挂载真实 TipTap 编辑器完成 5 项验收：未选中无光环、点击图片产生节点选区并显示绿黑双层光环、图片组显示绿色外框与浅绿底色、取消选中后光环消失，验收临时文件已清理。
+- 2026-09-21：图片与图片组选中态通过 96 项前端测试和生产构建；临时无头 Chrome 挂载真实 TipTap 编辑器完成 5 项验收：未选中无光环、点击图片产生节点选区并显示绿黑双层光环、图片组显示绿色外框与浅绿底色、取消选中后光环消失，验收临时文件已清理。
+- 2026-09-21：修复「点击退出没反应」通过前端 109 项测试（新增 5 项退出回归测试）和生产构建；用临时无头 Chrome + CDP 搭受控复现环境（真实 router 守卫 + 真实 Home/Login 组件，仅把后端替换为可控假服务并保留真实会话 cookie 语义）跑通五场景 19 项：正常退出、`/logout` 抛错、服务端会话未失效、退出后重新登录仍可进首页、`/logout` 挂住不返回，各场景均停在 `/login` 且本地凭据清空、无未捕获异常。修复前实测前四场景失败（`path` 停在 `/`）。根因有两条：`clearUser` 用 `try/finally`（`finally` 不吞异常，`/logout` 失败会把异常抛给调用方，而各页 `await clearUser()` 之后才跳转，后端不可达或卡住就永远走不到跳转）；以及 `Login` 的 `onMounted` 无条件调 `/me` 并用残留会话 `replace('/')` 把用户弹回首页。改动：`clearUser` 先同步清 `localStorage` 再降级处理请求失败，新增 `sessionStorage` 退出标记，`Login` 主动退出时不再自动跳回。
+- 2026-09-21：`e580d1f` 的退出修复已通过 CI/CD 构建与 GPU 部署（`构建检查` 与 `部署到 GPU 服务器` 两个 job 均 success）；服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 11 个业务表，`write-here` 与 `cloudflared-write-here` 均 RUNNING）；线上 `api-jvGBI1p9.js` 实测包含修复后的 `clearUser`（先清 localStorage、`catch` 降级为 `console.warn`）、`loggedOut` 标记函数与 `setUser` 清理逻辑，`Login` chunk 确认从该模块导入。
