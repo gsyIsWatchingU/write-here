@@ -57,7 +57,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { api, setUser } from '../utils/api'
+import { api, setUser, consumeLoggedOutFlag } from '../utils/api'
 
 const router = useRouter()
 const isLogin = ref(true)
@@ -116,6 +116,9 @@ async function handleSubmit() {
 }
 
 onMounted(async () => {
+  // 主动退出进来的，必须停在登录页：此时服务端会话可能还没失效
+  // （/logout 失败、或 cookie 未及时清除），再调 /me 会被弹回首页，看起来就像「退出没反应」。
+  if (consumeLoggedOutFlag()) return
   try {
     const user = await api.me()
     setUser(user)

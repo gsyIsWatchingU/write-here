@@ -1,5 +1,20 @@
 const BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? '/api' : '')
 
+// 用户主动退出后，在本次标签页会话里留一个标记：
+// 登录页靠它区分「主动退出」与「首次访问」，避免用残留的服务端会话把用户弹回首页。
+// 用 sessionStorage 而非 localStorage —— 关掉标签页就该失效。
+const LOGOUT_FLAG = 'loggedOut'
+
+export function markLoggedOut() {
+  sessionStorage.setItem(LOGOUT_FLAG, '1')
+}
+
+export function consumeLoggedOutFlag() {
+  const flagged = sessionStorage.getItem(LOGOUT_FLAG) === '1'
+  sessionStorage.removeItem(LOGOUT_FLAG)
+  return flagged
+}
+
 export function getWebSocketUrl(path) {
   const configuredBase = import.meta.env.VITE_WS_BASE_URL?.replace(/\/$/, '')
   if (configuredBase) return `${configuredBase}${path}`
@@ -15,13 +30,19 @@ export function getUser() {
 
 export function setUser(user) {
   localStorage.setItem('currentUser', JSON.stringify(user))
+  sessionStorage.removeItem(LOGOUT_FLAG)
 }
 
 export async function clearUser() {
+  // 本地凭据必须无条件清掉：即使 /logout 请求失败（离线、后端 500、代理断开），
+  // 也不能让用户卡在「点了退出但还留在登录态」的状态里。
+  localStorage.removeItem('currentUser')
+  markLoggedOut()
   try {
     await fetch(`${BASE}/logout`, { method: 'POST', credentials: 'include' })
-  } finally {
-    localStorage.removeItem('currentUser')
+  } catch (error) {
+    // 服务端会话清理失败不阻塞退出；本地已登出，下次请求会因 401 重新引导登录。
+    console.warn('退出登录时未能通知服务端，本地会话已清除。', error)
   }
 }
 
