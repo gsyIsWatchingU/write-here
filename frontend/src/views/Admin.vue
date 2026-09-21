@@ -1,20 +1,6 @@
 <template>
   <div class="admin-page">
-    <header class="topbar">
-      <h1 class="logo brand-logo" @click="router.push('/')">
-        <img src="/horizon-docs.svg" alt="" aria-hidden="true">
-        <span>Horizon Docs</span>
-      </h1>
-      <div class="topbar-center">
-        <button class="nav-btn" @click="router.push('/')">[01] 我的文档</button>
-        <button class="nav-btn" @click="router.push('/community')">[02] 社区</button>
-        <button class="nav-btn active" @click="router.push('/admin')">[03] 文档管理</button>
-      </div>
-      <div class="topbar-right">
-        <span class="username">{{ user?.username }}</span>
-        <button class="ghost" @click="handleLogout">退出</button>
-      </div>
-    </header>
+    <TopNav />
     <main class="main-content">
       <div class="toolbar">
         <h2>文档管理</h2>
@@ -55,6 +41,7 @@ import { useRouter } from 'vue-router'
 import { api, getUser, clearUser } from '../utils/api'
 import { formatServerDateTime } from '../utils/dateTime'
 import { getDocumentPath } from '../utils/documentIdentity'
+import TopNav from '../components/TopNav.vue'
 
 const router = useRouter()
 const user = ref(getUser())
@@ -84,8 +71,10 @@ function openDoc(doc) {
   router.push(getDocumentPath(doc))
 }
 
-async function handleLogout() {
-  await clearUser()
+function handleLogout() {
+  // 本地登出与跳转是同步的，不能等 /logout 网络请求 ——
+  // 后端卡住/离线时，等待会让「退出」看起来完全没反应。
+  clearUser()
   router.push('/login')
 }
 
@@ -106,55 +95,7 @@ function formatTime(t) {
   min-height: 100vh;
   background: var(--bg-gray);
 }
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 24px;
-  background: #fff;
-  box-shadow: var(--shadow);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-.logo {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--primary);
-  cursor: pointer;
-}
-.topbar-center {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.nav-btn {
-  padding: 6px 12px;
-  border: none;
-  background: transparent;
-  font-size: 14px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-radius: var(--radius);
-  transition: all 0.2s;
-}
-.nav-btn:hover {
-  background: var(--bg-gray);
-  color: var(--text-primary);
-}
-.nav-btn.active {
-  background: var(--primary);
-  color: #fff;
-}
-.topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.username {
-  font-size: 14px;
-  color: var(--text-secondary);
-}
+/* 导航栏样式已上移到 components/TopNav.vue，此页不再重复定义。 */
 .main-content {
   max-width: 1440px;
   margin: 0 auto;

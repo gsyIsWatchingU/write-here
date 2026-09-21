@@ -1,20 +1,6 @@
 <template>
   <div class="problems-page">
-    <header class="topbar">
-      <h1 class="brand-logo" @click="router.push('/')">
-        <img src="/horizon-docs.svg" alt="" aria-hidden="true">
-        <span>Horizon Docs</span>
-      </h1>
-      <nav class="topbar-center">
-        <button class="nav-btn" @click="router.push('/')">[01] 我的文档</button>
-        <button class="nav-btn active">[02] 题库</button>
-        <button class="nav-btn" @click="router.push('/community')">[03] 社区</button>
-      </nav>
-      <div class="topbar-right">
-        <span class="username">{{ user?.username }}</span>
-        <button class="ghost" @click="logout">退出</button>
-      </div>
-    </header>
+    <TopNav />
 
     <main class="main-content">
       <section class="hero">
@@ -61,12 +47,12 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { api, clearUser, getUser } from '../utils/api'
+import { api, clearUser } from '../utils/api'
 import { formatServerDateTime } from '../utils/dateTime'
 import { getDocumentPath } from '../utils/documentIdentity'
+import TopNav from '../components/TopNav.vue'
 
 const router = useRouter()
-const user = ref(getUser())
 const problems = ref([])
 const loading = ref(true)
 const creating = ref(false)
@@ -154,20 +140,12 @@ function formatTime(value) {
   return formatServerDateTime(value)
 }
 
-async function logout() {
-  await clearUser()
-  router.push('/login')
-}
-
 onMounted(loadProblems)
 </script>
 
 <style scoped>
 .problems-page { min-height: 100vh; background: var(--bg-gray); }
-.topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 24px; background: #fff; border-bottom: 2px solid var(--text-primary); }
-.brand-logo { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 18px; }
-.brand-logo img { width: 26px; height: 26px; }
-.topbar-center, .topbar-right { display: flex; align-items: center; gap: 10px; }
+/* 导航栏样式已上移到 components/TopNav.vue，此页不再重复定义。 */
 .main-content { max-width: 1440px; margin: 0 auto; padding: 34px 24px 60px; }
 .hero { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 26px; padding: 26px; background: #fff; border: 2px solid var(--text-primary); }
 .hero h2 { margin: 4px 0 8px; font-size: 28px; }
@@ -187,9 +165,6 @@ onMounted(loadProblems)
 .notice.error { background: #fff0f0; border-color: var(--danger); color: var(--danger); }
 .danger-text { color: var(--danger); }
 @media (max-width: 760px) {
-  .topbar { align-items: flex-start; flex-wrap: wrap; padding: 12px 14px; }
-  .topbar-center { order: 3; width: 100%; overflow-x: auto; }
-  .username { display: none; }
   .main-content { padding: 20px 14px 40px; }
   .hero { align-items: stretch; flex-direction: column; }
   .problem-grid { grid-template-columns: 1fr; }

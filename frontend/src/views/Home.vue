@@ -1,17 +1,7 @@
 ﻿<template>
   <div class="home-page">
-    <header class="topbar">
-      <h1 class="logo brand-logo" @click="router.push('/')">
-        <img src="/horizon-docs.svg" alt="" aria-hidden="true">
-        <span>Horizon Docs</span>
-      </h1>
-      <div class="topbar-center">
-        <button class="nav-btn" :class="{ active: isHomeActive }" @click="router.push('/')">[01] 我的文档</button>
-        <button class="nav-btn" @click="router.push('/problems')">[02] 题库</button>
-        <button class="nav-btn" :class="{ active: isCommunityActive }" @click="router.push('/community')">[03] 社区</button>
-        <button v-if="user?.isAdmin" class="nav-btn" :class="{ active: isAdminActive }" @click="router.push('/admin')">[04] 文档管理</button>
-      </div>
-      <div class="topbar-right">
+    <TopNav>
+      <template #actions>
         <button
           ref="notificationBtnRef"
           class="topbar-action-btn notification-btn"
@@ -38,10 +28,8 @@
           <span class="action-label action-label-short">协作</span>
           <span v-if="collabUnreadCount > 0" class="notification-badge collab-badge">{{ collabUnreadCount }}</span>
         </button>
-        <span class="username">{{ user?.username }}</span>
-        <button class="ghost" @click="handleLogout">退出</button>
-      </div>
-    </header>
+      </template>
+    </TopNav>
     <main class="main-content">
       <div class="toolbar">
         <h2>我的文档</h2>
@@ -268,30 +256,19 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { api, getUser, clearUser, getWebSocketUrl } from '../utils/api'
 import { formatServerDateTime } from '../utils/dateTime'
 import { getDocumentPath } from '../utils/documentIdentity'
+import TopNav from '../components/TopNav.vue'
 
 const router = useRouter()
-const route = useRoute()
 const user = ref(getUser())
 const notificationBtnRef = ref(null)
 const collabBtnRef = ref(null)
 const notificationDropdownRef = ref(null)
 const collabDropdownRef = ref(null)
 
-const isHomeActive = computed(() => {
-  return route.path === '/'
-})
-
-const isCommunityActive = computed(() => {
-  return route.path === '/community'
-})
-
-const isAdminActive = computed(() => {
-  return route.path === '/admin'
-})
 const docs = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
@@ -676,51 +653,7 @@ async function respondToCollaboration(requestId, status) {
   min-height: 100vh;
   background: var(--bg-gray);
 }
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 24px;
-  background: #fff;
-  box-shadow: var(--shadow);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-.logo {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--primary);
-  cursor: pointer;
-}
-.topbar-center {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.nav-btn {
-  padding: 6px 12px;
-  border: none;
-  background: transparent;
-  font-size: 14px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-radius: var(--radius);
-  transition: all 0.2s;
-}
-.nav-btn:hover {
-  background: var(--bg-gray);
-  color: var(--text-primary);
-}
-.nav-btn.active {
-  background: var(--primary);
-  color: #fff;
-}
-.topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
+/* 导航栏样式已上移到 components/TopNav.vue，此页只保留右侧动作区的样式。 */
 .notification-btn {
   position: relative;
 }
