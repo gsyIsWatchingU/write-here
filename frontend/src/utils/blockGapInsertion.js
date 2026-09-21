@@ -62,6 +62,18 @@ export function hasAdjacentEmptyTextBlock(doc, childIndex) {
   })
 }
 
+/**
+ * 返回空隙相邻的空文本块在顶层子节点中的索引，没有则返回 -1。
+ */
+function findAdjacentEmptyTextBlockIndex(doc, childIndex) {
+  for (const index of [childIndex, childIndex - 1]) {
+    if (index < 0 || index >= doc.childCount) continue
+    const node = doc.child(index)
+    if (node.isTextblock && node.content.size === 0) return index
+  }
+  return -1
+}
+
 export function insertParagraphInClickedGap(view, event) {
   if (
     !view?.editable
@@ -85,7 +97,26 @@ export function insertParagraphInClickedGap(view, event) {
     const lastChild = view.state.doc.child(view.state.doc.childCount - 1)
     if (!shouldInsertTrailingParagraph(lastChild)) return false
   } else if (hasAdjacentEmptyTextBlock(view.state.doc, childIndex)) {
-    return false
+    // 旁边已有空文本块。普通文本块之间，ProseMirror 默认 mousedown 会把光标放进去；
+    // 但空隙另一侧是 atom 节点（如块级图片）时，posAtCoords 会命中 atom 本身，
+    // 导致点击空白反而选中图片——这时主动把光标移到空文本块里。
+    const doc = view.state.doc
+    const emptyIndex = findAdjacentEmptyTextBlockIndex(doc, childIndex)
+    if (emptyIndex < 0) return false
+
+    const otherIndex = emptyIndex === childIndex ? childIndex - 1 : childIndex
+    const otherNode = otherIndex >= 0 && otherIndex < doc.childCount ? doc.child(otherIndex) : null
+    if (!otherNode || !otherNode.isAtom) return false
+
+    const position = getTopLevelInsertionPosition(doc, emptyIndex)
+    if (position === null) return false
+
+    const transaction = view.state.tr
+    transaction.setSelection(TextSelection.create(doc, position + 1))
+    view.dispatch(transaction.scrollIntoView())
+    view.focus()
+    event.preventDefault()
+    return true
   }
 
   const position = getTopLevelInsertionPosition(view.state.doc, childIndex)

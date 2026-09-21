@@ -20,6 +20,7 @@ const schema = new Schema({
     blockquote: { content: 'block+', group: 'block' },
     bulletList: { content: 'listItem+', group: 'block' },
     listItem: { content: 'paragraph block*' },
+    image: { group: 'block', atom: true, attrs: { src: { default: null } } },
     text: { group: 'inline' },
   },
 })
@@ -284,4 +285,65 @@ test('块间空白点击逻辑不受末尾补行影响', () => {
   assert.equal(view.dispatched.doc.child(1).type.name, 'paragraph')
   assert.equal(view.dispatched.doc.child(1).textContent, '')
   assert.equal(view.dispatched.doc.childCount, 3)
+})
+
+test('点击图片与后续空段落之间的间距，光标进入空段落而非选中图片', () => {
+  const imageNode = schema.node('image', { src: 'x.png' })
+  const doc = schema.node('doc', null, [
+    schema.node('paragraph', null, schema.text('上文')),
+    imageNode,
+    schema.node('paragraph'),
+  ])
+  const view = makeView(doc, [
+    { top: 10, bottom: 40 },
+    { top: 56, bottom: 120 },
+    { top: 136, bottom: 160 },
+  ])
+  // 点击 figure.bottom(120) 和空段落.top(136) 之间
+  const event = makeEvent(128)
+
+  assert.equal(insertParagraphInClickedGap(view, event), true)
+  // 不新增块，只是移动了光标
+  assert.equal(view.dispatched.doc.childCount, 3)
+  // 光标落在空段落内
+  const imageSize = doc.child(1).nodeSize
+  assert.equal(view.dispatched.selection.from, doc.child(0).nodeSize + imageSize + 1)
+  assert.equal(view.focused, true)
+  assert.equal(event.defaultPrevented, true)
+})
+
+test('点击空段落与后续普通段落之间的间距，仍不主动改光标', () => {
+  const doc = schema.node('doc', null, [
+    schema.node('paragraph', null, schema.text('上文')),
+    schema.node('paragraph'),
+    schema.node('paragraph', null, schema.text('下文')),
+  ])
+  const view = makeView(doc, [
+    { top: 10, bottom: 40 },
+    { top: 56, bottom: 80 },
+    { top: 96, bottom: 130 },
+  ])
+  // 点击空段落(56-80) 和 下文(96-130) 之间
+  const event = makeEvent(88)
+
+  assert.equal(insertParagraphInClickedGap(view, event), false)
+  assert.equal(view.dispatched, null)
+  assert.equal(event.defaultPrevented, false)
+})
+
+test('图片是最后一块时点击下方空白会补一行', () => {
+  const doc = schema.node('doc', null, [
+    schema.node('paragraph', null, schema.text('上文')),
+    schema.node('image', { src: 'x.png' }),
+  ])
+  const view = makeView(doc, [
+    { top: 10, bottom: 40 },
+    { top: 56, bottom: 120 },
+  ])
+  const event = makeEvent(180)
+
+  assert.equal(insertParagraphInClickedGap(view, event), true)
+  assert.equal(view.dispatched.doc.childCount, 3)
+  assert.equal(view.dispatched.doc.child(2).type.name, 'paragraph')
+  assert.equal(view.dispatched.doc.child(2).textContent, '')
 })

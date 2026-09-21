@@ -1,8 +1,39 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import Image from '@tiptap/extension-image'
+import { NodeSelection } from '@tiptap/pm/state'
 import { imageFlexGrow } from '../utils/imageLayout'
 
 export const IMAGE_ALIGNMENTS = ['left', 'center', 'right']
+
+/**
+ * 块级 atom 节点（图片/图片组）被 NodeSelection 选中时按 Enter：
+ * 在节点后面已有文本块就把光标放进去，否则插入一个空段落并聚焦。
+ * 不处理时按 Enter 毫无反应，用户被 atom 节点"困住"无法继续输入。
+ */
+function exitBlockAtomAfterEnter(editor) {
+  const { state } = editor
+  const { selection, doc } = state
+
+  if (!(selection instanceof NodeSelection)) return false
+  const afterPos = selection.to
+  const $after = doc.resolve(afterPos)
+  const nextNode = $after.nodeAfter
+
+  const chain = editor.chain().focus()
+
+  // 后面紧跟文本块：直接把光标放到它开头
+  if (nextNode && nextNode.isTextblock) {
+    chain.setTextSelection(afterPos + 1).run()
+    return true
+  }
+
+  // 否则在 atom 后面插入一个空段落
+  chain
+    .insertContentAt(afterPos, { type: 'paragraph' })
+    .setTextSelection(afterPos + 1)
+    .run()
+  return true
+}
 
 function normalizeAlign(value) {
   const raw = String(value || '').trim().toLowerCase()
@@ -40,6 +71,12 @@ export const DocImage = Image.extend({
       // 旧文档里可能残留 base64 图片：宁可让它显示出来，也不要静默消失
       allowBase64: true,
       HTMLAttributes: {},
+    }
+  },
+
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => exitBlockAtomAfterEnter(this.editor),
     }
   },
 
@@ -122,6 +159,12 @@ export const ImageGroup = Node.create({
   content: 'image*',
   isolating: true,
   draggable: true,
+
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => exitBlockAtomAfterEnter(this.editor),
+    }
+  },
 
   addAttributes() {
     return {
