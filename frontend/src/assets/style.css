@@ -543,21 +543,16 @@ a {
   width: 100%;
 }
 
+/* 飞书口径：多图同行在任何宽度下都保持一行，窄屏靠缩小 min-width 让图片自然挤在一行，
+   而不是切到 column 竖排。flex-wrap: wrap 兜底：实在塞不下才换行。 */
 @media (max-width: 640px) {
-  #app .editor-content .doc-image-group {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  #app .editor-content .doc-image-group > figure.doc-image,
   #app .editor-content .doc-image-group:not([data-count='1']) > figure.doc-image {
-    flex: 1 1 auto;
-    min-width: 0;
+    flex: var(--doc-image-ratio, 1) 1 0;
+    min-width: 80px;
   }
 
   #app .editor-content .doc-image-group:not([data-count='1']) > figure.doc-image img {
-    width: auto;
-    max-width: 100%;
+    width: 100%;
   }
 }
 
