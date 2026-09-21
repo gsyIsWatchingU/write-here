@@ -506,6 +506,22 @@ a {
   margin: 0;
 }
 
+/* TipTap 会把节点选中态标在外层 figure/div 上；图片本身常驻黑框，
+   因此额外用绿色像素光环区分“已选中”，避免选中前后看起来完全一样。 */
+#app .editor-content figure.doc-image.ProseMirror-selectednode > img {
+  border-color: var(--border);
+  box-shadow:
+    0 0 0 4px var(--primary),
+    0 0 0 6px var(--border);
+}
+
+#app .editor-content .doc-image-group.ProseMirror-selectednode {
+  background: var(--primary-hover);
+  outline: 4px solid var(--primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--border);
+}
+
 /* 多图同行：按宽高比分配宽度（--doc-image-ratio 由节点渲染），
    容器变窄时靠 flex-wrap + min 基准自动折行，窄容器直接单列 */
 #app .editor-content .doc-image-group {
