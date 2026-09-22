@@ -5,7 +5,7 @@
         <img src="/horizon-docs.svg" alt="" aria-hidden="true">
         <span>Horizon Docs</span>
       </h1>
-      <p class="subtitle">[ 极简协作文档工作台 ]</p>
+      <p class="subtitle">[ 在线文档 · 多人实时协作 ]</p>
 
       <div class="mode-tabs" role="tablist" aria-label="账号操作">
         <button type="button" :class="{ active: isLogin }" @click="switchMode(true)">登录</button>
