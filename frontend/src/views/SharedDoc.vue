@@ -140,7 +140,7 @@ import { scrollToOutlineHeading } from '../utils/outlineNavigation.js'
 
 const route = useRoute()
 const token = route.params.token
-const mobileMedia = window.matchMedia('(max-width: 760px)')
+const compactMedia = window.matchMedia('(max-width: 1000px)')
 
 const loading = ref(true)
 const error = ref('')
@@ -152,7 +152,7 @@ const user = ref(getUser())
 const outline = ref([])
 const contentReady = ref(false)
 const activeSideTab = ref(route.query.comment ? 'comments' : 'outline')
-const sidePanelOpen = ref(Boolean(route.query.comment) || !mobileMedia.matches)
+const sidePanelOpen = ref(Boolean(route.query.comment) || !compactMedia.matches)
 const pendingCommentAnchor = ref(null)
 const commentCount = ref(0)
 const imageNotice = ref('')
@@ -253,7 +253,7 @@ function updateOutline() {
 }
 
 function scrollToHeading(item) {
-  if (scrollToOutlineHeading(editor.value, item.position) && mobileMedia.matches) {
+  if (scrollToOutlineHeading(editor.value, item.position) && compactMedia.matches) {
     sidePanelOpen.value = false
   }
 }
@@ -277,7 +277,7 @@ function handleViewportChange(event) {
 }
 
 onMounted(async () => {
-  mobileMedia.addEventListener?.('change', handleViewportChange)
+  compactMedia.addEventListener?.('change', handleViewportChange)
   try {
     const share = await api.getShare(token)
     docTitle.value = share.doc.title
@@ -333,7 +333,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   contentReady.value = false
   if (imageNoticeTimer) clearTimeout(imageNoticeTimer)
-  mobileMedia.removeEventListener?.('change', handleViewportChange)
+  compactMedia.removeEventListener?.('change', handleViewportChange)
   provider?.destroy()
   ydoc?.destroy()
   editor.value?.destroy()
@@ -389,7 +389,8 @@ onBeforeUnmount(() => {
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
 }
-.editor-content :deep(.tiptap) { outline: none; }
+.editor-content :deep(.tiptap) { outline: none; overflow-wrap: anywhere; }
+.doc-header h1 { overflow-wrap: anywhere; }
 .editor-content :deep(table) { border-collapse: collapse; width: 100%; margin: 16px 0; }
 .editor-content :deep(th), .editor-content :deep(td) { border: 1px solid var(--border); padding: 8px 12px; }
 .editor-content :deep(th) { background: var(--bg-gray); font-weight: 600; }
@@ -463,7 +464,7 @@ onBeforeUnmount(() => {
 }
 .panel-edge-trigger:hover { background: var(--primary-strong); }
 .right-panel-reopen { right: 0; }
-@media (min-width: 761px) {
+@media (min-width: 1001px) {
   .shared-side-panel.panel-collapsed {
     transform: translateX(calc(100% + 32px));
     pointer-events: none;
@@ -493,11 +494,12 @@ onBeforeUnmount(() => {
 .outline-item.level-4 { padding-left: 32px; font-size: 12px; }
 .outline-item.level-5 { padding-left: 40px; font-size: 12px; }
 .outline-item.level-6 { padding-left: 48px; color: var(--text-muted); font-size: 12px; }
-@media (max-width: 760px) {
-  .shared-layout { padding: 12px 12px 56px; }
+@media (max-width: 1000px) {
+  .shared-layout, .shared-layout.right-panel-collapsed { padding: 12px 12px 72px; }
+  .editor-wrapper { padding: 28px clamp(18px, 4vw, 48px); }
   .editor-content :deep(table) { display: block; max-width: 100%; overflow-x: auto; }
   .panel-edge-trigger { display: none; }
-  .side-panel-tabs { grid-template-columns: 1fr 1fr; }
+  .side-panel-tabs { grid-template-columns: 1fr 1fr 42px; }
   .side-panel-tabs .side-panel-collapse { display: none; }
   .shared-side-panel {
     inset: auto 0 0;
@@ -511,12 +513,8 @@ onBeforeUnmount(() => {
   }
   .shared-side-panel.mobile-open { transform: translateY(0); }
   .side-panel-close {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    z-index: 2;
     display: block;
-    width: 32px;
+    width: 42px;
     min-height: 32px;
     padding: 0;
     border: 1px solid var(--border);

@@ -1,6 +1,6 @@
 <template>
-  <div class="editor-page">
-    <div class="editor-sticky-head">
+  <div class="editor-page" :style="{ '--editor-header-height': `${headerHeight}px` }">
+    <div ref="headerElement" class="editor-sticky-head">
       <header class="editor-topbar">
         <div class="topbar-left">
           <button class="ghost" @click="goBack">&larr; 返回</button>
@@ -252,6 +252,7 @@ import { handleCodeBlockTab } from '../utils/codeBlockIndent.js'
 import { handleBackspaceDeleteEmptyLine } from '../utils/emptyLineBackspace.js'
 import { insertParagraphInClickedGap } from '../utils/blockGapInsertion.js'
 import { scrollToOutlineHeading } from '../utils/outlineNavigation.js'
+import { useHeaderHeight } from '../utils/useHeaderHeight.js'
 import { getDocumentPath } from '../utils/documentIdentity.js'
 
 const route = useRoute()
@@ -259,7 +260,8 @@ const router = useRouter()
 const user = getUser()
 const routeDocumentIdentifier = String(route.params.id)
 const docId = ref(routeDocumentIdentifier)
-const mobileMedia = window.matchMedia('(max-width: 760px)')
+const { headerElement, headerHeight } = useHeaderHeight()
+const compactMedia = window.matchMedia('(max-width: 1200px)')
 
 const docTitle = ref('')
 const docKind = ref('document')
@@ -279,8 +281,8 @@ const contentReady = ref(false)
 const docLoading = ref(true)
 const markdownFileInput = ref(null)
 const activeSideTab = ref(route.query.comment ? 'comments' : 'outline')
-const sidePanelOpen = ref(Boolean(route.query.comment) || !mobileMedia.matches)
-const documentPanelOpen = ref(!mobileMedia.matches)
+const sidePanelOpen = ref(Boolean(route.query.comment) || !compactMedia.matches)
+const documentPanelOpen = ref(!compactMedia.matches)
 const pendingCommentAnchor = ref(null)
 const commentCount = ref(0)
 const userDocuments = ref([])
@@ -468,7 +470,7 @@ function scrollToHeading(id) {
   if (!editor.value) return
   
   const heading = outline.value.find(item => item.id === id)
-  if (heading && scrollToOutlineHeading(editor.value, heading.pos) && mobileMedia.matches) {
+  if (heading && scrollToOutlineHeading(editor.value, heading.pos) && compactMedia.matches) {
     sidePanelOpen.value = false
   }
 }
@@ -476,7 +478,7 @@ function scrollToHeading(id) {
 function openSidePanel(tab) {
   activeSideTab.value = tab
   sidePanelOpen.value = true
-  if (mobileMedia.matches) documentPanelOpen.value = false
+  if (compactMedia.matches) documentPanelOpen.value = false
 }
 
 function openSelectionComment(anchor) {
@@ -513,7 +515,7 @@ async function canLeaveCurrentDocument() {
 
 async function openDocumentFromDirectory(id) {
   if (String(id) === String(docId.value)) {
-    if (mobileMedia.matches) documentPanelOpen.value = false
+    if (compactMedia.matches) documentPanelOpen.value = false
     return
   }
   if (!await canLeaveCurrentDocument()) return
@@ -546,7 +548,7 @@ async function reorderDocumentsFromDirectory(documentIds) {
 
 // 加载文档
 onMounted(async () => {
-  mobileMedia.addEventListener?.('change', handleViewportChange)
+  compactMedia.addEventListener?.('change', handleViewportChange)
   // 延迟加载文档目录，不阻塞主内容加载
   setTimeout(loadDocumentDirectory, 200)
   try {
@@ -620,7 +622,7 @@ onBeforeUnmount(() => {
   contentReady.value = false
   if (saveTimer) clearTimeout(saveTimer)
   if (imageNoticeTimer) clearTimeout(imageNoticeTimer)
-  mobileMedia.removeEventListener?.('change', handleViewportChange)
+  compactMedia.removeEventListener?.('change', handleViewportChange)
   provider.awareness.off('change', updateCollabUsers)
   provider.destroy()
   ydoc.destroy()
@@ -799,6 +801,8 @@ function copyLink() {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   padding: 8px 16px;
   background: #fff;
   box-shadow: var(--shadow);
@@ -807,8 +811,10 @@ function copyLink() {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex: 1;
+  flex: 1 1 320px;
+  min-width: 0;
 }
+.topbar-left > button { flex: none; white-space: nowrap; }
 .title-input {
   border: none;
   font-size: 18px;
@@ -816,7 +822,8 @@ function copyLink() {
   padding: 6px 8px;
   background: transparent;
   width: 100%;
-  max-width: 400px;
+  min-width: 0;
+  text-overflow: ellipsis;
 }
 .title-input.readonly {
   cursor: default;
@@ -829,7 +836,10 @@ function copyLink() {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
+.topbar-right > * { flex-shrink: 0; white-space: nowrap; }
 .save-status {
   font-size: 12px;
   color: var(--text-muted);
@@ -869,7 +879,7 @@ function copyLink() {
 .editor-main {
   flex: 1;
   padding: 24px 400px 24px 304px;
-  overflow-y: auto;
+  min-width: 0;
   transition: padding .2s ease;
 }
 .editor-main.left-panel-collapsed { padding-left: 24px; }
@@ -879,6 +889,7 @@ function copyLink() {
 }
 .document-column {
   width: 100%;
+  min-width: 0;
   max-width: 1000px;
   margin: 0 auto;
 }
@@ -893,6 +904,7 @@ function copyLink() {
   border-radius: 8px;
   box-shadow: var(--shadow);
   width: 100%;
+  min-width: 0;
   max-width: 1000px;
   min-height: calc(100vh - 240px);
   padding: 40px 48px;
@@ -921,6 +933,7 @@ function copyLink() {
   border-radius: 8px;
   box-shadow: var(--shadow);
   width: 100%;
+  min-width: 0;
   max-width: 1000px;
   min-height: calc(100vh - 240px);
   padding: 40px 48px;
@@ -933,7 +946,7 @@ function copyLink() {
   padding: 14px;
   position: fixed;
   right: 24px;
-  top: 120px;
+  top: calc(var(--editor-header-height, 120px) + 16px);
   bottom: 24px;
   overflow-y: auto;
   z-index: 90;
@@ -980,7 +993,7 @@ function copyLink() {
 .side-panel-tabs .side-panel-collapse:hover { background: var(--bg-gray); }
 .panel-edge-trigger {
   position: fixed;
-  top: 120px;
+  top: calc(var(--editor-header-height, 120px) + 16px);
   z-index: 95;
   display: grid;
   width: 32px;
@@ -999,7 +1012,7 @@ function copyLink() {
 .panel-edge-trigger:hover { background: var(--primary-strong); }
 .left-panel-reopen { left: 0; }
 .right-panel-reopen { right: 0; }
-@media (min-width: 761px) {
+@media (min-width: 1201px) {
   .outline-panel.side-panel.panel-collapsed {
     transform: translateX(calc(100% + 32px));
     pointer-events: none;
@@ -1078,6 +1091,7 @@ function copyLink() {
 }
 .editor-content :deep(.tiptap) {
   outline: none;
+  overflow-wrap: anywhere;
   min-height: 400px;
 }
 .editor-content :deep(.tiptap p.is-editor-empty:first-child::before) {
@@ -1109,9 +1123,13 @@ function copyLink() {
 .share-options { margin-top: 12px; }
 .share-options label { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .share-options select { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); }
-@media (max-width: 760px) {
+@media (max-width: 1200px) {
+  .editor-main, .editor-main.left-panel-collapsed, .editor-main.right-panel-collapsed {
+    padding: 16px 24px 72px;
+  }
+  .editor-content, .editor-skeleton { padding: 28px clamp(18px, 4vw, 48px); }
   .panel-edge-trigger { display: none; }
-  .side-panel-tabs { grid-template-columns: 1fr 1fr; }
+  .side-panel-tabs { grid-template-columns: 1fr 1fr 42px; }
   .side-panel-tabs .side-panel-collapse { display: none; }
   .outline-panel.side-panel {
     position: fixed;
@@ -1133,12 +1151,8 @@ function copyLink() {
     overflow-x: auto;
   }
   .side-panel-close {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    z-index: 2;
     display: block;
-    width: 32px;
+    width: 42px;
     min-height: 32px;
     padding: 0;
     border: 1px solid var(--border);

@@ -168,7 +168,7 @@ function resetDrag() {
 <style scoped>
 .document-directory {
   position: fixed;
-  top: 120px;
+  top: calc(var(--editor-header-height, 120px) + 16px);
   bottom: 24px;
   left: 24px;
   z-index: 90;
@@ -298,7 +298,7 @@ function resetDrag() {
   cursor: pointer;
 }
 .directory-home:hover { color: var(--text); background: var(--primary); }
-@media (max-width: 760px) {
+@media (max-width: 1200px) {
   .document-directory {
     inset: 0 auto 0 0;
     z-index: 230;

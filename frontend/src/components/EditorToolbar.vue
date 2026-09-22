@@ -199,11 +199,13 @@ function setLink() {
   border-bottom: 1px solid var(--border);
 }
 .toolbar-group {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 2px;
 }
 .toolbar-divider {
+  flex-shrink: 0;
   width: 1px;
   height: 20px;
   background: var(--border);

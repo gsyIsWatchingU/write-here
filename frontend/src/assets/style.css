@@ -335,7 +335,7 @@ a {
 }
 
 #app .editor-page .editor-content :is(h1, h2, h3, h4, h5, h6) {
-  scroll-margin-top: 120px;
+  scroll-margin-top: calc(var(--editor-header-height, 120px) + 16px);
 }
 
 #app .editor-content pre {
@@ -731,12 +731,12 @@ a {
   }
 
   #app .editor-main {
-    padding: 12px;
+    padding: 12px 12px 72px;
     overflow: visible;
   }
 
   #app .editor-page .editor-content :is(h1, h2, h3, h4, h5, h6) {
-    scroll-margin-top: 170px;
+    scroll-margin-top: calc(var(--editor-header-height, 170px) + 16px);
   }
 
   #app .editor-page .editor-content {
@@ -752,7 +752,7 @@ a {
   }
 
   #app .shared-page .editor-wrapper {
-    margin: 12px;
+    margin: 0;
     padding: 22px 18px;
   }
 
