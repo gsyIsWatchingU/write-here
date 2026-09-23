@@ -2,7 +2,7 @@
   <div class="shared-page">
     <header class="topbar">
       <h1 class="logo brand-logo">
-        <img src="/horizon-docs.svg" alt="" aria-hidden="true">
+        <img src="/horizon-icon.png" alt="" aria-hidden="true">
         <span>Horizon Docs</span>
       </h1>
       <span class="badge" v-if="permission">{{ permission === 'edit' ? '协同编辑' : '只读' }}</span>
