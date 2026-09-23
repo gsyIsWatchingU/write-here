@@ -220,10 +220,6 @@ a {
   object-fit: contain;
 }
 
-/* 横向 logo 图内已含 HORIZON DOCS 文字，隐藏相邻文本避免重复 */
-#app .brand-logo span {
-  display: none;
-}
 
 #app .nav-btn {
   min-height: 34px;
