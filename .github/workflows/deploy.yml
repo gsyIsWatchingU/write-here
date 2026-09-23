@@ -21,6 +21,8 @@ jobs:
     name: 构建检查
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
