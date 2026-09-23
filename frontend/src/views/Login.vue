@@ -2,8 +2,8 @@
   <div class="login-page">
     <div class="login-card">
       <h1 class="logo brand-logo">
-        <img src="/horizon-logo.png" alt="" aria-hidden="true">
-        <span>Horizon Docs</span>
+        <img src="/lumi-logo.png" alt="" aria-hidden="true">
+        <span>Lumi Doc</span>
       </h1>
       <p class="subtitle">[ 在线文档 · 多人实时协作 ]</p>
 

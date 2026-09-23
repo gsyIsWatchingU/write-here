@@ -77,6 +77,7 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 已优化文档加载的传输与查询开销：后端启用响应压缩、为带哈希的构建产物配置长缓存、列表类接口只回传正文预览片段、SQLite 改为 WAL 并补齐热查询索引（详见验证结果 2026-09-19）。
 - 文档已支持插图：新增 `POST /images/upload` 上传接口（magic number 校验、10 MB / 8000 万像素上限、sha256 内容寻址去重、tmp+rename 原子写，文件落 `db/uploads/` 且不进 Git）；编辑器图片由行内节点改为块级节点 `DocImage`（默认居中，对齐走 `data-align`），多图同行合并为 `ImageGroup`；支持工具栏选择、粘贴和拖放三种插入方式，一次最多 6 张、并发 3；旧文档里的行内 `<p><img></p>` 在 Yjs 同步和 Markdown 导入时自动提升为块级图片，不会丢图；同行图片按宽高比分配宽度，因此自然等高并铺满整行，容器变窄时自动折行，窄屏单列。
 - 图片与图片组节点已补充明确选中态：保留常驻黑框，选中后增加绿色像素光环；图片组同时显示浅绿底色与外框，取消选中后恢复原样。
+- 网站品牌由 `Horizon Docs` 更名为 `Lumi Doc`：浏览器标题、页头 Logo、登录页与分享页品牌文字同步更新；静态资源 `horizon-logo.png`/`horizon-icon.png` 经 `git mv` 重命名为 `lumi-logo.png`/`lumi-icon.png`，favicon 缓存版本号升至 v9。MCP 配置示例中的 server 名 `horizon-docs` 与环境变量 `HORIZON_DOCS_URL`/`HORIZON_DOCS_TOKEN` 属技术标识符，与服务器 `.env` 和 mcp 代码绑定，保持不变。
 
 ## 下一步
 
