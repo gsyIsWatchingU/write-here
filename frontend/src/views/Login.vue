@@ -2,7 +2,7 @@
   <div class="login-page">
     <div class="login-card">
       <h1 class="logo brand-logo">
-        <img src="/horizon-icon.png" alt="" aria-hidden="true">
+        <img src="/horizon-logo.png" alt="" aria-hidden="true">
         <span>Horizon Docs</span>
       </h1>
       <p class="subtitle">[ 在线文档 · 多人实时协作 ]</p>

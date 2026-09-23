@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   color-scheme: light;
   --primary: #97b39b;
   --primary-hover: #e2ebe0;
@@ -215,9 +215,14 @@ a {
 }
 
 #app .brand-logo img {
-  width: 32px;
-  height: 32px;
+  height: 36px;
+  width: auto;
   object-fit: contain;
+}
+
+/* 横向 logo 图内已含 HORIZON DOCS 文字，隐藏相邻文本避免重复 */
+#app .brand-logo span {
+  display: none;
 }
 
 #app .nav-btn {
@@ -615,8 +620,8 @@ a {
 }
 
 #app .login-card .brand-logo img {
-  width: 46px;
-  height: 46px;
+  height: 60px;
+  width: auto;
 }
 
 #app .login-card .subtitle {
@@ -681,8 +686,8 @@ a {
   }
 
   #app .topbar .brand-logo img {
-    width: 28px;
-    height: 28px;
+    height: 30px;
+    width: auto;
   }
 
   #app .username {
