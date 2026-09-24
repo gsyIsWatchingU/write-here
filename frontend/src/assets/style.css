@@ -28,6 +28,10 @@
 
 html {
   background: var(--bg-gray);
+  /* 始终预留垂直滚动条槽位：各页面内容高度不同（如我的文档内容多、社区内容少），
+     滚动条出现/消失会让视口宽度变化约 15px，顶部整行随之横向位移，
+     切换 tab 时看起来像跳动。stable 保证槽位恒定。 */
+  scrollbar-gutter: stable;
 }
 
 body {

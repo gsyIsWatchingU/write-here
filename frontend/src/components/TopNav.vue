@@ -120,6 +120,21 @@ function handleLogout() {
   color: var(--text-secondary);
 }
 
+/* 桌面端：导航簇绝对定位固定在顶栏正中，位置只由容器宽度决定，
+   不再等于「logo 宽度与右侧区域宽度之间的中间值」——各页面右侧宽度不同
+   （“我的文档”比“社区/题库/文档管理”多两个动作按钮），flex 布局下
+   切换页面时整排 tab 会横向位移，看起来像样式跳动。
+   .topbar 本身是 position: sticky（已定位元素），即可作为绝对定位
+   子元素的包含块，无需也不能改成 relative（会失去吸顶）。 */
+@media (min-width: 761px) {
+  .topbar-center {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+}
+
 @media (max-width: 760px) {
   .topbar {
     align-items: flex-start;

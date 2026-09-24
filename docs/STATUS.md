@@ -1,4 +1,4 @@
-# 项目状态
+﻿# 项目状态
 
 最后更新：2026-09-24
 
@@ -200,3 +200,5 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 2026-09-24：块边界补行补全为容器底部大空白：`.editor-content` 的 `min-height` 在 `.ProseMirror` 400px 最小高度之外形成底部大空白，此前点击该区域（target 为 `.editor-content` 本身）不补行；现在复用 `insertTrailingParagraph` 判据（末尾块缺少回车出口时才补行，段落/标题保持默认行为），点击最后一个块下方的容器空白同样在文档末尾补一行。实现位于 `frontend/src/utils/blockGapInsertion.js`：抽出私有 `insertTrailingParagraph` 供 `insertParagraphInClickedGap` 与 `insertParagraphInLeadingBlank` 复用，`insertParagraphInLeadingBlank` 增加底部分支。通过 6 项新增单元测试（`blockGapInsertion.test.js` 共 30 项全过，前端全量 139 项全过）与生产构建。
 - 2026-09-24：图片点击稳定选中（修复「删除图片后马上又出现在原位置」）：根因是点击块级图片的渲染 DOM（`figure.doc-image` / `.doc-image-group`）时 `posAtCoords` 常常未命中 atom，光标落入相邻段落，按 Delete/Backspace 删的是段落文字，图片纹丝不动，表现为「删除后复活」。实现位于 `frontend/src/extensions/docImage.js`：新增 `createBlockAtomClickSelectPlugin()`（插件 `props.handleClick` 中按 `event.target.closest('figure.doc-image, .doc-image-group')` 定位节点，`view.posAtDOM` 取位置后设置 `NodeSelection` 并聚焦，返回 true 阻止默认光标落位；用 click 而非 mousedown，不影响拖动），经 DocImage 的 `addProseMirrorPlugins` 挂载。
 - 2026-09-24：上述两处修复用临时无头 Chrome + CDP 驱动真实应用（本地后端 + vite dev + 播种测试文档）完成 11 项浏览器验收并全部通过：代码块/图片末尾点击容器底部大空白（pmBottom=597 vs containerBottom=904）补行成功且光标入新行；`.tiptap` 盒内末尾补行与容器顶部补行回归通过；点击图片后选区为 NodeSelection@image，Delete 与 Backspace 均删除图片且 1.5s 后不复活；点击图片侧边空白同样选中图片；重复点击图片保持选中不再跳回相邻段落；图片组内点击单张图片只删除该图（组保留另一张）；双客户端协同删除后 A/B 两端图片均不复活。验收脚本与播种脚本为临时文件，已删除；本地 `db/docs.db`（Git 忽略）留有验收用测试账号与文档，不影响仓库。前端全量 139 项测试与生产构建通过。
+
+- 2026-09-24：修复顶栏 tab 切换时的样式跳动。根因有二：一是顶栏用 flex space-between，导航簇位置等于 logo 与右侧区域宽度的中间值，而我的文档页右侧比社区/题库/文档管理页多两个动作按钮，切换页面时整排 tab 横向位移；二是各页面内容高度不同，滚动条出现/消失让视口宽度变化约 15px，整行随之位移。修复：桌面端（≥761px）导航簇改绝对定位固定在顶栏正中（left:50% + translateX(-50%)，sticky 顶栏本身就是包含块）；全局 html 加 scrollbar-gutter: stable 恒定预留滚动条槽位；路由新增 scrollBehavior，tab 切换回到页首，前进/后退仍还原原位置。通过前端 139 项测试与生产构建；无头 Chrome 加载真实构建 CSS 测量三种状态（带两动作按钮 / 移除动作按钮 / 内容加高出现滚动条）导航簇左缘均为 448.74px，切换零位移。
