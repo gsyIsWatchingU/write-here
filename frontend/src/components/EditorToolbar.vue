@@ -63,12 +63,6 @@
     <span class="toolbar-divider"></span>
 
     <div class="toolbar-group">
-      <button class="icon-btn" @click="insertTable" title="插入表格">&#9638;</button>
-    </div>
-
-    <span class="toolbar-divider"></span>
-
-    <div class="toolbar-group">
       <button class="icon-btn" :class="{ active: editor.isActive('subscript') }" @click="editor.chain().focus().toggleSubscript().run()" title="下标">X&#8322;</button>
       <button class="icon-btn" :class="{ active: editor.isActive('superscript') }" @click="editor.chain().focus().toggleSuperscript().run()" title="上标">X&#178;</button>
     </div>
@@ -140,10 +134,6 @@ function recognizeMarkdownFormats() {
 onBeforeUnmount(() => {
   if (labelTimer) clearTimeout(labelTimer)
 })
-
-function insertTable() {
-  props.editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
-}
 
 </script>
 

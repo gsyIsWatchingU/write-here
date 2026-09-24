@@ -45,12 +45,36 @@
 
         <div class="block-menu-divider"></div>
         <div class="block-menu-actions" aria-label="插入内容">
+          <button class="block-menu-option" type="button" @click="insertTable">
+            <span class="block-menu-icon" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2">
+                <rect x="1.5" y="2.5" width="13" height="11" rx="1"/>
+                <line x1="1.5" y1="6.2" x2="14.5" y2="6.2"/>
+                <line x1="1.5" y1="9.8" x2="14.5" y2="9.8"/>
+                <line x1="6.2" y1="2.5" x2="6.2" y2="13.5"/>
+                <line x1="9.8" y1="2.5" x2="9.8" y2="13.5"/>
+              </svg>
+            </span>
+            <span>插入表格</span>
+          </button>
           <button class="block-menu-option" type="button" :disabled="uploading" @click="pickImages">
-            <span class="block-menu-icon" aria-hidden="true">▧</span>
+            <span class="block-menu-icon" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2">
+                <rect x="1.5" y="2.5" width="13" height="11" rx="1"/>
+                <circle cx="5.6" cy="6.4" r="1.1"/>
+                <path d="M2.6 12.4l3.2-3.2 2.4 2.4 2.4-2.4 2.8 2.8"/>
+              </svg>
+            </span>
             <span>{{ uploading ? '正在上传图片…' : '插入图片' }}</span>
           </button>
           <button class="block-menu-option" type="button" @click="applyLink">
-            <span class="block-menu-icon" aria-hidden="true">↗</span>
+            <span class="block-menu-icon" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+                <path d="M6.2 9.8l3.6-3.6"/>
+                <path d="M5.4 10.6l-1.7 1.7a2.1 2.1 0 0 1-3-3l1.7-1.7"/>
+                <path d="M10.6 5.4l1.7-1.7a2.1 2.1 0 0 1 3 3l-1.7 1.7"/>
+              </svg>
+            </span>
             <span>插入链接</span>
           </button>
         </div>
@@ -470,6 +494,11 @@ function applyLink() {
   setOpen(false)
 }
 
+function insertTable() {
+  props.editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+  setOpen(false)
+}
+
 function getTopLevelBlockEntries() {
   const editor = props.editor
   const entries = []
@@ -762,6 +791,12 @@ onBeforeUnmount(() => {
 
 .block-menu-icon {
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.block-menu-icon svg {
+  display: block;
 }
 
 .block-menu-check {
