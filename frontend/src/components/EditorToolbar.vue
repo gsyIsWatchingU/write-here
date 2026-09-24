@@ -1,6 +1,6 @@
 <template>
   <div class="toolbar-menu">
-    <EditorBlockMenu :editor="editor" />
+    <EditorBlockMenu :editor="editor" @image-status="emit('image-status', $event)" />
     <div class="toolbar-group">
       <button class="icon-btn" :class="{ active: editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()" title="粗体">
         <strong>B</strong>
@@ -56,7 +56,6 @@
     <span class="toolbar-divider"></span>
 
     <div class="toolbar-group">
-      <button class="icon-btn" :class="{ active: editor.isActive('blockquote') }" @click="editor.chain().focus().toggleBlockquote().run()" title="引用">&#10077;</button>
       <button class="icon-btn" :class="{ active: editor.isActive('codeBlock') }" @click="editor.chain().focus().toggleCodeBlock().run()" title="代码块">&lt;/&gt;</button>
       <button class="icon-btn" @click="editor.chain().focus().setHorizontalRule().run()" title="分割线">&#8212;</button>
     </div>
@@ -65,8 +64,6 @@
 
     <div class="toolbar-group">
       <button class="icon-btn" @click="insertTable" title="插入表格">&#9638;</button>
-      <button class="icon-btn" @click="pickImages" :disabled="uploading" title="插入图片（可多选、支持粘贴与拖入）">▧</button>
-      <button class="icon-btn" @click="setLink" title="插入链接">↗</button>
     </div>
 
     <span class="toolbar-divider"></span>
@@ -94,15 +91,6 @@
     <div class="toolbar-group">
       <AiPolishButton :editor="editor" @applied="emit('applied')" />
     </div>
-
-    <input
-      ref="imageFileInput"
-      class="image-file-input"
-      type="file"
-      accept="image/png,image/jpeg,image/webp,image/gif"
-      multiple
-      @change="onImagesPicked"
-    >
   </div>
 </template>
 
@@ -112,7 +100,6 @@ import EditorBlockMenu from './EditorBlockMenu.vue'
 import VoiceInputButton from './VoiceInputButton.vue'
 import AiPolishButton from './AiPolishButton.vue'
 import { convertMarkdownFormats } from '../utils/markdownFormats'
-import { insertUploadedImages } from '../utils/editorImages.js'
 
 const props = defineProps({
   editor: { type: Object, required: true }
@@ -120,8 +107,6 @@ const props = defineProps({
 
 const emit = defineEmits(['applied', 'image-status'])
 
-const imageFileInput = ref(null)
-const uploading = ref(false)
 
 const markdownFormatLabel = ref('识别 MD 格式')
 let labelTimer = null
@@ -160,32 +145,6 @@ function insertTable() {
   props.editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
 }
 
-function pickImages() {
-  imageFileInput.value?.click()
-}
-
-async function onImagesPicked(event) {
-  const files = Array.from(event.target?.files || [])
-  event.target.value = ''
-  if (files.length === 0) return
-  uploading.value = true
-  try {
-    await insertUploadedImages(props.editor, files, { onStatus: (status) => emit('image-status', status) })
-  } finally {
-    uploading.value = false
-  }
-}
-
-function setLink() {
-  const previousUrl = props.editor.getAttributes('link').href
-  const url = prompt('请输入链接地址：', previousUrl)
-  if (url === null) return
-  if (url === '') {
-    props.editor.chain().focus().extendMarkRange('link').unsetLink().run()
-    return
-  }
-  props.editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
-}
 </script>
 
 <style scoped>
@@ -224,10 +183,6 @@ function setLink() {
   min-width: 92px;
   padding-inline: 8px;
   white-space: nowrap;
-}
-/* 文件选择框只由工具栏按钮触发，本身不占位 */
-.image-file-input {
-  display: none;
 }
 button:disabled {
   opacity: 0.3;

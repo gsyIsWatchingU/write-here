@@ -44,6 +44,18 @@
         </button>
 
         <div class="block-menu-divider"></div>
+        <div class="block-menu-actions" aria-label="插入内容">
+          <button class="block-menu-option" type="button" :disabled="uploading" @click="pickImages">
+            <span class="block-menu-icon" aria-hidden="true">▧</span>
+            <span>{{ uploading ? '正在上传图片…' : '插入图片' }}</span>
+          </button>
+          <button class="block-menu-option" type="button" @click="applyLink">
+            <span class="block-menu-icon" aria-hidden="true">↗</span>
+            <span>插入链接</span>
+          </button>
+        </div>
+
+        <div class="block-menu-divider"></div>
         <div class="block-menu-actions" aria-label="块操作">
           <button class="block-menu-option" type="button" @click="duplicateBlock">
             <span class="block-menu-icon" aria-hidden="true">⧉</span>
@@ -70,6 +82,15 @@
         :style="dropIndicatorStyle"
         aria-hidden="true"
       ></div>
+
+      <input
+        ref="imageFileInput"
+        class="block-menu-image-input"
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        multiple
+        @change="onImagesPicked"
+      >
     </div>
   </Teleport>
 </template>
@@ -85,10 +106,13 @@ import {
   moveTopLevelBlock,
   shouldShowBlockMenu,
 } from '../utils/blockMenu.js'
+import { insertUploadedImages } from '../utils/editorImages.js'
 
 const props = defineProps({
   editor: { type: Object, required: true },
 })
+
+const emit = defineEmits(['image-status'])
 
 const blockOptions = [
   { type: 'paragraph', label: '正文', icon: '¶' },
@@ -104,6 +128,8 @@ const blockOptions = [
 ]
 
 const menuRoot = ref(null)
+const imageFileInput = ref(null)
+const uploading = ref(false)
 const visible = ref(false)
 const open = ref(false)
 const top = ref(0)
@@ -407,6 +433,41 @@ function deleteBlock() {
   props.editor.commands.focus()
   setOpen(false)
   nextTick(updatePosition)
+}
+
+function pickImages() {
+  setOpen(false)
+  nextTick(() => imageFileInput.value?.click())
+}
+
+async function onImagesPicked(event) {
+  const files = Array.from(event.target?.files || [])
+  event.target.value = ''
+  if (files.length === 0) return
+  uploading.value = true
+  try {
+    await insertUploadedImages(props.editor, files, {
+      onStatus: (status) => emit('image-status', status),
+    })
+  } finally {
+    uploading.value = false
+  }
+}
+
+function applyLink() {
+  const editor = props.editor
+  const previousUrl = editor.getAttributes('link').href
+  const url = window.prompt('请输入链接地址：', previousUrl || '')
+  if (url === null) {
+    setOpen(false)
+    return
+  }
+  if (url === '') {
+    editor.chain().focus().extendMarkRange('link').unsetLink().run()
+  } else {
+    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+  }
+  setOpen(false)
 }
 
 function getTopLevelBlockEntries() {
@@ -726,6 +787,10 @@ onBeforeUnmount(() => {
 
 .block-menu-option.danger:hover {
   background: var(--danger-hover);
+}
+
+.block-menu-image-input {
+  display: none;
 }
 
 .block-drop-indicator {
