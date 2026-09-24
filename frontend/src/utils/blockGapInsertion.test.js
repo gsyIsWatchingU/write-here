@@ -457,3 +457,102 @@ test('顶部补行后第一个块变为空段落，再次点击不会继续插�
   assert.equal(insertParagraphInLeadingBlank(secondView, makeEvent(10, { target: parentElement })), false)
   assert.equal(secondView.dispatched, null)
 })
+
+test('点击容器底部大空白（末尾是代码块）在文档末尾补一行', () => {
+  const doc = schema.node('doc', null, [schema.node('codeBlock', null, schema.text('a = 1'))])
+  const parentElement = {}
+  const view = makeView(doc, [{ top: 60, bottom: 120 }], { parentElement })
+  // 点击位置在 .ProseMirror 盒下方、容器底部空白内
+  const event = makeEvent(500, { target: parentElement })
+
+  assert.equal(insertParagraphInLeadingBlank(view, event), true)
+  assert.equal(view.dispatched.doc.childCount, 2)
+  assert.equal(view.dispatched.doc.child(1).type.name, 'paragraph')
+  assert.equal(view.dispatched.doc.child(1).textContent, '')
+  assert.equal(view.dispatched.selection.from, doc.content.size + 1)
+  assert.equal(view.focused, true)
+  assert.equal(event.defaultPrevented, true)
+})
+
+test('点击容器底部大空白（末尾是图片）同样补一行', () => {
+  const doc = schema.node('doc', null, [
+    schema.node('paragraph', null, schema.text('上文')),
+    schema.node('image', { src: 'x.png' }),
+  ])
+  const parentElement = {}
+  const view = makeView(doc, [
+    { top: 10, bottom: 40 },
+    { top: 56, bottom: 120 },
+  ], { parentElement })
+  const event = makeEvent(400, { target: parentElement })
+
+  assert.equal(insertParagraphInLeadingBlank(view, event), true)
+  assert.equal(view.dispatched.doc.childCount, 3)
+  assert.equal(view.dispatched.doc.child(2).type.name, 'paragraph')
+  assert.equal(view.dispatched.selection.from, doc.content.size + 1)
+})
+
+test('容器底部大空白但末尾是段落或标题时不补行', () => {
+  const paragraphDoc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('正文'))])
+  const parentElement = {}
+  const paragraphView = makeView(paragraphDoc, [{ top: 60, bottom: 100 }], { parentElement })
+  const paragraphEvent = makeEvent(500, { target: parentElement })
+
+  assert.equal(insertParagraphInLeadingBlank(paragraphView, paragraphEvent), false)
+  assert.equal(paragraphView.dispatched, null)
+  assert.equal(paragraphEvent.defaultPrevented, false)
+
+  const headingDoc = schema.node('doc', null, [schema.node('heading', { level: 2 }, schema.text('标题'))])
+  const headingView = makeView(headingDoc, [{ top: 60, bottom: 100 }], { parentElement })
+
+  assert.equal(insertParagraphInLeadingBlank(headingView, makeEvent(500, { target: parentElement })), false)
+  assert.equal(headingView.dispatched, null)
+})
+
+test('点击容器中部空白（既不在首块上方也不在末块下方）不补行', () => {
+  const doc = schema.node('doc', null, [
+    schema.node('codeBlock', null, schema.text('a = 1')),
+    schema.node('paragraph', null, schema.text('正文')),
+  ])
+  const parentElement = {}
+  const view = makeView(doc, [
+    { top: 60, bottom: 120 },
+    { top: 140, bottom: 170 },
+  ], { parentElement })
+  // clientY 落在两块之间，但 target 是容器（如左右 padding），保持默认行为
+  const event = makeEvent(130, { target: parentElement })
+
+  assert.equal(insertParagraphInLeadingBlank(view, event), false)
+  assert.equal(view.dispatched, null)
+  assert.equal(event.defaultPrevented, false)
+})
+
+test('容器底部补行忽略非左键、修饰键与只读视图', () => {
+  const doc = schema.node('doc', null, [schema.node('codeBlock', null, schema.text('a = 1'))])
+  const parentElement = {}
+  const editableView = makeView(doc, [{ top: 60, bottom: 120 }], { parentElement })
+  const readOnlyView = makeView(doc, [{ top: 60, bottom: 120 }], { editable: false, parentElement })
+
+  assert.equal(insertParagraphInLeadingBlank(editableView, makeEvent(500, { target: parentElement, button: 2 })), false)
+  assert.equal(insertParagraphInLeadingBlank(editableView, makeEvent(500, { target: parentElement, ctrlKey: true })), false)
+  assert.equal(insertParagraphInLeadingBlank(editableView, makeEvent(500, { target: parentElement, shiftKey: true })), false)
+  assert.equal(insertParagraphInLeadingBlank(readOnlyView, makeEvent(500, { target: parentElement })), false)
+  assert.equal(editableView.dispatched, null)
+})
+
+test('容器底部补行后末尾变为空段落，再次点击不会继续插入', () => {
+  const doc = schema.node('doc', null, [schema.node('codeBlock', null, schema.text('a = 1'))])
+  const parentElement = {}
+  const view = makeView(doc, [{ top: 60, bottom: 120 }], { parentElement })
+
+  assert.equal(insertParagraphInLeadingBlank(view, makeEvent(500, { target: parentElement })), true)
+
+  const secondDoc = view.dispatched.doc
+  const secondView = makeView(secondDoc, [
+    { top: 60, bottom: 120 },
+    { top: 136, bottom: 160 },
+  ], { parentElement })
+
+  assert.equal(insertParagraphInLeadingBlank(secondView, makeEvent(500, { target: parentElement })), false)
+  assert.equal(secondView.dispatched, null)
+})

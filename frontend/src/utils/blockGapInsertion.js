@@ -42,6 +42,31 @@ export function shouldInsertTrailingParagraph(node) {
   return !TRAILING_ESCAPE_TYPES.has(node.type.name)
 }
 
+/**
+ * 在文档末尾补一个空段落并聚焦。供两类点击复用：
+ * - .ProseMirror 盒内末尾空白（insertParagraphInClickedGap）；
+ * - .editor-content 容器底部大空白（insertParagraphInLeadingBlank，见下）。
+ * 仅当最后一个顶层块缺少回车出口时补行，返回是否已处理。
+ */
+function insertTrailingParagraph(view, event) {
+  const doc = view.state.doc
+  const lastChild = doc.child(doc.childCount - 1)
+  if (!shouldInsertTrailingParagraph(lastChild)) return false
+
+  const paragraphType = view.state.schema.nodes.paragraph
+  if (!paragraphType) return false
+
+  const position = getTopLevelInsertionPosition(doc, doc.childCount)
+  if (position === null) return false
+
+  const transaction = view.state.tr.insert(position, paragraphType.create())
+  transaction.setSelection(TextSelection.create(transaction.doc, position + 1))
+  view.dispatch(transaction.scrollIntoView())
+  view.focus()
+  event.preventDefault()
+  return true
+}
+
 export function getTopLevelInsertionPosition(doc, childIndex) {
   if (!doc || childIndex < 0 || childIndex > doc.childCount) return null
 
@@ -86,6 +111,11 @@ function findAdjacentEmptyTextBlockIndex(doc, childIndex) {
  * 与末尾补行共用同一判据（shouldInsertTrailingParagraph）：只有第一个块缺少
  * 「回车在块前新建一行」的出口时才补行。段落、标题在行首按回车就能在块前新建一行，
  * 保持默认光标行为即可；代码块、图片、列表、引用等块内回车不产生新块，才需要点击顶部空白补一行。
+ *
+ * 同理处理底部：.editor-content 还有 min-height 形成的底部大空白（超出 .ProseMirror
+ * 400px 最小高度的那一段）。点击这段空白时 target 同样是 .editor-content，会走到本函数；
+ * 当点击位置在最后一个块下方时，复用 insertTrailingParagraph 补一行——否则用户在
+ * 代码块/图片下方点空白永远得不到新行。
  */
 export function insertParagraphInLeadingBlank(view, event) {
   if (
@@ -101,7 +131,7 @@ export function insertParagraphInLeadingBlank(view, event) {
   const containerEl = view.dom?.parentElement
   if (!containerEl) return false
 
-  // 只有点击 .editor-content 本身（padding 空白）才处理；
+  // 只有点击 .editor-content 本身（padding/min-height 空白）才处理；
   // 点击块内部的事件 target 是块 DOM，不命中。
   if (event.target !== containerEl) return false
 
@@ -109,8 +139,13 @@ export function insertParagraphInLeadingBlank(view, event) {
   if (blockElements.length === 0) return false
 
   const firstRect = blockElements[0].getBoundingClientRect()
-  // 点击位置必须在第一个块上方（顶部 padding 区域）
-  if (event.clientY >= firstRect.top) return false
+  if (event.clientY >= firstRect.top) {
+    // 不在第一个块上方：检查是否落在最后一个块下方的容器空白里
+    if (blockElements.length !== view.state.doc.childCount) return false
+    const lastRect = blockElements[blockElements.length - 1].getBoundingClientRect()
+    if (!lastRect || event.clientY <= lastRect.bottom) return false
+    return insertTrailingParagraph(view, event)
+  }
 
   const doc = view.state.doc
   const firstNode = doc.child(0)
@@ -151,8 +186,7 @@ export function insertParagraphInClickedGap(view, event) {
   if (childIndex < 0) return false
 
   if (trailingIndex >= 0) {
-    const lastChild = view.state.doc.child(view.state.doc.childCount - 1)
-    if (!shouldInsertTrailingParagraph(lastChild)) return false
+    return insertTrailingParagraph(view, event)
   } else if (hasAdjacentEmptyTextBlock(view.state.doc, childIndex)) {
     // 旁边已有空文本块。普通文本块之间，ProseMirror 默认 mousedown 会把光标放进去；
     // 但空隙另一侧是 atom 节点（如块级图片）时，posAtCoords 会命中 atom 本身，

@@ -1,9 +1,49 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import Image from '@tiptap/extension-image'
-import { NodeSelection } from '@tiptap/pm/state'
+import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state'
 import { imageFlexGrow } from '../utils/imageLayout'
 
 export const IMAGE_ALIGNMENTS = ['left', 'center', 'right']
+
+/**
+ * 块级图片/图片组的鼠标点击稳定选中。
+ *
+ * 默认行为下，点击块级 atom 的渲染 DOM（figure.doc-image / .doc-image-group）
+ * 常常把光标落到相邻段落里（posAtCoords 未命中 atom 的 point/inside），
+ * 表现为「图片点不中」：此时按 Delete/Backspace 删的是相邻段落的文字，
+ * 图片纹丝不动，用户误以为删除后图片又复活。
+ *
+ * 这里在 click 阶段把点击映射到节点位置并设置 NodeSelection，让选中稳定、可删。
+ * 用 click 而非 mousedown 拦截：点击已选中节点或普通空白时不改变行为，
+ * 也不影响基于 mousedown+move 的拖动。
+ */
+export function createBlockAtomClickSelectPlugin() {
+  return new Plugin({
+    key: new PluginKey('blockAtomClickSelect'),
+    props: {
+      handleClick(view, pos, event) {
+        if (!view.editable || event.button !== 0) return false
+
+        const target = event.target
+        if (!(target instanceof HTMLElement)) return false
+
+        const nodeElement = target.closest?.('figure.doc-image, .doc-image-group')
+        if (!nodeElement || !view.dom.contains(nodeElement)) return false
+
+        const nodePos = view.posAtDOM(nodeElement, 0)
+        if (nodePos === null || nodePos < 0) return false
+
+        const node = view.state.doc.nodeAt(nodePos)
+        if (!node) return false
+        if (node.type.name !== 'image' && node.type.name !== 'imageGroup') return false
+
+        view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, nodePos)))
+        view.focus()
+        return true
+      },
+    },
+  })
+}
 
 /**
  * 块级 atom 节点（图片/图片组）被 NodeSelection 选中时按 Enter：
@@ -78,6 +118,10 @@ export const DocImage = Image.extend({
     return {
       Enter: () => exitBlockAtomAfterEnter(this.editor),
     }
+  },
+
+  addProseMirrorPlugins() {
+    return [createBlockAtomClickSelectPlugin()]
   },
 
   addAttributes() {
