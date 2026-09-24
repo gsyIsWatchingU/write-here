@@ -74,6 +74,63 @@ function findAdjacentEmptyTextBlockIndex(doc, childIndex) {
   return -1
 }
 
+/**
+ * 点击编辑器容器顶部 padding 空白（第一个块上方）时，在文档开头插入空段落并聚焦。
+ *
+ * 为什么需要单独处理：handleDOMEvents 注册在 .ProseMirror（view.dom）上，
+ * 而 .editor-content 有 40px 顶部 padding，点击 padding 时事件 target 是 .editor-content 本身，
+ * 不经过 .ProseMirror，所以 insertParagraphInClickedGap 收不到这个事件。
+ * 本函数在 .editor-content 的 mousedown 上调用；第一个参数是 ProseMirror EditorView
+ * （由调用方从 editor.view 传入，与 handleDOMEvents 回调拿到的是同一对象形态）。
+ *
+ * 与末尾补行共用同一判据（shouldInsertTrailingParagraph）：只有第一个块缺少
+ * 「回车在块前新建一行」的出口时才补行。段落、标题在行首按回车就能在块前新建一行，
+ * 保持默认光标行为即可；代码块、图片、列表、引用等块内回车不产生新块，才需要点击顶部空白补一行。
+ */
+export function insertParagraphInLeadingBlank(view, event) {
+  if (
+    !view?.editable
+    || event?.button !== 0
+    || event.ctrlKey
+    || event.metaKey
+    || event.altKey
+    || event.shiftKey
+  ) return false
+
+  // view.dom 是 .ProseMirror，它的父元素才是 .editor-content
+  const containerEl = view.dom?.parentElement
+  if (!containerEl) return false
+
+  // 只有点击 .editor-content 本身（padding 空白）才处理；
+  // 点击块内部的事件 target 是块 DOM，不命中。
+  if (event.target !== containerEl) return false
+
+  const blockElements = Array.from(view.dom.children || [])
+  if (blockElements.length === 0) return false
+
+  const firstRect = blockElements[0].getBoundingClientRect()
+  // 点击位置必须在第一个块上方（顶部 padding 区域）
+  if (event.clientY >= firstRect.top) return false
+
+  const doc = view.state.doc
+  const firstNode = doc.child(0)
+
+  // 第一个块是段落、标题（能直接回车在块前新建一行）时不补行；
+  // 代码块、图片、列表、引用等才需要这个出口。
+  if (!shouldInsertTrailingParagraph(firstNode)) return false
+
+  const paragraphType = view.state.schema.nodes.paragraph
+  if (!paragraphType) return false
+
+  // 在文档最开头插入一个空段落并把光标放进去
+  const transaction = view.state.tr.insert(0, paragraphType.create())
+  transaction.setSelection(TextSelection.create(transaction.doc, 1))
+  view.dispatch(transaction.scrollIntoView())
+  view.focus()
+  event.preventDefault()
+  return true
+}
+
 export function insertParagraphInClickedGap(view, event) {
   if (
     !view?.editable

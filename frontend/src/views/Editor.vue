@@ -94,7 +94,7 @@
         </div>
         <div v-if="imageNotice" class="image-notice" :class="{ error: imageNoticeError }">{{ imageNotice }}</div>
         <div class="editor-wrapper" v-show="!docLoading">
-          <editor-content :editor="editor" class="editor-content" />
+          <editor-content :editor="editor" class="editor-content" @mousedown="onEditorContainerMousedown" />
         </div>
       </div>
 
@@ -250,7 +250,7 @@ import { insertUploadedImages } from '../utils/editorImages.js'
 import { isImageFile } from '../utils/imageUpload.js'
 import { handleCodeBlockTab } from '../utils/codeBlockIndent.js'
 import { handleBackspaceDeleteEmptyLine } from '../utils/emptyLineBackspace.js'
-import { insertParagraphInClickedGap } from '../utils/blockGapInsertion.js'
+import { insertParagraphInClickedGap, insertParagraphInLeadingBlank } from '../utils/blockGapInsertion.js'
 import { scrollToOutlineHeading } from '../utils/outlineNavigation.js'
 import { useHeaderHeight } from '../utils/useHeaderHeight.js'
 import { getDocumentPath } from '../utils/documentIdentity.js'
@@ -313,6 +313,11 @@ function reportImageStatus(status) {
 
 async function insertImageFiles(files) {
   await insertUploadedImages(editor.value, files, { onStatus: reportImageStatus })
+}
+
+// 点击 .editor-content 顶部 padding 空白（第一个块上方）时插入段落；需传 editor.view（EditorView）
+function onEditorContainerMousedown(event) {
+  if (editor.value?.view) insertParagraphInLeadingBlank(editor.value.view, event)
 }
 
 const directoryDocuments = computed(() => userDocuments.value.map(document => (

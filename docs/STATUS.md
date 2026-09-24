@@ -1,6 +1,6 @@
 # 项目状态
 
-最后更新：2026-09-23
+最后更新：2026-09-24
 
 ## 当前阶段
 
@@ -78,6 +78,8 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 文档已支持插图：新增 `POST /images/upload` 上传接口（magic number 校验、10 MB / 8000 万像素上限、sha256 内容寻址去重、tmp+rename 原子写，文件落 `db/uploads/` 且不进 Git）；编辑器图片由行内节点改为块级节点 `DocImage`（默认居中，对齐走 `data-align`），多图同行合并为 `ImageGroup`；支持工具栏选择、粘贴和拖放三种插入方式，一次最多 6 张、并发 3；旧文档里的行内 `<p><img></p>` 在 Yjs 同步和 Markdown 导入时自动提升为块级图片，不会丢图；同行图片按宽高比分配宽度，因此自然等高并铺满整行，容器变窄时自动折行，窄屏单列。
 - 图片与图片组节点已补充明确选中态：保留常驻黑框，选中后增加绿色像素光环；图片组同时显示浅绿底色与外框，取消选中后恢复原样。
 - 网站品牌由 `Horizon Docs` 更名为 `Lumi Doc`：浏览器标题、页头 Logo、登录页与分享页品牌文字同步更新；静态资源 `horizon-logo.png`/`horizon-icon.png` 经 `git mv` 重命名为 `lumi-logo.png`/`lumi-icon.png`，favicon 缓存版本号升至 v9。MCP 配置示例中的 server 名 `horizon-docs` 与环境变量 `HORIZON_DOCS_URL`/`HORIZON_DOCS_TOKEN` 属技术标识符，与服务器 `.env` 和 mcp 代码绑定，保持不变。
+
+- 编辑器与可编辑分享页的块边界补行已补全为双向：点击第一个块上方的顶部空白可在文档开头补一行，仅当第一个块缺少「回车在块前新建一行」的出口（代码块、图片、列表、引用等；段落和标题保持默认光标行为），与末尾补行共用同一判据；顶部补行回调需传 ProseMirror EditorView（`editor.view`），分享页因标题占据顶部且无留白不接入。
 
 ## 下一步
 
@@ -190,3 +192,4 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 - 2026-09-23：响应式修复通过 109 项前端测试、生产构建及后端语法检查；浏览器加载真实编辑页/分享页组件（使用本地模拟数据，隔离协同连接），完成 320–1920px 的 26 组尺寸、151 项布局检查，正文宽度、横向溢出、侧栏开关与吸顶检查全部通过。
 - 2026-09-23：品牌由 `Horizon Docs` 更名为 `Lumi Doc`（浏览器标题、页头/登录/分享页品牌文字，图片 git mv 为 lumi 前缀，favicon 升至 v9）；同时因 GitHub Actions 将默认 Node 升至 24 导致 `mcp.test.js` 时序敏感断言失败，在 ci job 加 `ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"` 固定 Node 20。`d7d96f2` 已通过 CI/CD 两个 job（构建检查 + 部署到 GPU 服务器），服务器 `run/deployed-commit` 与本地 HEAD 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，两条 WebSocket 连接成功，SQLite 11 个业务表，`write-here` 与 `cloudflared-write-here` 均 RUNNING）；公网登录页 `<title>` 为 `Lumi Doc - 轻量在线文档，即写即存`，页面无 Horizon 残留，favicon 指向 `lumi-icon.png`。
+- 2026-09-24：编辑器顶部补行（点击第一个块上方空白在文档开头补行）通过 8 项新增单元测试（前端共 117 项）与生产构建；用临时无头 Chrome + CDP 加载真实 TipTap 编辑器（复用 `insertParagraphInClickedGap` 接线）完成 8 项浏览器验收并全部通过：代码块为唯一块时点击上方空白在文档开头新增空段落且光标落进新行（`selectionFrom=1`、焦点在 ProseMirror）、空代码块同样补行、首个块是段落或标题时不补行、代码块后跟段落时点击上方只在开头补行、补行后再次点击不再插入、点击代码块内部不补行、块间空白点击回归通过。本次同时修复顶部补行接线：回调需传 `editor.view`（ProseMirror EditorView），此前误传 TipTap Editor 实例（无 `.dom`/`.dispatch`/`.editable`）导致该入口从未生效。验收页与脚本为临时文件，已删除。
