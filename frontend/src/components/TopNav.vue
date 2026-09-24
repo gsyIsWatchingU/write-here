@@ -86,13 +86,15 @@ function handleLogout() {
 }
 .nav-btn {
   padding: 6px 12px;
-  border: none;
+  /* 明确固定 border-width，避免与全局样式叠加时切换状态出现尺寸抖动 */
+  border: 1px solid transparent;
   background: transparent;
   font-size: 14px;
   color: var(--text-secondary);
   cursor: pointer;
   border-radius: var(--radius);
-  transition: all 0.2s;
+  /* 只过渡颜色相关属性，不用 all，避免布局属性被意外过渡 */
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
   white-space: nowrap;
 }
 .nav-btn:hover {
@@ -102,6 +104,10 @@ function handleLogout() {
 .nav-btn.active {
   background: var(--primary);
   color: #fff;
+}
+/* 导航 tab 点击时不要位移，避免切换时看起来像抖动 */
+.nav-btn:active {
+  transform: none;
 }
 .topbar-right {
   display: flex;
