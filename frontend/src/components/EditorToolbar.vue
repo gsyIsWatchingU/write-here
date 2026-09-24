@@ -30,11 +30,11 @@
         <option value="4">标题 4</option>
       </select>
       <button
-        class="icon-btn markdown-heading-btn"
+        class="icon-btn markdown-format-btn"
         type="button"
-        title="将全文中的 #～###### 转换为标题"
-        @click="recognizeMarkdownHeadings"
-      >{{ markdownHeadingLabel }}</button>
+        title="将全文中的 Markdown 标记（标题、表格、引用、分割线、列表、任务列表、代码块等）渲染为对应格式"
+        @click="recognizeMarkdownFormats"
+      >{{ markdownFormatLabel }}</button>
     </div>
 
     <span class="toolbar-divider"></span>
@@ -111,7 +111,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import EditorBlockMenu from './EditorBlockMenu.vue'
 import VoiceInputButton from './VoiceInputButton.vue'
 import AiPolishButton from './AiPolishButton.vue'
-import { convertMarkdownHeadings } from '../utils/markdownHeadings'
+import { convertMarkdownFormats } from '../utils/markdownFormats'
 import { insertUploadedImages } from '../utils/editorImages.js'
 
 const props = defineProps({
@@ -123,7 +123,7 @@ const emit = defineEmits(['applied', 'image-status'])
 const imageFileInput = ref(null)
 const uploading = ref(false)
 
-const markdownHeadingLabel = ref('识别 MD 标题')
+const markdownFormatLabel = ref('识别 MD 格式')
 let labelTimer = null
 
 const currentHeading = computed(() => {
@@ -142,12 +142,12 @@ function setHeading(e) {
   }
 }
 
-function recognizeMarkdownHeadings() {
-  const count = convertMarkdownHeadings(props.editor)
-  markdownHeadingLabel.value = count > 0 ? `已转换 ${count} 个` : '未发现标题'
+function recognizeMarkdownFormats() {
+  const count = convertMarkdownFormats(props.editor)
+  markdownFormatLabel.value = count > 0 ? `已渲染 ${count} 处` : '未发现 MD 格式'
   if (labelTimer) clearTimeout(labelTimer)
   labelTimer = setTimeout(() => {
-    markdownHeadingLabel.value = '识别 MD 标题'
+    markdownFormatLabel.value = '识别 MD 格式'
     labelTimer = null
   }, 1800)
 }
@@ -219,7 +219,7 @@ function setLink() {
   outline: none;
   background: #fff;
 }
-.markdown-heading-btn {
+.markdown-format-btn {
   width: auto;
   min-width: 92px;
   padding-inline: 8px;
