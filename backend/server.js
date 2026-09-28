@@ -6,7 +6,7 @@ const path = require('path');
 const http = require('http');
 const { createHash, randomBytes, timingSafeEqual } = require('crypto');
 const { v4: uuidv4 } = require('uuid');
-const { authenticateSession, createProblemsRouter, migrateProblems } = require('./problems');
+const { authenticateSession } = require('./authSession');
 const { createMcpRouter, migrateMcp, stripHtml } = require('./mcp');
 const { createAsrRouter } = require('./asr');
 const { createAiPolishRouter } = require('./aiPolish');
@@ -266,7 +266,17 @@ function initDatabase() {
             });
         }
 
-        migrateProblems(db);
+        // 会话表（原 migrateProblems 内创建，题库功能移除后保留此处）
+        db.run(`
+            CREATE TABLE IF NOT EXISTS sessions (
+                token TEXT PRIMARY KEY,
+                userId INTEGER NOT NULL,
+                expiresAt DATETIME NOT NULL,
+                createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+        db.run('CREATE INDEX IF NOT EXISTS idx_sessions_user_expires ON sessions(userId, expiresAt)');
         migrateMcp(db);
         migrateDocumentOrder(db).catch((error) => {
             console.error('迁移文档排序字段失败:', error.message);
@@ -577,8 +587,7 @@ app.get('/docs/:id', async (req, res) => {
     const sessionUser = await authenticateSession(db, req).catch(() => null);
     const [publicId, legacyId] = documentIdentifierParams(id);
     db.get(`SELECT * FROM docs
-            WHERE (publicId = ? OR id = ?) AND (userId = ? OR visibility = 'public')
-              AND (kind != 'problem' OR userId = ?)`, [publicId, legacyId, userId, sessionUser?.id || -1], (err, row) => {
+            WHERE (publicId = ? OR id = ?) AND (userId = ? OR visibility = 'public')`, [publicId, legacyId, userId], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!row) return res.status(404).json({ error: '文档不存在或无权限访问' });
         // 更新最近访问时间
@@ -599,7 +608,6 @@ app.get(['/docs/:id/raw', '/doc/:id/raw'], (req, res) => {
         SELECT d.id, d.title, d.content, d.markdownContent, d.visibility, d.updatedAt
         FROM docs d
         WHERE (d.publicId = ? OR d.id = ?)
-          AND (d.kind IS NULL OR d.kind != 'problem')
           AND (d.visibility = 'public'
                OR EXISTS (SELECT 1 FROM shares s WHERE s.docId = d.id))
     `, [publicId, legacyId], (err, row) => {
@@ -648,8 +656,8 @@ app.put('/docs/:id', async (req, res) => {
                    AND collaborations.userId = ?
                    AND collaborations.status = 'approved'
              )
-         ) AND (kind != 'problem' OR userId = ?)`,
-        [title, content || '', id, userId, userId, sessionUser?.id || -1],
+         )`,
+        [title, content || '', id, userId, userId],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             if (this.changes === 0) return res.status(404).json({ error: '文档不存在或无权限修改' });
@@ -668,8 +676,8 @@ app.delete('/docs/:id', async (req, res) => {
         // 同时删除相关分享
         db.run('DELETE FROM shares WHERE docId = ?', [id]);
         db.run(
-            "DELETE FROM docs WHERE id = ? AND userId = ? AND (kind != 'problem' OR userId = ?)",
-            [id, userId, sessionUser?.id || -1],
+            "DELETE FROM docs WHERE id = ? AND userId = ?",
+            [id, userId],
             function(err) {
                 if (err) return res.status(500).json({ error: err.message });
                 if (this.changes === 0) return res.status(404).json({ error: '文档不存在或无权限删除' });
@@ -679,7 +687,7 @@ app.delete('/docs/:id', async (req, res) => {
     });
 });
 
-app.use(createProblemsRouter({ db }));
+
 app.use(createMcpRouter({ db }));
 // HTTP MCP 端点：供 ChatGPT 等只支持远程 MCP 的客户端连接（/mcp/:secret，secret 取 MCP_HTTP_SECRET）。
 // 首个请求时惰性加载 mcp 包的 Streamable HTTP 中间件，避免 CJS/ESM 启动时序问题。

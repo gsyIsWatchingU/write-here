@@ -4,7 +4,6 @@
 // 新增页面只在这里加一项，编号由 resolveNavItems 按可见顺序生成。
 export const NAV_ITEMS = [
   { name: 'Home', label: '我的文档', path: '/' },
-  { name: 'Problems', label: '题库', path: '/problems' },
   { name: 'Community', label: '社区', path: '/community' },
   { name: 'Admin', label: '文档管理', path: '/admin', adminOnly: true },
 ]

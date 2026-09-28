@@ -7,7 +7,7 @@
           <input
             v-model="docTitle"
             class="title-input"
-            :placeholder="docKind === 'problem' ? '无标题题目' : '无标题文档'"
+            :placeholder="'无标题文档'"
             :readonly="!canEdit"
             :class="{ readonly: !canEdit }"
             @input="scheduleAutoSave"
@@ -32,7 +32,7 @@
             @change="handleMarkdownImport"
           />
           <button v-if="canEdit" class="ghost" @click="openMarkdownPicker">导入 MD</button>
-          <div v-if="isOwner && docKind !== 'problem'" class="visibility-control">
+          <div v-if="isOwner" class="visibility-control">
             <label>
               <span>可见性：</span>
               <select v-model="visibility" @change="updateVisibility">
@@ -41,7 +41,7 @@
               </select>
             </label>
           </div>
-          <button v-if="isOwner && docKind !== 'problem'" class="ghost" @click="openShare">分享</button>
+          <button v-if="isOwner" class="ghost" @click="openShare">分享</button>
         </div>
       </header>
 
@@ -56,12 +56,11 @@
     <div
       class="editor-main"
       :class="{
-        'left-panel-collapsed': !documentPanelOpen || docKind !== 'document',
+        'left-panel-collapsed': !documentPanelOpen,
         'right-panel-collapsed': !sidePanelOpen,
       }"
     >
       <DocumentDirectory
-        v-if="docKind === 'document'"
         :documents="directoryDocuments"
         :collaboration-documents="directoryCollaborationDocuments"
         :active-document-id="docId"
@@ -75,7 +74,7 @@
       />
 
       <button
-        v-if="docKind === 'document' && !documentPanelOpen"
+        v-if="!documentPanelOpen"
         type="button"
         class="panel-edge-trigger left-panel-reopen"
         title="展开文档目录"
@@ -164,7 +163,7 @@
         大纲 / 评论<span v-if="commentCount"> · {{ commentCount }}</span>
       </button>
       <button
-        v-if="docKind === 'document' && !documentPanelOpen && !sidePanelOpen"
+        v-if="!documentPanelOpen && !sidePanelOpen"
         class="mobile-directory-trigger"
         @click="documentPanelOpen = true"
       >文档目录</button>
@@ -264,7 +263,6 @@ const { headerElement, headerHeight } = useHeaderHeight()
 const compactMedia = window.matchMedia('(max-width: 1200px)')
 
 const docTitle = ref('')
-const docKind = ref('document')
 const saveStatus = ref('')
 const showShareModal = ref(false)
 const shareLink = ref('')
@@ -563,8 +561,7 @@ onMounted(async () => {
       await router.replace({ path: getDocumentPath(doc), query: { ...route.query } })
     }
     docTitle.value = doc.title
-    docKind.value = doc.kind || 'document'
-    docOwnerId.value = doc.userId
+        docOwnerId.value = doc.userId
     visibility.value = doc.visibility || 'private'
 
     isOwner.value = doc.userId === user.id
@@ -607,7 +604,7 @@ onMounted(async () => {
     scheduleAutoSave()
   } catch (e) {
     alert('加载文档失败：' + e.message)
-    router.push(route.query.from === 'problems' ? '/problems' : '/')
+    router.push('/')
   }
 
 })
@@ -699,7 +696,7 @@ async function flushAutoSave() {
 }
 
 async function goBack() {
-  const returnPath = route.query.from === 'problems' || docKind.value === 'problem' ? '/problems' : '/'
+  const returnPath = '/'
   if (!canEdit.value) return router.push(returnPath)
   const saved = await flushAutoSave()
   if (saved) router.push(returnPath)

@@ -1,7 +1,7 @@
 const { createHash, randomBytes } = require('crypto');
 const express = require('express');
 const MarkdownIt = require('markdown-it');
-const { authenticateSession } = require('./problems');
+const { authenticateSession } = require('./authSession');
 const { createDocumentPublicId, documentIdentifierParams } = require('./documentIdentity');
 
 const TOKEN_PREFIX = 'whmcp_';
