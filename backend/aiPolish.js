@@ -1,6 +1,6 @@
 const express = require('express');
 const { spawn } = require('child_process');
-const { authenticateSession } = require('./problems');
+const { authenticateSession } = require('./authSession');
 
 const DEFAULT_CLI_PATH = 'claude';
 const DEFAULT_TIMEOUT_MS = 180000;

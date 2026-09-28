@@ -1,5 +1,5 @@
 const express = require('express');
-const { authenticateSession } = require('./problems');
+const { authenticateSession } = require('./authSession');
 
 const DEFAULT_ASR_URL = 'http://127.0.0.1:8001';
 const DEFAULT_ASR_MODEL = 'qwen3-asr-1.7b';

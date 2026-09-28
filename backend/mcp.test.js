@@ -8,7 +8,6 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const { createMcpRouter, extractOutline, hashToken, migrateMcp } = require('./mcp');
 const { migrateDocumentIdentity } = require('./documentIdentity');
-const { migrateProblems } = require('./problems');
 
 function exec(db, sql) {
     return new Promise((resolve, reject) => db.exec(sql, (error) => error ? reject(error) : resolve()));
@@ -54,6 +53,7 @@ test('MCP Token 以用户身份创建、读取和更新 Markdown 文档，撤销
             userId INTEGER NOT NULL,
             title TEXT NOT NULL,
             content TEXT NOT NULL DEFAULT '',
+            kind TEXT NOT NULL DEFAULT 'document',
             visibility TEXT NOT NULL DEFAULT 'private',
             likes INTEGER NOT NULL DEFAULT 0,
             sortOrder INTEGER,
@@ -65,7 +65,7 @@ test('MCP Token 以用户身份创建、读取和更新 Markdown 文档，撤销
     `);
     await new Promise((resolve, reject) => {
         db.serialize(() => {
-            migrateProblems(db);
+            db.run(`CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, userId INTEGER NOT NULL, expiresAt DATETIME NOT NULL)`);
             migrateMcp(db);
             migrateDocumentIdentity(db);
             db.get('SELECT 1', (error) => error ? reject(error) : resolve());

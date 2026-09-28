@@ -2,7 +2,7 @@ const express = require('express');
 const { createHash } = require('crypto');
 const { mkdirSync, existsSync, renameSync, writeFileSync, unlinkSync } = require('node:fs');
 const path = require('node:path');
-const { authenticateSession } = require('./problems');
+const { authenticateSession } = require('./authSession');
 
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
 // 像素上限：10 MB 挡不住「图片炸弹」——几 MB 的压缩图可能解码成上亿像素的位图，
