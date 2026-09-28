@@ -85,6 +85,7 @@ function initDatabase() {
                 userId INTEGER NOT NULL DEFAULT 0,
                 title TEXT NOT NULL,
                 content TEXT NOT NULL DEFAULT '',
+                kind TEXT NOT NULL DEFAULT 'document',
                 visibility TEXT NOT NULL DEFAULT 'private',
                 likes INTEGER NOT NULL DEFAULT 0,
                 sortOrder INTEGER,
@@ -287,6 +288,9 @@ function initDatabase() {
         migrateImages(db);
 
         // 迁移：最近访问时间字段
+        db.run(`ALTER TABLE docs ADD COLUMN kind TEXT NOT NULL DEFAULT 'document'`, (err) => {
+            // kind column may already exist from old problem migrations
+        });
         db.run(`ALTER TABLE docs ADD COLUMN lastViewedAt DATETIME`, (err) => {
             if (err && !err.message.includes('duplicate column name')) {
                 console.error('迁移 lastViewedAt 列失败:', err.message);
