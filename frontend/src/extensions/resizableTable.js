@@ -25,10 +25,14 @@ export const ResizableTable = Extension.create({
   addProseMirrorPlugins() {
     if (this.editor.isEditable) return []
 
+    // 参数与 tiptap 的 Table 默认值对齐：cellMinWidth 25 是单列最小宽度，
+    // defaultCellMinWidth 决定 <table> 的 min-width（不传时 prosemirror-tables
+    // 默认 100，7 列表格就会算出 700px 的 min-width，比正文区还宽、强出横向滚动条）。
     return [
       columnResizing({
         handleWidth: 6,
         cellMinWidth: 25,
+        defaultCellMinWidth: 25,
         lastColumnResizable: true,
       }),
     ]
