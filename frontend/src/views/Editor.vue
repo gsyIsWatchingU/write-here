@@ -220,6 +220,9 @@ import Table from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
+// 编辑器初始 editable:false，Table 扩展会据此跳过 columnResizing；
+// 这个扩展负责补注册，必须排在 Table 之前。详见 extensions/resizableTable.js
+import ResizableTable from '../extensions/resizableTable.js'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Highlight from '@tiptap/extension-highlight'
@@ -374,6 +377,7 @@ const editor = useEditor({
     DocImage,
     ImageGroup,
     Link.configure({ openOnClick: false }),
+    ResizableTable,
     Table.configure({ resizable: true }),
     TableRow,
     TableCell,
