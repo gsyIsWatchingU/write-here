@@ -342,3 +342,52 @@ test('连续识别完成后再次识别返回 0', () => {
   assert.equal(convertMarkdownFormats(editor, md), 2)
   assert.equal(convertMarkdownFormats(editor, md), 0)
 })
+
+test('普通段落里的 [text](url) 链接被渲染', () => {
+  const editor = createEditor(schema.nodes.doc.create(null, [
+    paragraph('地址：[http://127.0.0.1:8091](http://127.0.0.1:8091)（本机'),
+  ]))
+
+  assert.equal(convertMarkdownFormats(editor, md), 1)
+
+  const [p] = editor.state.doc.content.content
+  assert.equal(p.type.name, 'paragraph')
+  const nodes = p.content.content
+  assert.equal(nodes[0].text, '地址：')
+  assert.equal(nodes[1].text, 'http://127.0.0.1:8091')
+  assert.equal(nodes[1].marks[0].type.name, 'link')
+  assert.equal(nodes[1].marks[0].attrs.href, 'http://127.0.0.1:8091')
+  assert.equal(nodes[2].text, '（本机')
+})
+
+test('普通段落里的裸 URL 被 linkify 成链接', () => {
+  const editor = createEditor(schema.nodes.doc.create(null, [
+    paragraph('访问 http://127.0.0.1:8091/docs 查看文档'),
+  ]))
+
+  assert.equal(convertMarkdownFormats(editor, md), 1)
+
+  const [p] = editor.state.doc.content.content
+  const nodes = p.content.content
+  assert.equal(nodes[0].text, '访问 ')
+  assert.equal(nodes[1].text, 'http://127.0.0.1:8091/docs')
+  assert.equal(nodes[1].marks[0].type.name, 'link')
+  assert.equal(nodes[1].marks[0].attrs.href, 'http://127.0.0.1:8091/docs')
+  assert.equal(nodes[2].text, ' 查看文档')
+})
+
+test('普通段落里的行内粗体与代码同时被渲染', () => {
+  const editor = createEditor(schema.nodes.doc.create(null, [
+    paragraph('说明：**重点** 见 `config.js` 文件'),
+  ]))
+
+  assert.equal(convertMarkdownFormats(editor, md), 1)
+
+  const [p] = editor.state.doc.content.content
+  const nodes = p.content.content
+  assert.equal(nodes[0].text, '说明：')
+  assert.equal(nodes[1].text, '重点')
+  assert.equal(nodes[1].marks[0].type.name, 'strong')
+  assert.equal(nodes[3].text, 'config.js')
+  assert.equal(nodes[3].marks[0].type.name, 'code')
+})

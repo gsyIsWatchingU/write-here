@@ -20,8 +20,8 @@ const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/
 const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})/
 const TASK = /^\[([ xX])\][ \t]*/
 const SEPARATOR_CELL = /^:?-+:?$/
-// 触发行内重渲染的标记：**、~~、`、[text](url)
-const INLINE_MD = /(\*\*|~~|`|\[[^\]]*\]\()/
+// 触发行内重渲染的标记：**、~~、`、[text](url)、裸 URL（linkify）
+const INLINE_MD = /(\*\*|~~|`|\[[^\]]*\]\(|\bhttps?:\/\/[^\s<>()]+)/
 
 function containsOnlyText(node) {
   return node.content.content.every((child) => child.isText)
@@ -258,6 +258,13 @@ function buildNode(schema, md, group) {
     case 'table': return buildTable(schema, md, group)
     case 'codeBlock': return buildCodeBlock(schema, group)
     case 'hr': return schema.nodes.horizontalRule.create()
+    case 'inline': {
+      // 普通段落：整段走 markdown-it 行内解析，保留段落类型，只替换行内 marks。
+      return schema.nodes.paragraph.create(
+        group.node.attrs ? { ...group.node.attrs } : null,
+        contentFor(schema, md, group.node, group.contentStart, group.contentEnd),
+      )
+    }
     default: return null
   }
 }
@@ -410,6 +417,12 @@ export function convertMarkdownFormats(editor, md) {
       groups.push({ type, start: i, end: end - 1, entries })
       i = end
       continue
+    }
+
+    // 普通段落：未命中任何块级规则，但含行内标记（链接/粗体/删除线/行内代码/裸 URL），
+    // 仍用 markdown-it 重渲染行内内容，否则 [text](url) 这类语法会原样留在正文里。
+    if (INLINE_MD.test(text)) {
+      groups.push({ type: 'inline', start: i, end: i, node: block.node, contentStart: 0, contentEnd: text.length })
     }
 
     i += 1
