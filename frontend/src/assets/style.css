@@ -474,12 +474,57 @@ a {
   border-left: 4px solid var(--primary-strong);
 }
 
+/* 表格列宽：prosemirror-tables 只生成 DOM、不注入任何样式，下面几条缺一不可。
+   - .column-resize-handle 是插在单元格里的 widget div，没有 absolute + 单元格 relative
+     时它是个 0×0 的透明块，鼠标永远命中不到，所以「没有可拖的地方」；
+   - table-layout 默认 auto 时 <colgroup> 的 width 只是建议值，浏览器按内容重排，
+     就算拖成功写入 colwidth，渲染宽度也不会变，表现为「拖了没反应」；
+   - .tableWrapper 负责窄屏横向滚动，避免表格被压扁后列宽设定失效。 */
+#app .editor-content .tableWrapper {
+  position: relative;
+  margin: 16px 0;
+  overflow-x: auto;
+}
+
+#app .editor-content table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0;
+}
+
 #app .editor-content :is(th, td) {
+  position: relative;
   border: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
 }
 
 #app .editor-content th {
   background: var(--surface-hover);
+  font-weight: 600;
+}
+
+#app .editor-content .column-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -3px;
+  width: 6px;
+  background: var(--primary);
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* 拖拽中的整列高亮：class 由 prosemirror-tables 加在 td/th 上 */
+#app .editor-content .column-resize-dragging {
+  background: var(--primary-hover);
+}
+
+/* 悬停在列边界时的光标：class 由 prosemirror-tables 加在编辑器根元素上 */
+#app .editor-content .resize-cursor {
+  cursor: col-resize;
 }
 
 #app .editor-content img {

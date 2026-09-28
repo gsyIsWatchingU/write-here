@@ -391,9 +391,7 @@ onBeforeUnmount(() => {
 }
 .editor-content :deep(.tiptap) { outline: none; overflow-wrap: anywhere; }
 .doc-header h1 { overflow-wrap: anywhere; }
-.editor-content :deep(table) { border-collapse: collapse; width: 100%; margin: 16px 0; }
-.editor-content :deep(th), .editor-content :deep(td) { border: 1px solid var(--border); padding: 8px 12px; }
-.editor-content :deep(th) { background: var(--bg-gray); font-weight: 600; }
+/* 表格外观与列宽拖拽手柄统一在 assets/style.css（#app .editor-content table 等）里定义 */
 .editor-content :deep(pre) { background: #1e1e2e; color: #cdd6f4; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 14px; }
 .editor-content :deep(blockquote) { border-left: 3px solid var(--primary); padding-left: 16px; margin: 12px 0; color: var(--text-secondary); }
 .editor-content :deep(img) { max-width: 100%; border-radius: 4px; }

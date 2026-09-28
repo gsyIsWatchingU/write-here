@@ -1103,9 +1103,8 @@ function copyLink() {
   pointer-events: none;
   height: 0;
 }
-.editor-content :deep(table) { border-collapse: collapse; width: 100%; margin: 16px 0; }
-.editor-content :deep(th), .editor-content :deep(td) { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
-.editor-content :deep(th) { background: var(--bg-gray); font-weight: 600; }
+/* 表格外观与列宽拖拽手柄统一在 assets/style.css（#app .editor-content table 等）里定义，
+   这里不再重复声明，避免 scoped 规则盖掉 table-layout: fixed 导致列宽拖不动。 */
 .editor-content :deep(ul[data-type="taskList"]) { list-style: none; padding-left: 0; }
 .editor-content :deep(ul[data-type="taskList"] li) { display: flex; align-items: flex-start; gap: 8px; }
 .editor-content :deep(ul[data-type="taskList"] li label) { margin-top: 4px; }
@@ -1147,10 +1146,10 @@ function copyLink() {
     box-shadow: 0 -5px 0 rgba(0, 0, 0, .12);
   }
   .outline-panel.side-panel.mobile-open { transform: translateY(0); }
-  .editor-content :deep(table) {
-    display: block;
+  /* 窄屏靠 .tableWrapper 横向滚动保住列宽；早期这里用 display:block 会让
+     表格退化成块级盒子，colgroup 失效、列宽改不动，故删除。 */
+  .editor-content :deep(.tableWrapper) {
     max-width: 100%;
-    overflow-x: auto;
   }
   .side-panel-close {
     display: block;
