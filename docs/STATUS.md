@@ -1,6 +1,6 @@
 ﻿# 项目状态
 
-最后更新：2026-09-28
+最后更新：2026-09-29
 
 ## 当前阶段
 
@@ -202,5 +202,8 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 2026-09-24：上述两处修复用临时无头 Chrome + CDP 驱动真实应用（本地后端 + vite dev + 播种测试文档）完成 11 项浏览器验收并全部通过：代码块/图片末尾点击容器底部大空白（pmBottom=597 vs containerBottom=904）补行成功且光标入新行；`.tiptap` 盒内末尾补行与容器顶部补行回归通过；点击图片后选区为 NodeSelection@image，Delete 与 Backspace 均删除图片且 1.5s 后不复活；点击图片侧边空白同样选中图片；重复点击图片保持选中不再跳回相邻段落；图片组内点击单张图片只删除该图（组保留另一张）；双客户端协同删除后 A/B 两端图片均不复活。验收脚本与播种脚本为临时文件，已删除；本地 `db/docs.db`（Git 忽略）留有验收用测试账号与文档，不影响仓库。前端全量 139 项测试与生产构建通过。
 
 - 2026-09-24：修复顶栏 tab 切换时的样式跳动。根因有二：一是顶栏用 flex space-between，导航簇位置等于 logo 与右侧区域宽度的中间值，而我的文档页右侧比社区/题库/文档管理页多两个动作按钮，切换页面时整排 tab 横向位移；二是各页面内容高度不同，滚动条出现/消失让视口宽度变化约 15px，整行随之位移。修复：桌面端（≥761px）导航簇改绝对定位固定在顶栏正中（left:50% + translateX(-50%)，sticky 顶栏本身就是包含块）；全局 html 加 scrollbar-gutter: stable 恒定预留滚动条槽位；路由新增 scrollBehavior，tab 切换回到页首，前进/后退仍还原原位置。通过前端 139 项测试与生产构建；无头 Chrome 加载真实构建 CSS 测量三种状态（带两动作按钮 / 移除动作按钮 / 内容加高出现滚动条）导航簇左缘均为 448.74px，切换零位移。
+- 2026-09-29：表格列宽拖拽修复通过 141 项前端测试与前端生产构建（后端无改动）；产物与线上 `index-3HilNVbv.css` 均含 `table-layout:fixed`、`column-resize-handle`、`resize-cursor` 三条新规则。`ea5a173` 已通过 CI/CD 构建与 GPU 部署：服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 11 个业务表，`write-here` 与 `cloudflared-write-here` 均 RUNNING）。注：列宽拖拽依赖鼠标悬停在列边界（触屏无 hover 时手柄不出现），只读权限文档本身不可编辑。
 - 2026-09-28：普通段落行内链接识别修复通过 3 项新增单元测试（`[text](url)` 链接渲染、裸 URL linkify、粗体与行内代码同段落渲染），前端全量 141 项测试通过；`vite build` 成功，`node --check backend/server.js` 通过。
+- 2026-09-29：修复表格列宽无法拖拽。根因是 `prosemirror-tables` 只往 DOM 插入 `.column-resize-handle`（`Decoration.widget` 生成的 div）而不注入任何样式：项目里 `.tableWrapper` / `.column-resize-handle` / `.resize-cursor` 三个类一条 CSS 都没有，手柄是 0×0 透明块，鼠标永远命中不到；同时 `table-layout` 保持默认的 `auto`，`<colgroup>` 的 width 仅是建议值，浏览器按内容重排，即使写入 colwidth 渲染宽度也不变；此外 ≤1200px 媒体查询把 `table` 设为 `display:block`，会让 colgroup 彻底失效。修复：表格外观与拖拽手柄样式统一收敛到 `frontend/src/assets/style.css`（`#app .editor-content ...`，补 `.tableWrapper` 横向滚动、`table-layout: fixed`、单元格 `position: relative`、6px 主色手柄、`.column-resize-dragging` 高亮、`.resize-cursor` 光标），`Editor.vue` / `SharedDoc.vue` 删除 scoped 里重复的 table/th/td 规则，窄屏改用 `.tableWrapper { max-width: 100% }` 而非 `display: block`。`Table` 已配置 `resizable: true`；tableCell 的 `colwidth` 属性 `rendered` 默认为 true，会输出 `colwidth="150"` 且 parseHTML 按同名属性读回，保存/重载往返不丢列宽。
+
 - 2026-09-28：修复「识别 MD 格式」按钮对普通段落里的 `[text](url)` 链接、裸 URL、`**粗体**`、`` `代码` `` 等行内标记不生效的问题。根因：`convertMarkdownFormats` 此前只在段落命中块级规则（`#` 标题、`-` 列表、`>` 引用、`|` 表格、``` 代码块、`---` 分割线）时才收进 groups 并顺带做行内渲染；纯普通段落即使含行内标记也会被 `i += 1` 跳过，方括号与圆括号原样留在正文。修复：扩展 `INLINE_MD` 正则补充裸 URL（`https?://...`，配合 markdown-it `linkify`）；遍历到未命中块级规则的段落时，只要文本命中 `INLINE_MD` 就收为新的 `inline` group，`buildNode` 对该类型原样构造段落并走 `contentFor` → `renderInlineContent` 重渲染行内 marks，段落类型与位置不变。
