@@ -1,6 +1,6 @@
 ﻿# 项目状态
 
-最后更新：2026-09-29
+最后更新：2026-09-30
 
 ## 当前阶段
 
@@ -12,6 +12,7 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 ## 已完成
 
+- 浏览器 favicon 已更换为用户提供的图片（伸手向光的照片）：中心裁正方形后缩放为 256×256 覆盖 `frontend/public/lumi-icon.png`，`index.html` 缓存版本号升至 v10；页头与登录页的 `lumi-logo.png` 保持不变。
 - 编辑页在 1200px 及以下改用按需展开的文档目录与大纲面板，分享页在 1000px 及以下收起侧栏，避免半屏正文被挤成竖排。
 - 编辑页侧栏与标题跳转按实际页头高度定位；标题栏支持换行、返回按钮保持单行，手机工具栏保持横向滚动。
 
@@ -208,3 +209,4 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 2026-09-29：修复表格列宽无法拖拽（**两轮，真正根因是第二轮才定位的**）。第一轮补齐了 `prosemirror-tables` 从不注入的样式（`.tableWrapper` / `table-layout: fixed` / 单元格 `position: relative` / `.column-resize-handle` / `.column-resize-dragging` / `.resize-cursor`，收敛到 `frontend/src/assets/style.css`，并移除窄屏 `table{display:block}`），这部分是必需的前置条件，但**不足以让拖拽生效**。第二轮线上实测（无头 Chrome 注入临时 session 打开真实文档 `/doc/975d7dd9…`）发现 `.tableWrapper` 根本不存在、悬停无光标无手柄，定位到 `@tiptap/extension-table` 的 `addProseMirrorPlugins` 里是 `const isResizable = this.options.resizable && this.editor.isEditable`：插件只在 editor 创建那一刻注册一次，而 `Editor.vue` / `SharedDoc.vue` 为了等权限确认，初始 `editable: false`、拿到权限后 `setEditable(true)`，于是 `columnResizing` 插件与表格 NodeView（`.tableWrapper` 外层 + 随拖拽更新的 `<colgroup>`）从未注册，`setEditable(true)` 也不会重建插件 —— 刷新多少次都拖不动。修复：新增 `frontend/src/extensions/resizableTable.js`，在创建时不可编辑的场景补注册 `columnResizing`（`handleWidth: 6`、`cellMinWidth/defaultCellMinWidth: 25`、`lastColumnResizable: true`，与 tiptap 默认值对齐；不传 `defaultCellMinWidth` 时 prosemirror-tables 默认 100，7 列表格会被算出 700px 的 `min-width` 而强出横向滚动条），创建时即可编辑则返回空数组避免重复注册；注册位置排在 `Table` 之前，让 `columnResizing` 先于 `tableEditing` 处理 mousedown。`colwidth` 属性 `rendered` 默认为 true，会输出 `colwidth="124"` 并随 HTML 保存、parseHTML 按同名属性读回，列宽持久化不丢。
 
 - 2026-09-28：修复「识别 MD 格式」按钮对普通段落里的 `[text](url)` 链接、裸 URL、`**粗体**`、`` `代码` `` 等行内标记不生效的问题。根因：`convertMarkdownFormats` 此前只在段落命中块级规则（`#` 标题、`-` 列表、`>` 引用、`|` 表格、``` 代码块、`---` 分割线）时才收进 groups 并顺带做行内渲染；纯普通段落即使含行内标记也会被 `i += 1` 跳过，方括号与圆括号原样留在正文。修复：扩展 `INLINE_MD` 正则补充裸 URL（`https?://...`，配合 markdown-it `linkify`）；遍历到未命中块级规则的段落时，只要文本命中 `INLINE_MD` 就收为新的 `inline` group，`buildNode` 对该类型原样构造段落并走 `contentFor` → `renderInlineContent` 重渲染行内 marks，段落类型与位置不变。
+- 2026-09-30：favicon 更换通过前端生产构建；改动仅涉及静态资源 `lumi-icon.png` 与 `index.html` 缓存版本号，后端无改动。
