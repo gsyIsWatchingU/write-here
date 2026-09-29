@@ -43,6 +43,48 @@
           <span v-if="currentBlockType === option.type" class="block-menu-check" aria-hidden="true">✓</span>
         </button>
 
+        <template v-if="isTableBlock">
+          <div class="block-menu-divider"></div>
+          <div class="block-menu-heading">
+            <span>表格宽度</span>
+            <span class="block-menu-current">{{ currentTableWidthLabel }}</span>
+          </div>
+          <button
+            class="block-menu-option"
+            :class="{ active: tableWidthMode === TABLE_WIDTH_FULL }"
+            type="button"
+            role="menuitem"
+            @click="applyTableWidth(TABLE_WIDTH_FULL)"
+          >
+            <span class="block-menu-icon" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="1" y="3.5" width="14" height="9" rx="1"/>
+                <path d="M3.4 8h9.2"/>
+                <path d="M5 6l-1.8 2 1.8 2"/>
+                <path d="M11 6l1.8 2-1.8 2"/>
+              </svg>
+            </span>
+            <span>适应窗口宽度</span>
+            <span v-if="tableWidthMode === TABLE_WIDTH_FULL" class="block-menu-check" aria-hidden="true">✓</span>
+          </button>
+          <button
+            class="block-menu-option"
+            :class="{ active: tableWidthMode === TABLE_WIDTH_AUTO }"
+            type="button"
+            role="menuitem"
+            @click="applyTableWidth(TABLE_WIDTH_AUTO)"
+          >
+            <span class="block-menu-icon" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="1" y="3.5" width="14" height="9" rx="1" stroke-dasharray="2 2"/>
+                <rect x="4.5" y="5.5" width="7" height="5" rx="1"/>
+              </svg>
+            </span>
+            <span>适应内容</span>
+            <span v-if="tableWidthMode === TABLE_WIDTH_AUTO" class="block-menu-check" aria-hidden="true">✓</span>
+          </button>
+        </template>
+
         <div class="block-menu-divider"></div>
         <div class="block-menu-actions" aria-label="插入内容">
           <button class="block-menu-option" type="button" @click="insertTable">
@@ -131,6 +173,14 @@ import {
   shouldShowBlockMenu,
 } from '../utils/blockMenu.js'
 import { insertUploadedImages } from '../utils/editorImages.js'
+import {
+  TABLE_WIDTH_AUTO,
+  TABLE_WIDTH_FULL,
+  getTableWidthAttrs,
+  getTableWidthLabel,
+  getTableWidthMode,
+  isTableNode,
+} from '../utils/tableWidth.js'
 
 const props = defineProps({
   editor: { type: Object, required: true },
@@ -159,6 +209,8 @@ const open = ref(false)
 const top = ref(0)
 const left = ref(0)
 const currentBlockType = ref('paragraph')
+const isTableBlock = ref(false)
+const tableWidthMode = ref(TABLE_WIDTH_FULL)
 const canMoveUp = ref(false)
 const canMoveDown = ref(false)
 const dragging = ref(false)
@@ -217,6 +269,8 @@ const dropIndicatorStyle = computed(() => ({
 const currentBlockLabel = computed(() => (
   blockOptions.find((option) => option.type === currentBlockType.value)?.label || '正文'
 ))
+
+const currentTableWidthLabel = computed(() => getTableWidthLabel(tableWidthMode.value))
 
 function dispatchHighlight(transaction) {
   const editor = props.editor
@@ -342,7 +396,11 @@ function updatePosition() {
       from: currentBlock.position,
       to: currentBlock.position + currentBlock.node.nodeSize,
     })
-    currentBlockType.value = getCurrentBlockType()
+    // 表格不在「转换为」列表里：单独标记为 table，列表里就不会有项被误勾上，
+    // 同时按它自己的节点属性刷新宽度模式。
+    isTableBlock.value = isTableNode(currentBlock.node)
+    tableWidthMode.value = getTableWidthMode(currentBlock.node)
+    currentBlockType.value = isTableBlock.value ? 'table' : getCurrentBlockType()
     canMoveUp.value = currentBlock.index > 0
     canMoveDown.value = currentBlock.index < editor.state.doc.childCount - 1
     visible.value = true
@@ -457,6 +515,20 @@ function deleteBlock() {
   props.editor.commands.focus()
   setOpen(false)
   nextTick(updatePosition)
+}
+
+// 宽度模式只改 table 节点自身属性，不动单元格内容，所以直接 setNodeMarkup，
+// 不进撤销栈以外的结构变更；菜单保持展开，方便两个模式来回对照。
+function applyTableWidth(mode) {
+  const currentBlock = getCurrentBlock()
+  if (!currentBlock) return
+
+  const attrs = getTableWidthAttrs(currentBlock.node, mode)
+  if (!attrs) return
+
+  props.editor.view.dispatch(
+    props.editor.state.tr.setNodeMarkup(currentBlock.position, undefined, attrs),
+  )
 }
 
 function pickImages() {

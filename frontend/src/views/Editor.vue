@@ -216,13 +216,14 @@ import { TextSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
-import Table from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 // 编辑器初始 editable:false，Table 扩展会据此跳过 columnResizing；
-// 这个扩展负责补注册，必须排在 Table 之前。详见 extensions/resizableTable.js
+// 这个扩展负责补注册，必须排在表格节点之前。详见 extensions/resizableTable.js
 import ResizableTable from '../extensions/resizableTable.js'
+// Table 加上宽度模式（适应窗口 / 适应内容）后的现成配置，含宽度感知的 NodeView
+import DocTable from '../extensions/docTable.js'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Highlight from '@tiptap/extension-highlight'
@@ -378,7 +379,7 @@ const editor = useEditor({
     ImageGroup,
     Link.configure({ openOnClick: false }),
     ResizableTable,
-    Table.configure({ resizable: true }),
+    DocTable,
     TableRow,
     TableCell,
     TableHeader,

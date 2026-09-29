@@ -1,5 +1,6 @@
 import { Extension } from '@tiptap/core'
 import { columnResizing } from '@tiptap/pm/tables'
+import { TableWidthView } from './docTable.js'
 
 /**
  * 补注册表格列宽拖拽插件。
@@ -34,6 +35,9 @@ export const ResizableTable = Extension.create({
         cellMinWidth: 25,
         defaultCellMinWidth: 25,
         lastColumnResizable: true,
+        // 与 Table 的 View 配置保持一致：宽度模式靠 NodeView 写成
+        // <table data-table-width="...">，漏传会退化成默认的铺满宽度。
+        View: TableWidthView,
       }),
     ]
   },

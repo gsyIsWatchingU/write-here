@@ -493,6 +493,25 @@ a {
   margin: 0;
 }
 
+/* 表格宽度模式：块操作柄菜单里切换「适应窗口宽度 / 适应内容」。
+   模式值存在 table 节点的 widthMode 属性上，实时渲染由表格 NodeView 写成
+   <table data-table-width="...">，导出与粘贴的 HTML 由属性 renderHTML 输出同一个
+   属性，两条路径共用下面这两条规则。
+   - full：NodeView 每次都会按列宽重写 table.style.width / min-width，普通样式
+     声明盖不住内联宽度，必须 !important 才能真正铺满正文区；
+   - auto：同时切回 table-layout: auto，否则 colgroup 里的 px 列宽会继续主导，
+     表格不会按内容收窄。 */
+#app .editor-content table[data-table-width='full'] {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+#app .editor-content table[data-table-width='auto'] {
+  width: auto !important;
+  min-width: 0 !important;
+  table-layout: auto;
+}
+
 #app .editor-content :is(th, td) {
   position: relative;
   border: 1px solid var(--border);

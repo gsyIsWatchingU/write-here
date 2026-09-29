@@ -211,4 +211,6 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 - 2026-09-28：修复「识别 MD 格式」按钮对普通段落里的 `[text](url)` 链接、裸 URL、`**粗体**`、`` `代码` `` 等行内标记不生效的问题。根因：`convertMarkdownFormats` 此前只在段落命中块级规则（`#` 标题、`-` 列表、`>` 引用、`|` 表格、``` 代码块、`---` 分割线）时才收进 groups 并顺带做行内渲染；纯普通段落即使含行内标记也会被 `i += 1` 跳过，方括号与圆括号原样留在正文。修复：扩展 `INLINE_MD` 正则补充裸 URL（`https?://...`，配合 markdown-it `linkify`）；遍历到未命中块级规则的段落时，只要文本命中 `INLINE_MD` 就收为新的 `inline` group，`buildNode` 对该类型原样构造段落并走 `contentFor` → `renderInlineContent` 重渲染行内 marks，段落类型与位置不变。
 - 2026-09-30：favicon 更换通过前端生产构建；改动仅涉及静态资源 `lumi-icon.png` 与 `index.html` 缓存版本号，后端无改动。
+
+- 2026-09-30：表格宽度模式（块操作柄 → 「表格宽度」→ 适应窗口宽度 / 适应内容）：模式值存在 table 节点的 `widthMode` 属性上（默认 `full`，与加属性之前的 `width: 100%` 表现一致，老文档无需迁移），实时渲染由新增的 `TableWidthView`（继承 `prosemirror-tables` 的 `TableView`，`extensions/docTable.js`）在基类每次重写 `table.style.width / min-width` 之后写成 `<table data-table-width="...">`，导出与粘贴的 HTML 由属性自身的 `renderHTML` 输出同一个属性，两条路径共用 `style.css` 里按 `data-table-width` 的两条规则（`full` 用 `width:100%!important` 压住内联列宽，`auto` 同时切回 `table-layout:auto` 并按内容收窄）。两条 `columnResizing` 注册路径（Table 自己注册的、以及编辑器初始不可编辑时 `extensions/resizableTable.js` 补注册的）都带上同一个 `View`，否则实时渲染拿不到 data 属性。切换走 `setNodeMarkup`，只改表格节点属性、不动单元格内容；模式没变时不发事务，避免协同场景广播空更新。菜单保持展开，方便两个模式来回对照。
 - 2026-09-30：页头 logo 同步更换通过前端生产构建；`lumi-logo.png`（512×512）为纯静态资源覆盖，后端确认非 `assets/` 静态资源走 `no-cache`，无缓存失效风险。
