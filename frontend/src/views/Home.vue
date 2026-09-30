@@ -3,30 +3,18 @@
     <TopNav>
       <template #actions>
         <button
-          ref="notificationBtnRef"
-          class="topbar-action-btn notification-btn"
-          aria-label="查看消息通知"
-          :aria-expanded="showNotifications"
-          title="查看消息通知"
-          @click.stop="toggleNotifications"
+          ref="bellBtnRef"
+          class="bell-btn"
+          aria-label="消息与协作请求"
+          :aria-expanded="showBellPanel"
+          title="消息与协作请求"
+          @click.stop="toggleBellPanel"
         >
-          <span aria-hidden="true">[!]</span>
-          <span class="action-label action-label-long">消息通知</span>
-          <span class="action-label action-label-short">消息</span>
-          <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount }}</span>
-        </button>
-        <button
-          ref="collabBtnRef"
-          class="topbar-action-btn collaboration-btn"
-          aria-label="查看协作请求"
-          :aria-expanded="showCollabRequests"
-          title="查看协作请求"
-          @click.stop="toggleCollabRequests"
-        >
-          <span aria-hidden="true">[+]</span>
-          <span class="action-label action-label-long">协作请求</span>
-          <span class="action-label action-label-short">协作</span>
-          <span v-if="collabUnreadCount > 0" class="notification-badge collab-badge">{{ collabUnreadCount }}</span>
+          <svg class="bell-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 10a6 6 0 0 1 12 0c0 4.6 1.6 6.2 2.6 7H3.4C4.4 16.2 6 14.6 6 10z" />
+            <path d="M10 20a2 2 0 0 0 4 0" />
+          </svg>
+          <span v-if="badgeCount > 0" class="bell-badge">{{ badgeCount > 99 ? '99+' : badgeCount }}</span>
         </button>
       </template>
     </TopNav>
@@ -200,56 +188,79 @@
       </div>
     </div>
 
-    <!-- 通知列表 -->
-    <div v-if="showNotifications" ref="notificationDropdownRef" class="notification-dropdown" @click.stop>
-      <div class="notification-header">
-        <div>
-          <h3>消息通知</h3>
-          <span>{{ unreadCount }} 条未读</span>
-        </div>
-        <div class="notification-header-actions">
-          <button class="ghost small" @click="markAllAsRead">全部已读</button>
-          <button class="ghost small" @click="clearReadNotifications">清理已读</button>
-        </div>
+    <!-- 铃铛面板：消息 + 协作请求 -->
+    <div v-if="showBellPanel" ref="bellDropdownRef" class="bell-dropdown" @click.stop>
+      <div class="bell-tabs" role="tablist">
+        <button
+          class="bell-tab"
+          :class="{ active: activeTab === 'messages' }"
+          role="tab"
+          :aria-selected="activeTab === 'messages'"
+          @click="switchTab('messages')"
+        >
+          消息
+          <span v-if="messageUnreadCount > 0" class="tab-count">{{ messageUnreadCount > 99 ? '99+' : messageUnreadCount }}</span>
+        </button>
+        <button
+          class="bell-tab"
+          :class="{ active: activeTab === 'collab' }"
+          role="tab"
+          :aria-selected="activeTab === 'collab'"
+          @click="switchTab('collab')"
+        >
+          协作请求
+          <span v-if="pendingCollabCount > 0" class="tab-count">{{ pendingCollabCount > 99 ? '99+' : pendingCollabCount }}</span>
+        </button>
       </div>
-      <div class="notification-list">
-        <div v-if="notifications.length === 0" class="empty-notifications">
-          <p>暂无通知</p>
-        </div>
-        <div v-else v-for="notification in notifications" :key="notification.id" class="notification-item" :class="{ unread: !notification.isRead, actionable: notification.docId }" @click="openNotification(notification)">
-          <div class="notification-content">
-            <span class="notification-type">{{ notificationTypeLabel(notification.type) }}</span>
-            <p>{{ notification.message }}</p>
-            <blockquote v-if="notification.quoteText" class="notification-quote">{{ notification.quoteText }}</blockquote>
-            <span class="notification-time">{{ formatTime(notification.createdAt) }}</span>
-          </div>
-          <button v-if="!notification.isRead" class="icon-btn small" title="标记已读" @click.stop="markAsRead(notification.id)">✓</button>
-          <span v-else-if="notification.docId" class="notification-arrow">→</span>
-        </div>
-      </div>
-    </div>
 
-    <!-- 协作请求管理 -->
-    <div v-if="showCollabRequests" ref="collabDropdownRef" class="collab-requests-dropdown" @click.stop>
-      <div class="collab-requests-header">
-        <h3>协作请求</h3>
-        <button class="ghost small" @click="loadCollabRequests">刷新</button>
-      </div>
-      <div class="collab-requests-list">
-        <div v-if="collabRequests.length === 0" class="empty-requests">
-          <p>暂无协作请求</p>
-        </div>
-        <div v-else v-for="request in collabRequests" :key="request.id" class="collab-request-item">
-          <div class="collab-request-content">
-            <p><strong>{{ request.username }}</strong> 申请协作文档：<br>{{ request.title }}</p>
-            <span class="collab-request-time">{{ formatTime(request.createdAt) }}</span>
-          </div>
-          <div class="collab-request-actions">
-            <button class="icon-btn small accept-btn" @click="respondToCollaboration(request.id, 'approved')">✓</button>
-            <button class="icon-btn small reject-btn" @click="respondToCollaboration(request.id, 'rejected')">✗</button>
+      <template v-if="activeTab === 'messages'">
+        <div class="bell-pane-header">
+          <span>{{ messageUnreadCount }} 条未读</span>
+          <div class="bell-pane-actions">
+            <button class="ghost small" @click="markAllAsRead">全部已读</button>
+            <button class="ghost small" @click="clearReadNotifications">清理已读</button>
           </div>
         </div>
-      </div>
+        <div class="notification-list">
+          <div v-if="notifications.length === 0" class="empty-notifications">
+            <p>暂无通知</p>
+          </div>
+          <div v-else v-for="notification in notifications" :key="notification.id" class="notification-item" :class="{ unread: !notification.isRead, actionable: notification.docId }" @click="openNotification(notification)">
+            <div class="notification-content">
+              <span class="notification-type">{{ notificationTypeLabel(notification.type) }}</span>
+              <p>{{ notification.message }}</p>
+              <blockquote v-if="notification.quoteText" class="notification-quote">{{ notification.quoteText }}</blockquote>
+              <span class="notification-time">{{ formatTime(notification.createdAt) }}</span>
+            </div>
+            <button v-if="!notification.isRead" class="icon-btn small" title="标记已读" @click.stop="markAsRead(notification.id)">✓</button>
+            <span v-else-if="notification.docId" class="notification-arrow">→</span>
+          </div>
+        </div>
+      </template>
+
+      <template v-else>
+        <div class="bell-pane-header">
+          <span>{{ pendingCollabCount }} 条待处理</span>
+          <div class="bell-pane-actions">
+            <button class="ghost small" @click="loadCollabRequests">刷新</button>
+          </div>
+        </div>
+        <div class="collab-requests-list">
+          <div v-if="collabRequests.length === 0" class="empty-requests">
+            <p>暂无协作请求</p>
+          </div>
+          <div v-else v-for="request in collabRequests" :key="request.id" class="collab-request-item">
+            <div class="collab-request-content">
+              <p><strong>{{ request.username }}</strong> 申请协作文档：<br>{{ request.title }}</p>
+              <span class="collab-request-time">{{ formatTime(request.createdAt) }}</span>
+            </div>
+            <div class="collab-request-actions">
+              <button class="icon-btn small accept-btn" @click="respondToCollaboration(request.id, 'approved')">✓</button>
+              <button class="icon-btn small reject-btn" @click="respondToCollaboration(request.id, 'rejected')">✗</button>
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -264,10 +275,8 @@ import TopNav from '../components/TopNav.vue'
 
 const router = useRouter()
 const user = ref(getUser())
-const notificationBtnRef = ref(null)
-const collabBtnRef = ref(null)
-const notificationDropdownRef = ref(null)
-const collabDropdownRef = ref(null)
+const bellBtnRef = ref(null)
+const bellDropdownRef = ref(null)
 
 const docs = ref([])
 const loading = ref(true)
@@ -280,12 +289,10 @@ const loadingCollab = ref(true)
 const shareModal = ref(null)
 const shareLink = ref('')
 const sharePermission = ref('read')
-const showNotifications = ref(false)
+const showBellPanel = ref(false)
+const activeTab = ref('messages')
 const notifications = ref([])
-const unreadCount = ref(0)
-const showCollabRequests = ref(false)
 const collabRequests = ref([])
-const collabUnreadCount = ref(0)
 const showMcpModal = ref(false)
 const apiTokens = ref([])
 const loadingTokens = ref(false)
@@ -306,6 +313,15 @@ const mcpConfigSnippet = computed(() => JSON.stringify({
 }, null, 2))
 let ws = null
 
+// 角标口径：一条协作申请事件会同时产生「collaboration_request 通知」和「待处理请求」，
+// 两边都算就是同一事件计两次。约定：collaboration_request 类型的通知不进消息未读数，
+// 由待处理请求数独立代表它；批准/拒绝后待处理数下降，通知本身已处理不再计数。
+const pendingCollabCount = computed(() => collabRequests.value.length)
+const messageUnreadCount = computed(() =>
+  notifications.value.filter(n => !n.isRead && n.type !== 'collaboration_request').length
+)
+const badgeCount = computed(() => messageUnreadCount.value + pendingCollabCount.value)
+
 onMounted(() => {
   loadDocs()
   loadCollabDocs()
@@ -318,56 +334,121 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (ws) {
-    ws.close()
-  }
+  closeWebSocket()
   window.removeEventListener('click', handleGlobalClick)
 })
 
 function handleGlobalClick(e) {
   const t = e.target
-  const inNotificationBtn = notificationBtnRef.value?.contains?.(t)
-  const inNotificationDropdown = notificationDropdownRef.value?.contains?.(t)
-  const inCollabBtn = collabBtnRef.value?.contains?.(t)
-  const inCollabDropdown = collabDropdownRef.value?.contains?.(t)
+  const inBellBtn = bellBtnRef.value?.contains?.(t)
+  const inBellDropdown = bellDropdownRef.value?.contains?.(t)
 
-  if (showNotifications.value && !inNotificationBtn && !inNotificationDropdown) {
-    showNotifications.value = false
-  }
-  if (showCollabRequests.value && !inCollabBtn && !inCollabDropdown) {
-    showCollabRequests.value = false
+  if (showBellPanel.value && !inBellBtn && !inBellDropdown) {
+    showBellPanel.value = false
   }
 }
 
+// ==================== WebSocket 实时通知 ====================
+// 指数退避重连：1s → 2s → 4s → 8s → 16s，封顶 30s，加少量抖动
+// 避免多标签页同一时刻集体重连打爆服务端；连接成功后归零。
+const WS_BACKOFF_STEPS = [1000, 2000, 4000, 8000, 16000, 30000]
+const WS_HEARTBEAT_INTERVAL = 30000
+const WS_PONG_TIMEOUT = 10000
+let wsReconnectAttempts = 0
+let wsReconnectTimer = null
+let wsHeartbeatTimer = null
+let wsPongTimer = null
+let wsManualClose = false
+
 function setupWebSocket() {
   if (!user.value) return
-  
+  wsManualClose = false
+  connectWebSocket()
+}
+
+function connectWebSocket() {
+  clearTimeout(wsReconnectTimer)
   ws = new WebSocket(`${getWebSocketUrl('/notifications')}?userId=${user.value.id}`)
-  
+
   ws.onopen = () => {
-    console.log('WebSocket 连接已建立')
+    // 重连成功意味着断线期间可能漏推：全量拉一次对账，而不是指望服务端补发
+    const wasReconnect = wsReconnectAttempts > 0
+    wsReconnectAttempts = 0
+    startHeartbeat()
+    if (wasReconnect) {
+      loadNotifications()
+      loadCollabRequests()
+    }
   }
-  
+
   ws.onmessage = (event) => {
-    const data = JSON.parse(event.data)
+    let data
+    try {
+      data = JSON.parse(event.data)
+    } catch {
+      return
+    }
+    if (data.type === 'pong') return
     if (data.type === 'notification') {
       const existingIndex = notifications.value.findIndex(item => Number(item.id) === Number(data.data.id))
       if (existingIndex >= 0) notifications.value.splice(existingIndex, 1)
       notifications.value.unshift(data.data)
-      unreadCount.value = notifications.value.filter(item => !item.isRead).length
+      // 协作申请同时存在于服务端 pending 列表：重新拉取对账，不做本地 ++（会双重计数）
       if (data.data?.type === 'collaboration_request') {
-        collabUnreadCount.value++
+        loadCollabRequests()
       }
     }
   }
-  
+
   ws.onclose = () => {
-    console.log('WebSocket 连接已关闭')
+    stopHeartbeat()
+    if (wsManualClose) return
+    scheduleReconnect()
   }
-  
-  ws.onerror = (error) => {
-    console.error('WebSocket 错误:', error)
+
+  ws.onerror = () => {
+    // 出错后 onclose 必然跟随，重连统一收敛在 onclose 里
   }
+}
+
+function scheduleReconnect() {
+  clearTimeout(wsReconnectTimer)
+  const base = WS_BACKOFF_STEPS[Math.min(wsReconnectAttempts, WS_BACKOFF_STEPS.length - 1)]
+  wsReconnectAttempts++
+  const delay = Math.round(base * (1 + Math.random() * 0.2))
+  wsReconnectTimer = setTimeout(connectWebSocket, delay)
+}
+
+function startHeartbeat() {
+  stopHeartbeat()
+  wsHeartbeatTimer = setInterval(() => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    ws.send(JSON.stringify({ type: 'ping', ts: Date.now() }))
+    // 一个心跳周期没等到 pong 就判定链路已死：摘掉 onclose 防止双重调度，
+    // 强制关闭并立即进入退避重连
+    clearTimeout(wsPongTimer)
+    wsPongTimer = setTimeout(() => {
+      if (!ws) return
+      ws.onclose = null
+      try { ws.close() } catch { /* 已关闭则忽略 */ }
+      scheduleReconnect()
+    }, WS_PONG_TIMEOUT)
+  }, WS_HEARTBEAT_INTERVAL)
+}
+
+function stopHeartbeat() {
+  clearInterval(wsHeartbeatTimer)
+  clearTimeout(wsPongTimer)
+  wsHeartbeatTimer = null
+  wsPongTimer = null
+}
+
+function closeWebSocket() {
+  wsManualClose = true
+  stopHeartbeat()
+  clearTimeout(wsReconnectTimer)
+  if (ws) ws.close()
+  ws = null
 }
 
 async function loadDocs() {
@@ -546,21 +627,27 @@ function formatTime(t) {
 // 通知相关函数
 async function loadNotifications() {
   try {
-    const data = await api.getNotifications(user.value.id)
-    notifications.value = data
-    unreadCount.value = data.filter(n => !n.isRead).length
+    notifications.value = await api.getNotifications(user.value.id)
   } catch (e) {
     console.error(e)
   }
 }
 
-function toggleNotifications() {
-  showNotifications.value = !showNotifications.value
-  if (showNotifications.value) {
-    showCollabRequests.value = false
-    // 打开通知时加载最新通知
-    loadNotifications()
+function toggleBellPanel() {
+  showBellPanel.value = !showBellPanel.value
+  if (showBellPanel.value) {
+    // 打开时按当前 tab 拉最新数据；不清零计数——
+    // 角标 = 未读消息 + 待处理请求，都以服务端数据为准，处理完才减少
+    if (activeTab.value === 'messages') loadNotifications()
+    else loadCollabRequests()
   }
+}
+
+function switchTab(tab) {
+  if (activeTab.value === tab) return
+  activeTab.value = tab
+  if (tab === 'messages') loadNotifications()
+  else loadCollabRequests()
 }
 
 async function markAsRead(notificationId) {
@@ -570,7 +657,6 @@ async function markAsRead(notificationId) {
     const notification = notifications.value.find(n => n.id === notificationId)
     if (notification) {
       notification.isRead = 1
-      unreadCount.value = Math.max(0, unreadCount.value - 1)
     }
   } catch (e) {
     console.error(e)
@@ -581,7 +667,6 @@ async function markAllAsRead() {
   try {
     await api.markAllNotificationsRead(user.value.id)
     notifications.value.forEach(notification => { notification.isRead = 1 })
-    unreadCount.value = 0
   } catch (e) {
     console.error(e)
   }
@@ -599,7 +684,7 @@ async function clearReadNotifications() {
 async function openNotification(notification) {
   if (!notification.isRead) await markAsRead(notification.id)
   if (!notification.docId) return
-  showNotifications.value = false
+  showBellPanel.value = false
   const query = notification.commentId ? { comment: notification.commentId } : undefined
   try {
     const doc = await api.getDoc(notification.docId, user.value.id)
@@ -622,18 +707,8 @@ function notificationTypeLabel(type) {
 async function loadCollabRequests() {
   try {
     collabRequests.value = await api.getCollaborationRequests(user.value.id)
-    collabUnreadCount.value = collabRequests.value.length
   } catch (e) {
     console.error(e)
-  }
-}
-
-function toggleCollabRequests() {
-  showCollabRequests.value = !showCollabRequests.value
-  if (showCollabRequests.value) {
-    showNotifications.value = false
-    loadCollabRequests()
-    collabUnreadCount.value = 0
   }
 }
 
@@ -653,68 +728,113 @@ async function respondToCollaboration(requestId, status) {
   min-height: 100vh;
   background: var(--bg-gray);
 }
-/* 导航栏样式已上移到 components/TopNav.vue，此页只保留右侧动作区的样式。 */
-.notification-btn {
+/* 铃铛按钮：纯图标 + 右上角红色数字角标 */
+.bell-btn {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  padding: 5px 0;
 }
-.topbar-action-btn {
-  position: relative;
-  min-height: 34px;
-  padding: 5px 9px;
-  white-space: nowrap;
+.bell-icon {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
 }
-.action-label-short {
-  display: none;
-}
-.notification-badge {
+.bell-badge {
   position: absolute;
   top: -6px;
-  right: -6px;
+  right: -7px;
   background: #ff4757;
   color: #fff;
   font-size: 10px;
   font-weight: 600;
-  padding: 2px 6px;
+  line-height: 1;
+  padding: 2px 5px;
   border-radius: 10px;
-  min-width: 16px;
+  min-width: 15px;
   text-align: center;
+  box-sizing: border-box;
 }
 .username {
   font-size: 14px;
   color: var(--text-secondary);
 }
-.notification-dropdown {
+/* 单个铃铛下拉面板：顶部两个 tab，下方是各自列表 */
+.bell-dropdown {
   position: absolute;
   top: 60px;
   right: 24px;
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-  width: 320px;
-  max-height: 400px;
+  width: 360px;
+  max-height: 420px;
   overflow-y: auto;
   z-index: 1000;
 }
-.notification-header {
+.bell-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 1;
+}
+.bell-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.bell-tab:hover {
+  background: var(--bg-gray);
+}
+.bell-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+.tab-count {
+  background: #ff4757;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 8px;
+  min-width: 14px;
+  text-align: center;
+}
+.bell-pane-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--border);
 }
-.notification-header h3 {
-  margin: 0;
-  font-size: 16px;
-}
-.notification-header > div:first-child span {
+.bell-pane-header > span {
   color: var(--text-muted);
   font-size: 11px;
 }
-.notification-header-actions {
+.bell-pane-actions {
   display: flex;
   gap: 4px;
 }
-.notification-header .ghost.small {
+.bell-pane-header .ghost.small {
   font-size: 12px;
   padding: 4px 8px;
 }
@@ -783,36 +903,6 @@ async function respondToCollaboration(requestId, status) {
   width: 24px;
   height: 24px;
   font-size: 12px;
-}
-.collaboration-btn {
-  position: relative;
-}
-.collab-badge {
-  top: -6px;
-  right: -6px;
-}
-.collab-requests-dropdown {
-  position: absolute;
-  top: 60px;
-  right: 80px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-  width: 360px;
-  max-height: 400px;
-  overflow-y: auto;
-  z-index: 1000;
-}
-.collab-requests-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid var(--border);
-}
-.collab-requests-header h3 {
-  margin: 0;
-  font-size: 16px;
 }
 .collab-requests-list {
   padding: 8px 0;
@@ -1122,14 +1212,9 @@ async function respondToCollaboration(requestId, status) {
 }
 
 @media (max-width: 760px) {
-  .topbar-action-btn {
-    padding-inline: 7px;
-  }
-  .action-label-long {
-    display: none;
-  }
-  .action-label-short {
-    display: inline;
+  .bell-dropdown {
+    right: 12px;
+    width: min(360px, calc(100vw - 24px));
   }
   .toolbar-actions {
     gap: 6px;

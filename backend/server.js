@@ -1924,13 +1924,28 @@ server.on('upgrade', (request, socket, head) => {
         });
     } else if (url.pathname.startsWith('/notifications')) {
         // 处理通知的 WebSocket 连接
-        const userId = url.searchParams.get('userId');
-        if (!userId) {
+        // 必须规范化成数字：userConnections 的写入 key 来自这里的查询参数（字符串），
+        // 而读取 key 来自 SQLite 的 ownerId（数字），Map 严格区分类型，
+        // 字符串 key 会让 sendNotificationToUser 永远查不到连接、实时推送全部落空。
+        const userId = Number(url.searchParams.get('userId'));
+        if (!Number.isInteger(userId) || userId <= 0) {
             socket.destroy();
             return;
         }
         
         wss.handleUpgrade(request, socket, head, (ws) => {
+            // 心跳应答：客户端每 30s 发 {type:'ping'}，回 pong 供其判定链路存活；
+            // 非 JSON 或其他类型消息一律忽略，不影响通知推送
+            ws.on('message', (raw) => {
+                try {
+                    const msg = JSON.parse(raw.toString());
+                    if (msg && msg.type === 'ping') {
+                        ws.send(JSON.stringify({ type: 'pong', ts: Date.now() }));
+                    }
+                } catch {
+                    // 非 JSON 消息忽略
+                }
+            });
             // 存储用户连接
             if (!userConnections.has(userId)) {
                 userConnections.set(userId, new Set());
