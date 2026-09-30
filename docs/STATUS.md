@@ -13,6 +13,7 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 ## 已完成
 
 - 2026-09-30：工作台顶栏「消息通知」「协作请求」两个按钮合并为一个铃铛图标（纯 SVG 描边图标 + 红色数字角标），点击打开单个下拉面板，内含「消息 / 协作请求」两个 tab，原有两个列表的全部操作（标记已读、全部已读、清理已读、点击跳转、批准/拒绝、刷新）保留。角标口径 = 未读消息（排除 `collaboration_request` 类型）+ 待处理协作请求数，消除同一协作申请事件被通知与 pending 列表双重计数的问题；打开面板不清零计数，一切以服务端数据为准。通知 WebSocket 补齐常规实时消息机制：前端 30s 心跳（pong 超时判定断线）、指数退避重连（1s→2s→4s→8s→16s 封顶 30s，带抖动，连上归零）、重连成功后全量拉取对账；后端收到 `{type:'ping'}` 回 `{type:'pong'}`，非 JSON 消息忽略不断连。顺带修复一个存在已久的实时推送 bug：`userConnections` Map 的 key 在注册时是字符串（查询参数）、推送时是数字（SQLite ownerId），类型不匹配导致 `sendNotificationToUser` 永远查不到连接、实时通知从未真正送达；现已在 upgrade 时把 userId 规范化为正整数。
+- 修复部署验收脚本的通知 WebSocket 探针：后端加固后要求 `/notifications` 的 `userId` 为合法正整数（否则 `socket.destroy()`），原探针 `?userId=healthcheck` 被判非法，握手报 socket hang up / 502，导致部署 job 的「发布并验证」失败、`run/deployed-commit` 不更新。改用不存在的哨兵 id `999999`，避免占用真实用户的 `userConnections`；服务器本地直连实测 `999999` connected、`healthcheck` socket hang up。
 - 图标已按用户指定更换为艺术照片（蓝塔楼中发光窗户与人影，光束射向暮色天空）：整图裁 647×647 方形，对比 +8%、饱和 +15% 轻度增强，favicon 256 / logo 512 同图，favicon 缓存版本号升至 v12。16px 下橙窗与蓝底的暖冷对比清晰可辨（34/256 像素 R-B>60，暖色对比峰值 180）。
 - 图标整体重设计：原照片（手伸向光）在 16px 标签页下糊成暗块，改为符号化几何剪影——深墨绿底板（#10241D）+ 暖白手形（#F4F1E8）+ 荧光黄绿光斑（#D8FF8A），配色贴合站点黑绿像素风。AI 生成底图后清除水印，favicon 与页头 logo 使用同一构图（256/512），favicon 缓存版本号升至 v11。16px/36px 实测预览均清晰可辨「手向光伸」。
 - 页头与登录页的 `lumi-logo.png` 已同步更换为同一张伸手向光图片（中心裁方缩放为 512×512），与 favicon（v10）保持一致；logo 引用未带版本参数，但后端对非 `assets/` 静态资源返回 `no-cache`，覆盖文件后浏览器刷新即生效。
@@ -219,6 +220,7 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 2026-09-30：页头 logo 同步更换通过前端生产构建；`lumi-logo.png`（512×512）为纯静态资源覆盖，后端确认非 `assets/` 静态资源走 `no-cache`，无缓存失效风险。
 - 2026-09-30：图标重设计通过前端生产构建；16px 量化检查（亮度跨度 4–253，前景 59/256 像素）、16px/36px NEAREST 放大预览均确认「手 + 光」可辨，水印区域修复后 min 通道回到底板水平。
 - 2026-09-30：图标更换为用户指定艺术照片通过前端生产构建；16px 量化（暖色像素 34/256、R-B 峰值 180）与 16px/36px NEAREST 预览确认窗光可辨。
+- 2026-09-30：定位 CI 部署验收失败根因——非本次图标改动。3f87025 的 run 失败在「构建检查」的 `npm test --prefix backend`（本地同命令 31/31 通过，属间歇失败，bee3a18 的同一步已 success）；bee3a18 的 run 失败在部署 job 的「发布并验证」，服务器本地直连实测 `/notifications?userId=healthcheck` 为 socket hang up、`/ws/verify-room` 正常，确认是后端 userId 校验与验收探针不匹配，非隧道问题。
 - 2026-09-30：`6e7295d` 的表格宽度模式已通过 CI/CD 构建与 GPU 部署（`构建检查` 与 `部署到 GPU 服务器` 均 success）；服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 11 个业务表，`write-here` 与 `cloudflared-write-here` 均 RUNNING）；线上 `index-CtZxpfJ2.css` 实测含 `data-table-width=full]{width:100%!important;table-layout:fixed}` 与 `data-table-width=auto]{width:auto!important;min-width:0!important;table-layout:auto}` 两条规则，`outlineNavigation` 产物含 `表格宽度`、`适应窗口宽度`、`widthMode`，CSS 公网可访问（200）。
 - 2026-09-30：铃铛合并改造通过 `node --check backend/server.js` 与前端生产构建；隔离实例（`PORT=3290` + 临时 SQLite）接口级 E2E 11 项全过——建公开文档、B 申请协作后 A 的通知 WS 实时收到 `collaboration_request` 推送（修复前同一脚本该步骤超时失败，可复现 bug）、心跳 ping→pong、通知列表与 pending 协作列表对账一致、批准后 pending 清空、非法消息后链路仍存活。
 - 2026-09-30：无头 Chrome + CDP 加载真实构建产物（隔离后端托管 `frontend/dist` + localStorage 登录态）浏览器验收 13 项全过：铃铛渲染、角标计数 = 消息未读 1 + 待协作 1 = 2（`collaboration_request` 通知未重复计入）、面板双 tab 计数正确、协作 tab 显示申请人与批准/拒绝按钮、批准后角标降为 1、标记已读后角标消失、另一用户再发协作申请时**未刷新页面**角标与协作列表经 WS 实时更新。截图与验收脚本在 `run/`（已忽略），临时 DB/profile 已清理。

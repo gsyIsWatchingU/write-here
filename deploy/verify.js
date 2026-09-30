@@ -53,12 +53,18 @@ function checkDatabase() {
   });
 }
 
+// 通知 WebSocket 的探针 userId 必须是合法正整数：后端在 upgrade 阶段会把查询参数
+// Number() 后校验 Number.isInteger && > 0，传 'healthcheck' 这类字符串会被直接
+// socket.destroy()，握手表现为 socket hang up（经隧道是 502）。这里用不存在的哨兵
+// id，避免探针占用真实用户的 userConnections 集合。
+const NOTIFY_PROBE_USER_ID = 999999;
+
 async function main() {
   await checkHttp('/health');
   await checkHttp('/');
   await checkHttp('/login');
   await checkWebSocket('/ws/verify-room');
-  await checkWebSocket('/notifications?userId=healthcheck');
+  await checkWebSocket(`/notifications?userId=${NOTIFY_PROBE_USER_ID}`);
   await checkDatabase();
   console.log('WriteHere 部署验证通过');
 }
