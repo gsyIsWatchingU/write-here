@@ -249,4 +249,12 @@ export const api = {
 
   polishDocument: (content, instruction) =>
     request('/ai/polish', { method: 'POST', body: JSON.stringify({ content, instruction }) }),
+
+  // 个人设置：昵称 + AI 模型接入（API 地址 / Key / 模型）。
+  // Key 只在保存时提交，读取接口只回掩码；清空 Key 用 { ai: { clearApiKey: true } }。
+  getSettings: () =>
+    request('/settings'),
+
+  saveSettings: (patch) =>
+    request('/settings', { method: 'PUT', body: JSON.stringify(patch) }),
 }

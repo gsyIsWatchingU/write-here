@@ -26,6 +26,13 @@ async function startServer({ config, polishImpl } = {}) {
             userId INTEGER NOT NULL,
             expiresAt DATETIME NOT NULL
         );
+        CREATE TABLE user_settings (
+            userId INTEGER PRIMARY KEY,
+            aiBaseUrl TEXT NOT NULL DEFAULT '',
+            aiApiKey TEXT NOT NULL DEFAULT '',
+            aiModel TEXT NOT NULL DEFAULT '',
+            updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
         INSERT INTO users (id, username) VALUES (1, 'tester');
         INSERT INTO sessions (token, userId, expiresAt) VALUES ('good-token', 1, datetime('now', '+1 day'));
         INSERT INTO sessions (token, userId, expiresAt) VALUES ('old-token', 1, datetime('now', '-1 day'));
@@ -333,4 +340,54 @@ test('润色接口未配置时返回 503，CLI 故障返回 502', async (t) => {
     const failed = await requestJson(brokenCtx.base, '/ai/polish', { method: 'POST', body: { content: 'x', instruction: 'y' } });
     assert.equal(failed.status, 502);
     assert.match((await failed.json()).error, /claude CLI/);
+});
+
+test('用户个人 AI 配置优先：服务器未配置时也算已配置，并报告个人模型', async (t) => {
+    const ctx = await startServer({
+        config: aiPolishConfig({}),
+        polishImpl: async ({ config }) => {
+            // 断言个人配置已合并进调用配置
+            assert.equal(config.baseUrl, 'https://user-api.example');
+            assert.equal(config.apiKey, 'user-key-1');
+            assert.equal(config.model, 'user-model');
+            return { markdown: '# 润色后' };
+        },
+    });
+    t.after(ctx.close);
+
+    // 给 tester 用户写入个人 AI 配置
+    await new Promise((resolve, reject) => ctx.db.run(
+        `INSERT INTO user_settings (userId, aiBaseUrl, aiApiKey, aiModel) VALUES (1, 'https://user-api.example/', 'user-key-1', 'user-model')`,
+        (err) => err ? reject(err) : resolve()
+    ));
+
+    const status = await requestJson(ctx.base, '/ai/polish/config');
+    assert.equal(status.status, 200);
+    const statusBody = await status.json();
+    assert.equal(statusBody.configured, true);
+    assert.equal(statusBody.model, 'user-model');
+
+    const ok = await requestJson(ctx.base, '/ai/polish', { method: 'POST', body: { content: 'x', instruction: 'y' } });
+    assert.equal(ok.status, 200);
+});
+
+test('用户个人配置只覆盖已填写的字段，未填的字段回退服务器环境变量', async (t) => {
+    const ctx = await startServer({
+        config: configuredConfig({ model: 'server-model' }),
+        polishImpl: async ({ config }) => {
+            assert.equal(config.baseUrl, 'https://user-api.example');
+            assert.equal(config.apiKey, 'sk-third-party'); // 服务器 Key，用户未填写
+            assert.equal(config.model, 'server-model');     // 服务器模型，用户未填写
+            return { markdown: '# 润色后' };
+        },
+    });
+    t.after(ctx.close);
+
+    await new Promise((resolve, reject) => ctx.db.run(
+        `INSERT INTO user_settings (userId, aiBaseUrl, aiApiKey, aiModel) VALUES (1, 'https://user-api.example/', '', '')`,
+        (err) => err ? reject(err) : resolve()
+    ));
+
+    const ok = await requestJson(ctx.base, '/ai/polish', { method: 'POST', body: { content: 'x', instruction: 'y' } });
+    assert.equal(ok.status, 200);
 });

@@ -10,6 +10,7 @@ const { authenticateSession } = require('./authSession');
 const { createMcpRouter, migrateMcp, stripHtml } = require('./mcp');
 const { createAsrRouter } = require('./asr');
 const { createAiPolishRouter } = require('./aiPolish');
+const { createUserSettingsRouter } = require('./userSettings');
 const { createImageUploadRouter, migrateImages } = require('./imageUpload');
 const { createDocumentOrderRouter, migrateDocumentOrder } = require('./documentOrder');
 const {
@@ -171,6 +172,19 @@ function initDatabase() {
                 FOREIGN KEY (docId) REFERENCES docs(id) ON DELETE CASCADE,
                 FOREIGN KEY (userId) REFERENCES users(id),
                 FOREIGN KEY (parentId) REFERENCES comments(id) ON DELETE CASCADE
+            )
+        `);
+
+        // 个人设置：昵称存 users.displayName，AI 模型接入配置（API 地址/Key/模型）存这里。
+        // API Key 原文保存（后端润色要拿它调用模型 API），读取接口只回掩码。
+        db.run(`
+            CREATE TABLE IF NOT EXISTS user_settings (
+                userId INTEGER PRIMARY KEY,
+                aiBaseUrl TEXT NOT NULL DEFAULT '',
+                aiApiKey TEXT NOT NULL DEFAULT '',
+                aiModel TEXT NOT NULL DEFAULT '',
+                updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
             )
         `);
 
@@ -713,8 +727,11 @@ app.use('/mcp/:secret', async (req, res, next) => {
 });
 // 语音转写：浏览器录音上传到本站后端，再转发给同机 GPU 上的 ASR 服务
 app.use(createAsrRouter({ db }));
-// AI 润色：后端在本机调用 claude CLI，通过 ANTHROPIC_BASE_URL / ANTHROPIC_API_KEY 接入 GPU 模型 API
+// AI 润色：后端在本机调用 claude CLI，通过 ANTHROPIC_BASE_URL / ANTHROPIC_API_KEY 接入 GPU 模型 API；
+// 个人设置的 AI 配置优先于服务器环境变量（见 userSettings.js / aiPolish.js）
 app.use(createAiPolishRouter({ db }));
+// 个人设置：昵称 + AI 模型接入（API 地址 / Key / 模型），AI 润色按用户合并配置
+app.use(createUserSettingsRouter({ db }));
 // 文档插图：二进制落在 db/uploads（内容寻址、不可变），元数据进 images 表
 const uploadsDir = process.env.UPLOAD_DIR || path.join(__dirname, '../db/uploads');
 app.use(createImageUploadRouter({ db, uploadDir: uploadsDir }));

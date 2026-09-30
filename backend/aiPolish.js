@@ -1,6 +1,7 @@
 const express = require('express');
 const { spawn } = require('child_process');
 const { authenticateSession } = require('./authSession');
+const { loadUserAiSettings, mergeUserAiConfig } = require('./userSettings');
 
 const DEFAULT_CLI_PATH = 'claude';
 const DEFAULT_TIMEOUT_MS = 180000;
@@ -123,12 +124,15 @@ function createAiPolishRouter({ db, config = aiPolishConfig(), polishImpl = poli
     const router = express.Router();
 
     // 供前端判断按钮可用性；不返回任何密钥信息。
+    // configured = 服务器环境变量已配置 或 当前用户已配置个人 AI 设置；
+    // model 优先取用户个人设置的模型，其次服务器环境变量。
     router.get('/ai/polish/config', async (req, res) => {
         const user = await authenticateSession(db, req);
         if (!user) return res.status(401).json({ error: '登录已过期，请重新登录' });
+        const userSettings = await loadUserAiSettings(db, user.id);
         res.json({
-            configured: Boolean(config.apiKey || config.baseUrl),
-            model: config.model || null,
+            configured: Boolean(config.apiKey || config.baseUrl) || Boolean(userSettings.aiApiKey || userSettings.aiBaseUrl),
+            model: userSettings.aiModel || config.model || null,
         });
     });
 
@@ -151,7 +155,10 @@ function createAiPolishRouter({ db, config = aiPolishConfig(), polishImpl = poli
         }
 
         try {
-            const result = await polishImpl({ content, instruction, config });
+            // 个人设置的 AI 配置（API 地址 / Key / 模型）优先，未设置的字段回退到服务器环境变量
+            const userSettings = await loadUserAiSettings(db, user.id);
+            const mergedConfig = mergeUserAiConfig(config, userSettings);
+            const result = await polishImpl({ content, instruction, config: mergedConfig });
             res.json(result);
         } catch (error) {
             const status = error instanceof AiPolishError ? error.status : 500;
