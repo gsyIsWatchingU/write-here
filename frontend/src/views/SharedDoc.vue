@@ -511,7 +511,7 @@ onBeforeUnmount(() => {
     z-index: 210;
     width: 100%;
     max-height: 72vh;
-    padding: 14px;
+    padding: 10px 14px;
     transform: translateY(105%);
     transition: transform .2s ease;
     box-shadow: 0 -5px 0 rgba(0, 0, 0, .12);

@@ -1,17 +1,14 @@
 <template>
   <section class="comments-section">
     <div class="comments-header">
-      <div>
-        <span class="eyebrow">DISCUSSION</span>
-        <h2>评论 <span>{{ threads.length }}</span></h2>
-      </div>
+      <h2>评论 <span>{{ threads.length }}</span></h2>
       <label class="resolved-toggle">
         <input v-model="showResolved" type="checkbox" />
         显示已解决
       </label>
     </div>
 
-    <div v-if="user" class="comment-composer" :class="{ anchored: pendingAnchor }">
+    <div v-if="user" class="comment-composer" :class="{ anchored: pendingAnchor, collapsed: composerCollapsed }">
       <div v-if="pendingAnchor" class="selected-quote">
         <span>评论原文</span>
         <blockquote>{{ pendingAnchor.quoteText }}</blockquote>
@@ -20,9 +17,11 @@
       <textarea
         ref="commentInput"
         v-model="commentContent"
-        rows="3"
+        :rows="composerCollapsed ? 1 : 3"
         maxlength="2000"
         :placeholder="pendingAnchor ? '评论选中的内容，输入 @用户名 可提及对方' : '评论整篇文档，输入 @用户名 可提及对方'"
+        @focus="composerFocused = true"
+        @blur="composerFocused = false"
         @keydown.ctrl.enter="addComment()"
       ></textarea>
       <div class="composer-footer">
@@ -142,6 +141,8 @@ const showResolved = ref(false)
 const loading = ref(true)
 const submitting = ref(false)
 const activeCommentId = ref(null)
+const composerFocused = ref(false)
+const composerCollapsed = computed(() => !props.pendingAnchor && !composerFocused.value && !commentContent.value)
 let anchorPluginRegistered = false
 let anchorSaveTimer = null
 const dirtyAnchors = new Map()
@@ -407,32 +408,34 @@ function focusThread(commentId, scrollText) {
 <style scoped>
 .comments-section { width: 100%; min-width: 0; }
 .comments-header, .composer-footer, .reply-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.comments-header { position: sticky; top: 0; z-index: 2; padding: 2px 2px 13px; background: var(--bg); border-bottom: 1px solid var(--border-soft); }
-.eyebrow { color: var(--text-muted); font-size: 10px; letter-spacing: .14em; }
-h2 { margin: 2px 0 0; font-size: 17px; } h2 span { color: var(--text-muted); font-weight: 400; }
+.comments-header { position: sticky; top: 0; z-index: 2; padding: 2px 2px 8px; background: var(--bg); border-bottom: 1px solid var(--border-soft); }
+h2 { margin: 0; font-size: 15px; } h2 span { color: var(--text-muted); font-weight: 400; }
 .resolved-toggle { display: flex; flex: none; gap: 6px; align-items: center; color: var(--text-secondary); font-size: 11px; white-space: nowrap; }
-.resolved-toggle input { width: 14px; height: 14px; padding: 0; accent-color: var(--primary-strong); }
-.comment-composer { margin-top: 16px; padding: 12px; background: var(--bg-gray); border: 1px solid var(--border-soft); }
+.resolved-toggle input { width: 13px; height: 13px; padding: 0; accent-color: var(--primary-strong); }
+.comment-composer { margin-top: 8px; padding: 6px 10px; background: var(--bg-gray); border: 1px solid var(--border-soft); }
 .comment-composer:focus-within { border-color: var(--border); outline: 2px solid var(--primary); outline-offset: 2px; }
 .comment-composer.anchored { border-left: 3px solid var(--primary-strong); }
-textarea { width: 100%; min-height: 76px; padding: 2px 0; resize: vertical; border: 0; background: transparent; line-height: 1.65; outline: none; }
-.composer-footer { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--border-soft); }
+.comment-composer textarea, .reply-composer textarea { width: 100%; padding: 2px 0; resize: vertical; border: 0; background: transparent; line-height: 1.5; outline: none; }
+.comment-composer.collapsed textarea { min-height: 26px; }
+.comment-composer:not(.collapsed) textarea { min-height: 58px; }
+.composer-footer { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-soft); }
+.comment-composer.collapsed .composer-footer { display: none; }
 .composer-footer span { color: var(--text-muted); font-size: 10px; }
-.composer-footer .primary { min-height: 34px; padding: 6px 12px; }
-.selected-quote, .thread-quote { margin-bottom: 9px; }
+.composer-footer .primary { min-height: 28px; padding: 3px 10px; font-size: 12px; }
+.selected-quote, .thread-quote { margin-bottom: 6px; }
 .selected-quote > span, .thread-quote > span { color: var(--primary-strong); font-size: 10px; }
-blockquote { max-height: 82px; margin: 5px 0; padding: 6px 9px; overflow: hidden; color: var(--text-secondary); background: var(--bg); border-left: 3px solid var(--primary); font-size: 12px; line-height: 1.55; }
+blockquote { max-height: 60px; margin: 3px 0; padding: 4px 8px; overflow: hidden; color: var(--text-secondary); background: var(--bg); border-left: 3px solid var(--primary); font-size: 12px; line-height: 1.45; }
 .thread-quote blockquote { background: var(--surface-hover); }
 .text-action { min-height: auto; padding: 0; color: var(--text-muted); background: none; border: 0; font-size: 11px; }
-.comment-thread { margin-top: 12px; padding: 12px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; }
+.comment-thread { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; }
 .comment-thread:hover { border-color: var(--primary-strong); }
 .comment-thread.resolved { opacity: .62; }
-.comment-thread.focused { outline: 3px solid var(--primary); }
+.comment-thread.focused { outline: 2px solid var(--primary); }
 .comment-thread.orphaned { border-style: dashed; }
-.reply-list { margin: 10px 0 0 18px; padding-left: 10px; border-left: 2px solid var(--primary); }
-.reply-composer { margin: 10px 0 0 18px; padding: 9px; background: var(--surface-hover); border: 1px solid var(--border); }
-.reply-actions { justify-content: flex-end; margin-top: 7px; }
-.comment-empty { margin-top: 12px; padding: 26px 12px; text-align: center; color: var(--text-muted); border-top: 1px solid var(--border-soft); }
-.login-prompt { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 16px; padding: 16px 12px; color: var(--text-muted); background: var(--bg-gray); border: 1px solid var(--border-soft); }
-@media (max-width: 760px) { .reply-list, .reply-composer { margin-left: 8px; } }
+.reply-list { margin: 6px 0 0 14px; padding-left: 8px; border-left: 2px solid var(--primary); }
+.reply-composer { margin: 6px 0 0 14px; padding: 6px 8px; background: var(--surface-hover); border: 1px solid var(--border); }
+.reply-actions { justify-content: flex-end; margin-top: 5px; }
+.comment-empty { margin-top: 8px; padding: 16px 12px; text-align: center; color: var(--text-muted); border-top: 1px solid var(--border-soft); font-size: 12px; }
+.login-prompt { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 8px; padding: 10px 12px; color: var(--text-muted); background: var(--bg-gray); border: 1px solid var(--border-soft); font-size: 12px; }
+@media (max-width: 760px) { .reply-list, .reply-composer { margin-left: 6px; } }
 </style>

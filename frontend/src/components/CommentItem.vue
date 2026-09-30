@@ -46,15 +46,15 @@ function formatTime(value) {
 </script>
 
 <style scoped>
-.comment-item { display: flex; gap: 10px; padding: 7px 0; }
-.comment-avatar { width: 28px; height: 28px; display: grid; place-items: center; flex: none; color: var(--text); background: var(--primary); border: 1px solid var(--border); font-size: 12px; font-weight: 800; }
+.comment-item { display: flex; gap: 8px; padding: 4px 0; }
+.comment-avatar { width: 24px; height: 24px; display: grid; place-items: center; flex: none; color: var(--text); background: var(--primary); border: 1px solid var(--border); font-size: 11px; font-weight: 800; }
 .comment-body { flex: 1; min-width: 0; }
-.comment-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; }
+.comment-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 11.5px; }
 .comment-meta span { color: var(--text-muted); }
-.comment-meta .resolved-badge { padding: 1px 6px; color: var(--text); background: var(--primary); border: 1px solid var(--border); }
-p { margin: 7px 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); font-size: 14px; line-height: 1.65; }
-.comment-actions { display: flex; flex-wrap: wrap; gap: 12px; }
-.text-action { min-height: auto; padding: 0; color: var(--text-muted); background: none; border: 0; font-size: 12px; }
+.comment-meta .resolved-badge { padding: 0 5px; color: var(--text); background: var(--primary); border: 1px solid var(--border); font-size: 10px; }
+p { margin: 3px 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); font-size: 13.5px; line-height: 1.5; }
+.comment-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.text-action { min-height: auto; padding: 0; color: var(--text-muted); background: none; border: 0; font-size: 11.5px; }
 .text-action:hover, .text-action.active { color: var(--primary-strong); background: none; }
 .text-action.danger-text:hover { color: #b42318; }
 </style>

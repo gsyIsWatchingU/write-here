@@ -1144,7 +1144,7 @@ function copyLink() {
     width: 100%;
     max-height: 72vh;
     margin: 0;
-    padding: 14px;
+    padding: 10px 14px;
     transform: translateY(105%);
     transition: transform .2s ease;
     border-top: 2px solid var(--border);
