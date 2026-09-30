@@ -12,6 +12,7 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 ## 已完成
 
+- 图标已按用户指定更换为艺术照片（蓝塔楼中发光窗户与人影，光束射向暮色天空）：整图裁 647×647 方形，对比 +8%、饱和 +15% 轻度增强，favicon 256 / logo 512 同图，favicon 缓存版本号升至 v12。16px 下橙窗与蓝底的暖冷对比清晰可辨（34/256 像素 R-B>60，暖色对比峰值 180）。
 - 图标整体重设计：原照片（手伸向光）在 16px 标签页下糊成暗块，改为符号化几何剪影——深墨绿底板（#10241D）+ 暖白手形（#F4F1E8）+ 荧光黄绿光斑（#D8FF8A），配色贴合站点黑绿像素风。AI 生成底图后清除水印，favicon 与页头 logo 使用同一构图（256/512），favicon 缓存版本号升至 v11。16px/36px 实测预览均清晰可辨「手向光伸」。
 - 页头与登录页的 `lumi-logo.png` 已同步更换为同一张伸手向光图片（中心裁方缩放为 512×512），与 favicon（v10）保持一致；logo 引用未带版本参数，但后端对非 `assets/` 静态资源返回 `no-cache`，覆盖文件后浏览器刷新即生效。
 - 浏览器 favicon 已更换为用户提供的图片（伸手向光的照片）：中心裁正方形后缩放为 256×256 覆盖 `frontend/public/lumi-icon.png`，`index.html` 缓存版本号升至 v10；页头与登录页的 `lumi-logo.png` 保持不变。
@@ -216,4 +217,5 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 2026-09-30：表格宽度模式（块操作柄 → 「表格宽度」→ 适应窗口宽度 / 适应内容）：模式值存在 table 节点的 `widthMode` 属性上（默认 `full`，与加属性之前的 `width: 100%` 表现一致，老文档无需迁移），实时渲染由新增的 `TableWidthView`（继承 `prosemirror-tables` 的 `TableView`，`extensions/docTable.js`）在基类每次重写 `table.style.width / min-width` 之后写成 `<table data-table-width="...">`，导出与粘贴的 HTML 由属性自身的 `renderHTML` 输出同一个属性，两条路径共用 `style.css` 里按 `data-table-width` 的两条规则（`full` 用 `width:100%!important` 压住内联列宽，`auto` 同时切回 `table-layout:auto` 并按内容收窄）。两条 `columnResizing` 注册路径（Table 自己注册的、以及编辑器初始不可编辑时 `extensions/resizableTable.js` 补注册的）都带上同一个 `View`，否则实时渲染拿不到 data 属性。切换走 `setNodeMarkup`，只改表格节点属性、不动单元格内容；模式没变时不发事务，避免协同场景广播空更新。菜单保持展开，方便两个模式来回对照。
 - 2026-09-30：页头 logo 同步更换通过前端生产构建；`lumi-logo.png`（512×512）为纯静态资源覆盖，后端确认非 `assets/` 静态资源走 `no-cache`，无缓存失效风险。
 - 2026-09-30：图标重设计通过前端生产构建；16px 量化检查（亮度跨度 4–253，前景 59/256 像素）、16px/36px NEAREST 放大预览均确认「手 + 光」可辨，水印区域修复后 min 通道回到底板水平。
+- 2026-09-30：图标更换为用户指定艺术照片通过前端生产构建；16px 量化（暖色像素 34/256、R-B 峰值 180）与 16px/36px NEAREST 预览确认窗光可辨。
 - 2026-09-30：`6e7295d` 的表格宽度模式已通过 CI/CD 构建与 GPU 部署（`构建检查` 与 `部署到 GPU 服务器` 均 success）；服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 11 个业务表，`write-here` 与 `cloudflared-write-here` 均 RUNNING）；线上 `index-CtZxpfJ2.css` 实测含 `data-table-width=full]{width:100%!important;table-layout:fixed}` 与 `data-table-width=auto]{width:auto!important;min-width:0!important;table-layout:auto}` 两条规则，`outlineNavigation` 产物含 `表格宽度`、`适应窗口宽度`、`widthMode`，CSS 公网可访问（200）。
