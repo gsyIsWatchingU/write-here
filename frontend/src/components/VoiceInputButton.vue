@@ -4,7 +4,7 @@
       type="button"
       class="icon-btn voice-btn"
       :class="{ recording, transcribing }"
-      :disabled="transcribing"
+      :aria-busy="transcribing ? 'true' : 'false'"
       :title="buttonTitle"
       :aria-label="buttonTitle"
       @click="toggle"
@@ -28,7 +28,13 @@
         />
       </svg>
     </button>
-    <span v-if="message" class="voice-message" :class="{ error: messageIsError }">{{ message }}</span>
+    <div v-if="recording" class="voice-live">
+      <span class="voice-meter" aria-hidden="true">
+        <span class="voice-meter-fill" :style="{ width: meterWidth }" />
+      </span>
+      <span class="voice-live-text">{{ liveText }}</span>
+    </div>
+    <span v-else-if="message" class="voice-message" :class="{ error: messageIsError }">{{ message }}</span>
   </div>
 </template>
 
@@ -51,17 +57,43 @@ const recording = ref(false)
 const transcribing = ref(false)
 const message = ref('')
 const messageIsError = ref(false)
+const level = ref(0)
+const elapsed = ref(0)
+const pendingCount = ref(0)
+const transcribedChars = ref(0)
 let messageTimer = null
+let ticker = null
+
+// 转写按段串行发送：段是按说话顺序切出来的，串行能保证上屏顺序不乱
+const queue = []
+let draining = false
 
 const recorder = createVoiceRecorder({
-  onAutoStop: (result) => submit(result)
+  onAutoStop: () => stop(),
+  onLevel: (value) => { level.value = value },
+  onSegment: (segment) => enqueue(segment),
 })
 
 const buttonTitle = computed(() => {
-  if (recording.value) return `停止录音并转写（最长 ${VOICE_MAX_SECONDS} 秒）`
+  if (recording.value) return `停止录音（最长 ${VOICE_MAX_SECONDS} 秒，边说边上屏）`
   if (transcribing.value) return '正在转写…'
-  return '语音输入：点击本按钮开始/停止录音'
+  return '语音输入：点击开始录音，说话停顿即自动上屏'
 })
+
+const meterWidth = computed(() => `${Math.round(Math.max(0, Math.min(1, level.value)) * 100)}%`)
+
+const liveText = computed(() => {
+  const clock = formatClock(elapsed.value)
+  if (pendingCount.value > 0) return `${clock} · 转写中 ${pendingCount.value}`
+  if (transcribedChars.value) return `${clock} · 已上屏 ${transcribedChars.value} 字`
+  return clock
+})
+
+function formatClock(seconds) {
+  const total = Math.max(0, Math.round(seconds))
+  const minutes = Math.floor(total / 60)
+  return `${minutes}:${String(total % 60).padStart(2, '0')}`
+}
 
 function setMessage(text, { error = false, ttl = 2600 } = {}) {
   message.value = text
@@ -84,43 +116,66 @@ function insertTranscript(text) {
   return editor.chain().focus().insertContent({ type: 'text', text }).run()
 }
 
-async function submit(result) {
-  if (!result) {
-    setMessage('没有录到声音', { error: true })
-    return
-  }
-  if (result.durationSeconds < MIN_SECONDS) {
-    setMessage('录音太短，请再说一遍', { error: true })
-    return
-  }
+function enqueue(segment) {
+  queue.push(segment)
+  pendingCount.value = queue.length
+  drain()
+}
 
+async function drain() {
+  if (draining) return
+  draining = true
+  while (queue.length) {
+    const segment = queue.shift()
+    pendingCount.value = queue.length + 1
+    await transcribeSegment(segment)
+  }
+  draining = false
+  pendingCount.value = 0
+  if (!recording.value) {
+    if (transcribedChars.value) setMessage(`已插入 ${transcribedChars.value} 字`)
+    else setMessage('没听清，请再说一遍', { error: true })
+  }
+}
+
+async function transcribeSegment(segment) {
   transcribing.value = true
-  setMessage('识别中…', { ttl: 0 })
   try {
-    const data = await api.transcribeAudio(result.wav)
+    const data = await api.transcribeAudio(segment.wav)
     const text = String(data?.text || '').trim()
-    if (!text) {
-      setMessage('没听清，请再说一遍', { error: true })
-      return
-    }
-    if (!insertTranscript(text)) {
-      setMessage('插入失败，请重试', { error: true })
-      return
-    }
-    setMessage(`已插入 ${text.length} 字`)
+    if (!text) return
+    if (!insertTranscript(text)) return
+    transcribedChars.value += text.length
   } catch (error) {
+    // 单段失败不打断后面的段，只提示一次
     setMessage(describeVoiceError(error), { error: true, ttl: 4000 })
   } finally {
     transcribing.value = false
   }
 }
 
+function startTicker() {
+  stopTicker()
+  ticker = setInterval(() => {
+    elapsed.value = recorder.elapsedSeconds
+  }, 100)
+}
+
+function stopTicker() {
+  if (ticker) clearInterval(ticker)
+  ticker = null
+}
+
 async function start() {
-  if (recording.value || transcribing.value) return
+  if (recording.value) return
+  transcribedChars.value = 0
+  elapsed.value = 0
+  level.value = 0
+  message.value = ''
   try {
     await recorder.start()
     recording.value = true
-    setMessage('录音中…', { ttl: 0 })
+    startTicker()
   } catch (error) {
     recording.value = false
     setMessage(describeVoiceError(error), { error: true, ttl: 4000 })
@@ -131,7 +186,19 @@ async function stop() {
   if (!recording.value) return
   const result = recorder.stop()
   recording.value = false
-  await submit(result)
+  stopTicker()
+  level.value = 0
+
+  // 说得太短没触发切段时，用整段录音兜底一次
+  if (result && recorder.segmentsEmitted === 0 && result.durationSeconds >= MIN_SECONDS) {
+    enqueue({ wav: result.wav, durationSeconds: result.durationSeconds })
+    return
+  }
+  if (queue.length || draining) return
+  if (transcribedChars.value) setMessage(`已插入 ${transcribedChars.value} 字`)
+  else setMessage(recorder.segmentsEmitted === 0 ? '没有录到声音' : '没听清，请再说一遍', {
+    error: recorder.segmentsEmitted === 0,
+  })
 }
 
 function toggle() {
@@ -141,6 +208,8 @@ function toggle() {
 
 onBeforeUnmount(() => {
   recorder.cancel()
+  stopTicker()
+  queue.length = 0
   if (messageTimer) clearTimeout(messageTimer)
 })
 </script>
@@ -166,15 +235,37 @@ onBeforeUnmount(() => {
 .voice-btn.transcribing {
   border-color: var(--primary);
   color: var(--primary);
-  cursor: progress;
 }
+.voice-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* 电平条：让用户看得见麦克风有没有在收声 */
+.voice-meter {
+  display: block;
+  width: 46px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border, #e3e3e3);
+  overflow: hidden;
+}
+.voice-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--danger);
+  transition: width 80ms linear;
+}
+.voice-live-text,
 .voice-message {
-  max-width: 132px;
+  max-width: 148px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
   color: var(--text-muted, #666);
+  font-variant-numeric: tabular-nums;
 }
 .voice-message.error {
   color: var(--danger);
@@ -184,8 +275,12 @@ onBeforeUnmount(() => {
   50% { opacity: 0.55; }
 }
 @media (max-width: 640px) {
+  .voice-live-text,
   .voice-message {
-    max-width: 88px;
+    max-width: 96px;
+  }
+  .voice-meter {
+    width: 32px;
   }
 }
 </style>

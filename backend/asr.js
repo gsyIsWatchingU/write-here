@@ -3,7 +3,10 @@ const { authenticateSession } = require('./authSession');
 
 const DEFAULT_ASR_URL = 'http://127.0.0.1:8001';
 const DEFAULT_ASR_MODEL = 'qwen3-asr-1.7b';
-const DEFAULT_TIMEOUT_MS = 60000;
+const DEFAULT_TIMEOUT_MS = 25000;
+// 近似静音的峰值门限（-48 dBFS 左右）。实测纯静音音频会让推理服务卡到超时，
+// 所以这种请求直接在网关层返回空文本，不往 GPU 上打。
+const SILENCE_PEAK = 128;
 const DEFAULT_MAX_SECONDS = 240;
 const MAX_UPLOAD_BYTES = 16 * 1024 * 1024;
 
@@ -33,6 +36,7 @@ function readWavInfo(buffer) {
     let offset = 12;
     let fmt = null;
     let dataBytes = 0;
+    let dataOffset = 0;
     while (offset + 8 <= buffer.length) {
         const chunkId = buffer.toString('latin1', offset, offset + 4);
         const chunkSize = buffer.readUInt32LE(offset + 4);
@@ -47,6 +51,7 @@ function readWavInfo(buffer) {
             };
         } else if (chunkId === 'data') {
             dataBytes = chunkSize;
+            dataOffset = body;
         }
         offset = body + chunkSize + (chunkSize % 2);
     }
@@ -59,7 +64,20 @@ function readWavInfo(buffer) {
         channels: fmt.channels,
         sampleRate: fmt.sampleRate,
         durationSeconds: dataBytes / bytesPerSecond,
+        dataOffset,
+        dataBytes,
     };
+}
+
+// 静音（或只有底噪）的音频不值得占用 GPU：直接判定为「没说话」
+function wavPeak(wav, info) {
+    let peak = 0;
+    const end = info.dataOffset + info.dataBytes;
+    for (let offset = info.dataOffset; offset + 2 <= end; offset += 2) {
+        const value = Math.abs(wav.readInt16LE(offset));
+        if (value > peak) peak = value;
+    }
+    return peak;
 }
 
 function upstreamBody(wav, model, BlobCtor = globalThis.Blob, FormDataCtor = globalThis.FormData) {
@@ -78,6 +96,9 @@ async function transcribeWav({ wav, config = asrConfig(), fetchImpl = globalThis
     if (info.durationSeconds <= 0.05) throw new AsrError(400, '录音太短，请再说一遍');
     if (info.durationSeconds > config.maxSeconds) {
         throw new AsrError(413, `录音超过 ${config.maxSeconds} 秒上限`);
+    }
+    if (config.skipSilent !== false && wavPeak(wav, info) < SILENCE_PEAK) {
+        return { text: '', durationSeconds: Number(info.durationSeconds.toFixed(2)), silent: true, elapsedMs: 0 };
     }
 
     const controller = new AbortController();

@@ -9,7 +9,7 @@ function exec(db, sql) {
     return new Promise((resolve, reject) => db.exec(sql, (error) => error ? reject(error) : resolve()));
 }
 
-function makeWav(seconds, { sampleRate = 16000, channels = 1 } = {}) {
+function makeWav(seconds, { sampleRate = 16000, channels = 1, silent = false } = {}) {
     const dataBytes = Math.floor(seconds * sampleRate * channels * 2);
     const buffer = Buffer.alloc(44 + dataBytes);
     buffer.write('RIFF', 0, 'latin1');
@@ -25,6 +25,12 @@ function makeWav(seconds, { sampleRate = 16000, channels = 1 } = {}) {
     buffer.writeUInt16LE(16, 34);
     buffer.write('data', 36, 'latin1');
     buffer.writeUInt32LE(dataBytes, 40);
+    if (!silent) {
+        for (let offset = 0; offset + 2 <= dataBytes; offset += 2) {
+            const index = offset / 2;
+            buffer.writeInt16LE(Math.round(8000 * Math.sin(index / 12)), 44 + offset);
+        }
+    }
     return buffer;
 }
 
@@ -144,6 +150,22 @@ test('transcribeWav 拒绝过短、过长、立体声和非法格式', async () 
     await assert.rejects(() => transcribeWav({ wav: makeWav(0.01), config, fetchImpl: ok }), { status: 400 });
     await assert.rejects(() => transcribeWav({ wav: makeWav(9), config, fetchImpl: ok }), { status: 413 });
     await assert.rejects(() => transcribeWav({ wav: makeWav(2, { channels: 2 }), config, fetchImpl: ok }), { status: 400 });
+});
+
+test('transcribeWav 对近似静音的音频直接返回空文本，不再占用 GPU', async () => {
+    const calls = [];
+    const result = await transcribeWav({
+        wav: makeWav(3, { silent: true }),
+        config: { ...asrConfig({}), maxSeconds: 10 },
+        fetchImpl: async () => {
+            calls.push(1);
+            return new Response(JSON.stringify({ text: '不会被用到' }), { status: 200 });
+        },
+    });
+
+    assert.equal(result.text, '');
+    assert.equal(result.silent, true);
+    assert.equal(calls.length, 0);
 });
 
 test('transcribeWav 上游失败与超时都返回 502', async () => {
