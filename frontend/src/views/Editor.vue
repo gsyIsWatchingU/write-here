@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="editor-page" :style="{ '--editor-header-height': `${headerHeight}px` }">
     <div ref="headerElement" class="editor-sticky-head">
       <header class="editor-topbar">
@@ -42,6 +42,9 @@
             </label>
           </div>
           <button v-if="isOwner" class="ghost" @click="openShare">分享</button>
+          <div class="topbar-divider"></div>
+          <NotificationBell />
+          <SettingsEntry />
         </div>
       </header>
 
@@ -244,6 +247,8 @@ import EditorToolbar from '../components/EditorToolbar.vue'
 import DocumentDirectory from '../components/DocumentDirectory.vue'
 import CommentPanel from '../components/CommentPanel.vue'
 import SelectionCommentButton from '../components/SelectionCommentButton.vue'
+import NotificationBell from '../components/NotificationBell.vue'
+import SettingsEntry from '../components/SettingsEntry.vue'
 import CodeBlockWithCopy from '../extensions/codeBlockWithCopy.js'
 import { DocImage, ImageGroup } from '../extensions/docImage.js'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
@@ -847,6 +852,12 @@ function copyLink() {
   min-width: 0;
 }
 .topbar-right > * { flex-shrink: 0; white-space: nowrap; }
+.topbar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
+}
 .save-status {
   font-size: 12px;
   color: var(--text-muted);
