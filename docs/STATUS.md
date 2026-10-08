@@ -1,6 +1,6 @@
-# 项目状态
+﻿# 项目状态
 
-最后更新：2026-09-30
+最后更新：2026-10-08
 
 ## 当前阶段
 
@@ -232,3 +232,5 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 2026-10-03：`1881c44` 的语音流式转写已通过 CI/CD 构建与 GPU 部署；服务器 `run/deployed-commit` 与本地 `HEAD` 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 12 个业务表，`write-here` 与 `cloudflared-write-here` 均 RUNNING）；线上产物实测含 `voice-meter-fill`、`已上屏`、`silenceSeconds` 三条新特征。
 - 2026-09-30：铃铛合并改造（`bee3a18`）线上部署已确认：`bddcc3e`（含该改动）CI 的「构建检查」与「部署到 GPU 服务器」两个 job 均 success，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同 `/ws/verify-room` 与通知 `/notifications?userId=999999` 两条 WebSocket 连接成功，SQLite 12 个业务表，`write-here` 与 `cloudflared-write-here` 均 RUNNING）；线上 `Home-DdJGi6lS.js` 含 `bell-badge` 与 4 处「协作请求」、含心跳 `ping",ts:Date.now()`，`Home-BmBnmMvH.css` 含 `.bell-badge` 红色角标规则，线上 `backend/server.js` 含 pong 心跳应答；公网 wss 实测 `/notifications?userId=999999` 发 ping 收到 `{"type":"pong"}`，非法 `?userId=healthcheck` 被握手拒绝。
 - 2026-09-30（留档教训，勿重蹈）：`bee3a18` 把 `/notifications` 的 `userId` 收紧为「正整数，否则 `socket.destroy()`」，刚好打断了 `deploy/verify.js` 里那条用 `?userId=healthcheck` 的通知 WS 探针（经隧道表现为 502 socket hang up），于是 CI #122「发布并验证」失败、`run/deployed-commit` 停在旧提交——**构建检查那一侧是 success 的，失败只出现在部署验证环节**。修复由 `bddcc3e` 完成（探针改用不存在的数字哨兵 `999999`）。今后凡改动 WS `upgrade` 入口的校验、路径匹配或握手参数，必须同步检查 `deploy/verify.js` / `deploy/verify-public.sh` 的探针参数是否仍合法，否则会陷入「本地全绿、线上部署卡住且版本标记不更新」的假象。
+
+- 2026-10-08：顶栏个人设置入口改为浅米色圆角标签样式（参考用户提供的样式图）：原纯齿轮图标按钮 + 独立用户名 span 合并为一个 user-chip 按钮（浅米色 #f5efe0 背景、6px 圆角、左侧齿轮图标 + 右侧用户名），点击打开个人设置弹窗。TopNav.vue（工作台/社区/管理页）与 SettingsEntry.vue（编辑器页）同步改造，SettingsEntry 的 user 改为响应式 ref 使保存昵称后标签即时刷新；移动端隐藏 chip 内用户名文字只留齿轮图标。前端构建通过，151 项测试全过；`1f6d00b` 已通过 CI/CD 部署，服务器 deployed-commit 与本地一致，verify-public.sh 全绿。
