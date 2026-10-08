@@ -1,6 +1,6 @@
 <template>
   <div class="settings-wrapper">
-    <!-- 个人设置入口：浅米色圆角标签，齿轮图标 + 用户名，全站可见 -->
+    <!-- 个人设置入口：像素风按钮（黑描边直角），齿轮图标 + 用户名，全站可见 -->
     <button
       v-if="user?.username"
       class="user-chip"
@@ -204,24 +204,27 @@ async function removeAiApiKey() {
   align-items: center;
 }
 
-/* 用户标签 chip：浅米色圆角，齿轮图标 + 用户名，点击打开设置 */
+/* 用户标签 chip：像素风按钮（黑描边直角），齿轮图标 + 用户名，点击打开设置 */
 .user-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 5px 12px;
-  background: #f5efe0;
-  border: 1px solid #e3d9c2;
-  border-radius: 6px;
-  color: #4a4438;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 0;
+  color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s;
+  transition: background-color 80ms steps(2, end), transform 80ms steps(2, end);
   white-space: nowrap;
 }
 .user-chip:hover {
-  background: #ece4cf;
-  border-color: #d4c8ac;
+  color: var(--text);
+  background: var(--surface-hover);
+}
+.user-chip:active {
+  transform: translate(1px, 1px);
 }
 .user-chip-icon {
   width: 15px;
