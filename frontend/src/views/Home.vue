@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="home-page">
     <TopNav>
       <template #actions>
@@ -20,14 +20,21 @@
     </TopNav>
     <main class="main-content">
       <div class="toolbar">
-        <h2>我的文档</h2>
+        <div class="view-tabs">
+          <button class="view-tab" :class="{ active: activeView === 'docs' }" @click="switchView('docs')">我的文档</button>
+          <button class="view-tab" :class="{ active: activeView === 'bagu' }" @click="switchView('bagu')">八股题</button>
+        </div>
         <div class="toolbar-actions">
           <div class="search-box">
             <input v-model.trim="searchQuery" class="search-input" placeholder="搜索文档标题或内容..." @input="handleSearchInput" @keyup.escape="clearSearch" />
             <button v-if="searchQuery" class="search-clear" @click="clearSearch" aria-label="清除搜索">×</button>
           </div>
           <button class="ghost" @click="openMcpModal">[MCP] AI 接入</button>
-          <button class="primary" @click="createNewDoc">+ 新建文档</button>
+          <template v-if="activeView === 'bagu'">
+            <button class="primary" @click="createNewDoc('bagu-question')">+ 新建题干</button>
+            <button class="primary" @click="createNewDoc('bagu-answer')">+ 新建解析</button>
+          </template>
+          <button v-else class="primary" @click="createNewDoc()">+ 新建文档</button>
         </div>
       </div>
       <div v-if="loading && !searchQuery" class="empty">加载中...</div>
@@ -36,7 +43,7 @@
         <p>没有找到与 "{{ searchQuery }}" 相关的文档</p>
       </div>
       <div v-else-if="!searchQuery && docs.length === 0" class="empty">
-        <p>还没有文档，点击上方按钮创建第一篇文档</p>
+        <p>{{ activeView === 'bagu' ? '还没有八股题文档，点击上方按钮新建题干或解析' : '还没有文档，点击上方按钮创建第一篇文档' }}</p>
       </div>
       <div v-else class="doc-grid">
         <div
@@ -47,7 +54,11 @@
           @click="openDoc(doc)"
         >
           <div class="doc-card-body">
-            <h3 class="doc-title">{{ doc.title }}</h3>
+            <h3 class="doc-title">
+              {{ doc.title }}
+              <span v-if="doc.kind === 'bagu-question'" class="doc-badge">题干</span>
+              <span v-else-if="doc.kind === 'bagu-answer'" class="doc-badge">解析</span>
+            </h3>
             <p class="doc-preview">{{ stripHtml(doc.content) }}</p>
           </div>
           <div class="doc-card-footer">
@@ -232,7 +243,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { api, getUser, clearUser, getWebSocketUrl } from '../utils/api'
 import { formatServerDateTime } from '../utils/dateTime'
 import { getDocumentPath } from '../utils/documentIdentity'
@@ -245,6 +256,7 @@ const bellBtnRef = ref(null)
 const bellDropdownRef = ref(null)
 
 const docs = ref([])
+const activeView = ref('docs') // 'docs' 普通文档 | 'bagu' 八股题（题干+解析）
 const loading = ref(true)
 const searchQuery = ref('')
 const searchResults = ref([])
@@ -274,7 +286,14 @@ const messageUnreadCount = computed(() =>
 )
 const badgeCount = computed(() => messageUnreadCount.value + pendingCollabCount.value)
 
-onMounted(() => {
+onMounted(async () => {
+  const route = useRoute()
+  // 从 Algorithm Lab 跳过来新建八股题题干/解析：自动创建并进入编辑器。
+  const presetNew = route.query.new
+  if (presetNew === 'bagu-question' || presetNew === 'bagu-answer') {
+    await createNewDoc(presetNew)
+    return
+  }
   loadDocs()
   loadCollabDocs()
   loadNotifications()
@@ -406,11 +425,19 @@ function closeWebSocket() {
 async function loadDocs() {
   loading.value = true
   try {
-    docs.value = await api.getDocs(user.value.id)
+    const kind = activeView.value === 'bagu' ? 'bagu' : undefined
+    docs.value = await api.getDocs(user.value.id, kind)
   } catch (e) {
     console.error(e)
   }
   loading.value = false
+}
+
+function switchView(view) {
+  if (activeView.value === view) return
+  activeView.value = view
+  clearSearch()
+  loadDocs()
 }
 
 async function loadCollabDocs() {
@@ -443,9 +470,14 @@ function clearSearch() {
   if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
 }
 
-async function createNewDoc() {
+async function createNewDoc(kind) {
   try {
-    const doc = await api.createDoc(user.value.id, '无标题文档', '<p></p>')
+    const title = kind === 'bagu-question'
+      ? '无标题八股题（题干）'
+      : kind === 'bagu-answer'
+        ? '无标题八股题（解析）'
+        : '无标题文档'
+    const doc = await api.createDoc(user.value.id, title, '<p></p>', kind)
     router.push(getDocumentPath(doc))
   } catch (e) {
     alert(e.message)
@@ -877,6 +909,28 @@ async function respondToCollaboration(requestId, status) {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.view-tabs {
+  display: flex;
+  gap: 4px;
+}
+.view-tab {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  font-weight: 700;
+  color: #9aa3a7;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.view-tab.active {
+  color: #1c2733;
+}
+.view-tab:hover {
+  color: #1c2733;
 }
 .toolbar-actions {
   display: flex;

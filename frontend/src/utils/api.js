@@ -75,8 +75,8 @@ export const api = {
   login: (email, password) =>
     request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
 
-  getDocs: (userId) =>
-    request(`/docs?userId=${userId}`),
+  getDocs: (userId, kind) =>
+    request(`/docs?userId=${userId}${kind ? `&kind=${encodeURIComponent(kind)}` : ''}`),
 
   searchDocs: (userId, q) =>
     request(`/docs/search?userId=${userId}&q=${encodeURIComponent(q)}`),
@@ -84,8 +84,9 @@ export const api = {
   getDoc: (id, userId) =>
     request(`/docs/${encodeURIComponent(id)}?userId=${userId}`),
 
-  createDoc: (userId, title, content) =>
-    request('/docs', { method: 'POST', body: JSON.stringify({ userId, title, content }) }),
+  // kind: 'document' | 'bagu-question' | 'bagu-answer'，不传默认普通文档。
+  createDoc: (userId, title, content, kind) =>
+    request('/docs', { method: 'POST', body: JSON.stringify({ userId, title, content, ...(kind ? { kind } : {}) }) }),
 
   updateDoc: (id, userId, title, content) =>
     request(`/docs/${id}`, { method: 'PUT', body: JSON.stringify({ userId, title, content }) }),

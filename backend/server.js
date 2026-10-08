@@ -565,15 +565,20 @@ app.use(createDocumentOrderRouter({ db }));
 
 // 获取所有文档（用户专属）
 app.get('/docs', (req, res) => {
-    const { userId } = req.query;
+    const { userId, kind } = req.query;
     if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
+    // kind=bagu 时返回八股题相关文档（题干 bagu-question + 解析 bagu-answer 两个槽位）；
+    // 其余情况默认只返回普通文档。kindFilter 为服务端硬编码分支，不拼接用户输入，无注入风险。
+    const kindFilter = kind === 'bagu'
+        ? "kind IN ('bagu-question', 'bagu-answer')"
+        : "kind = 'document'";
     // 只回传预览片段：列表页的卡片预览用不到正文全文，而 SELECT * 会随文档数量和长度线性膨胀，
     // 是工作台变慢的主要原因之一（搜索接口早就用了 substr，这里保持一致）。
     db.all(`SELECT id, publicId, userId, title, kind, visibility, likes, sortOrder,
                    createdAt, updatedAt, lastViewedAt,
                    substr(content, 1, 200) AS content
             FROM docs
-            WHERE userId = ? AND kind = 'document'
+            WHERE userId = ? AND ${kindFilter}
             ORDER BY COALESCE(lastViewedAt, updatedAt) DESC, updatedAt DESC`, [userId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
@@ -639,19 +644,22 @@ app.get(['/docs/:id/raw', '/doc/:id/raw'], (req, res) => {
     });
 });
 
-// 创建新文档
+// 创建新文档。kind 标识文档所属的数据结构：普通文档 document / 八股题干 bagu-question / 八股解析 bagu-answer。
+// 一道八股题由题干与解析两篇文档组成，Algorithm Lab 侧分别保存两个 publicId 并按需拉取已发布快照。
+const ALLOWED_DOC_KINDS = ['document', 'bagu-question', 'bagu-answer'];
 app.post('/docs', (req, res) => {
     const { userId, title, content } = req.body;
+    const kind = ALLOWED_DOC_KINDS.includes(req.body.kind) ? req.body.kind : 'document';
     if (!userId || !title) {
         return res.status(400).json({ error: '用户ID和标题不能为空' });
     }
     const publicId = createDocumentPublicId();
     db.run(
-        'INSERT INTO docs (publicId, userId, title, content) VALUES (?, ?, ?, ?)',
-        [publicId, userId, title, content || ''],
+        'INSERT INTO docs (publicId, userId, title, content, kind) VALUES (?, ?, ?, ?, ?)',
+        [publicId, userId, title, content || '', kind],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
-            res.json({ id: this.lastID, publicId, userId, title, content: content || '' });
+            res.json({ id: this.lastID, publicId, userId, title, content: content || '', kind });
         }
     );
 });
