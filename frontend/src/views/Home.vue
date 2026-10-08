@@ -39,7 +39,13 @@
         <p>还没有文档，点击上方按钮创建第一篇文档</p>
       </div>
       <div v-else class="doc-grid">
-        <div v-for="doc in (searchQuery ? searchResults : docs)" :key="doc.id" class="doc-card" @click="openDoc(doc)">
+        <div
+          v-for="doc in (searchQuery ? searchResults : docs)"
+          :key="doc.id"
+          class="doc-card"
+          :class="{ deleting: isDeleting(doc.id) }"
+          @click="openDoc(doc)"
+        >
           <div class="doc-card-body">
             <h3 class="doc-title">{{ doc.title }}</h3>
             <p class="doc-preview">{{ stripHtml(doc.content) }}</p>
@@ -63,6 +69,9 @@
                 <span>删除</span>
               </button>
             </div>
+          </div>
+          <div v-if="isDeleting(doc.id)" class="doc-card-deleting-overlay">
+            <span>删除中...</span>
           </div>
         </div>
       </div>
@@ -243,6 +252,8 @@ const searchLoading = ref(false)
 let searchDebounceTimer = null
 const collabDocs = ref([])
 const loadingCollab = ref(true)
+// 正在删除中的文档 id 集合：只有对应卡片显示"删除中..."，其余卡片保持可操作
+const deletingIds = ref([])
 const shareModal = ref(null)
 const shareLink = ref('')
 const sharePermission = ref('read')
@@ -445,13 +456,30 @@ function openDoc(doc) {
   router.push(getDocumentPath(doc))
 }
 
+function isDeleting(id) {
+  return deletingIds.value.includes(String(id))
+}
+
 async function handleDelete(id) {
   if (!confirm('确定要删除这篇文档吗？')) return
+  if (isDeleting(id)) return
+  deletingIds.value.push(String(id))
   try {
     await api.deleteDoc(id, user.value.id)
-    loadDocs()
+    // 本地先行移除被删卡片，避免整表刷新出现"全部消失"的加载中间态
+    docs.value = docs.value.filter(d => String(d.id) !== String(id))
+    searchResults.value = searchResults.value.filter(d => String(d.id) !== String(id))
+    // 静默刷新列表以服务端为准（不置全局 loading，网格不会变"加载中..."）
+    try {
+      const fresh = await api.getDocs(user.value.id)
+      if (fresh) docs.value = fresh
+    } catch (e) {
+      console.error(e)
+    }
   } catch (e) {
     alert(e.message)
+  } finally {
+    deletingIds.value = deletingIds.value.filter(did => did !== String(id))
   }
 }
 
@@ -876,6 +904,7 @@ async function respondToCollaboration(requestId, status) {
   gap: 16px;
 }
 .doc-card {
+  position: relative;
   background: #fff;
   border-radius: 8px;
   padding: 20px;
@@ -886,6 +915,36 @@ async function respondToCollaboration(requestId, status) {
   flex-direction: column;
   justify-content: space-between;
   min-height: 160px;
+}
+.doc-card.deleting {
+  pointer-events: none;
+  cursor: default;
+}
+.doc-card-deleting-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.doc-card-deleting-overlay::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: doc-card-deleting-spin 0.8s linear infinite;
+}
+@keyframes doc-card-deleting-spin {
+  to { transform: rotate(360deg); }
 }
 .doc-card:hover {
   transform: translateY(-2px);
