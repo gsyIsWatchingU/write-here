@@ -1,17 +1,19 @@
 <template>
   <div class="settings-wrapper">
-    <!-- 个人设置入口：昵称 / AI 模型接入 / MCP Token，全站可见 -->
+    <!-- 个人设置入口：浅米色圆角标签，齿轮图标 + 用户名，全站可见 -->
     <button
-      class="settings-btn"
+      v-if="user?.username"
+      class="user-chip"
       aria-label="个人设置"
       title="个人设置"
       :aria-expanded="showSettings"
       @click.stop="openSettings"
     >
-      <svg class="settings-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <svg class="user-chip-icon" viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="12" r="3" />
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
       </svg>
+      <span class="user-chip-name">{{ user.username }}</span>
     </button>
 
     <!-- 个人设置弹窗：昵称、AI 模型接入（API 地址 / Key / 模型）、MCP 接入 -->
@@ -99,7 +101,7 @@ import { ref } from 'vue'
 import { api, getUser, setUser } from '../utils/api'
 import McpTokensSection from './McpTokensSection.vue'
 
-const user = getUser()
+const user = ref(getUser())
 
 // ==================== 个人设置弹窗 ====================
 const showSettings = ref(false)
@@ -152,9 +154,10 @@ async function saveNickname() {
   try {
     const res = await api.saveSettings({ nickname: name })
     originalNickname.value = res.nickname
-    // 同步本地用户态：顶栏用户名立即刷新，且其它页面重新挂载时读到的也是新昵称
+    // 同步本地用户态：标签上的用户名立即刷新，且其它页面重新挂载时读到的也是新昵称
     const current = getUser() || {}
     setUser({ ...current, username: res.nickname })
+    user.value = getUser()
   } catch (e) {
     alert(e.message || '昵称保存失败')
   } finally {
@@ -201,29 +204,39 @@ async function removeAiApiKey() {
   align-items: center;
 }
 
-/* 设置齿轮：纯图标按钮，风格与铃铛一致 */
-.settings-btn {
+/* 用户标签 chip：浅米色圆角，齿轮图标 + 用户名，点击打开设置 */
+.user-chip {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 34px;
-  padding: 5px 0;
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
+  gap: 6px;
+  padding: 5px 12px;
+  background: #f5efe0;
+  border: 1px solid #e3d9c2;
+  border-radius: 6px;
+  color: #4a4438;
+  font-size: 13px;
   cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+  white-space: nowrap;
 }
-.settings-btn:hover {
-  color: var(--text-primary);
+.user-chip:hover {
+  background: #ece4cf;
+  border-color: #d4c8ac;
 }
-.settings-icon {
-  width: 19px;
-  height: 19px;
+.user-chip-icon {
+  width: 15px;
+  height: 15px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
   stroke-linecap: square;
   stroke-linejoin: miter;
+  flex: none;
+}
+.user-chip-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 设置弹窗 */
