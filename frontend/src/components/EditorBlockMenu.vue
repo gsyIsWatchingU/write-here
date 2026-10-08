@@ -29,6 +29,10 @@
           <span>转换为</span>
           <span class="block-menu-current">{{ currentBlockLabel }}</span>
         </div>
+        <button v-if="canSplitLines" class="block-menu-option" type="button" role="menuitem" @click="splitLines">
+          <span class="block-menu-icon" aria-hidden="true">¶</span>
+          <span>按换行拆成段落</span>
+        </button>
         <button
           v-for="option in blockOptions"
           :key="option.type"
@@ -173,6 +177,7 @@ import {
   shouldShowBlockMenu,
 } from '../utils/blockMenu.js'
 import { insertUploadedImages } from '../utils/editorImages.js'
+import { splitParagraphLines } from '../utils/splitLineBreaks.js'
 import {
   TABLE_WIDTH_AUTO,
   TABLE_WIDTH_FULL,
@@ -213,6 +218,7 @@ const isTableBlock = ref(false)
 const tableWidthMode = ref(TABLE_WIDTH_FULL)
 const canMoveUp = ref(false)
 const canMoveDown = ref(false)
+const canSplitLines = ref(false)
 const dragging = ref(false)
 const pointerOnMenu = ref(false)
 const dropInsertionIndex = ref(null)
@@ -403,6 +409,7 @@ function updatePosition() {
     currentBlockType.value = isTableBlock.value ? 'table' : getCurrentBlockType()
     canMoveUp.value = currentBlock.index > 0
     canMoveDown.value = currentBlock.index < editor.state.doc.childCount - 1
+    canSplitLines.value = Boolean(splitParagraphLines(currentBlock.node))
     visible.value = true
   })
 }
@@ -461,6 +468,23 @@ function duplicateBlock() {
   props.editor.view.dispatch(transaction)
   props.editor.commands.focus()
   setOpen(false)
+  nextTick(updatePosition)
+}
+
+function splitLines() {
+  const currentBlock = getCurrentBlock()
+  if (!currentBlock || !props.editor.isEditable) return
+  const lines = splitParagraphLines(currentBlock.node)
+  if (!lines) return
+  const transaction = props.editor.state.tr.replaceWith(
+    currentBlock.position,
+    currentBlock.position + currentBlock.node.nodeSize,
+    lines,
+  )
+  focusTransactionBlock(transaction, currentBlock.position)
+  setOpen(false)
+  props.editor.view.dispatch(transaction)
+  props.editor.commands.focus()
   nextTick(updatePosition)
 }
 

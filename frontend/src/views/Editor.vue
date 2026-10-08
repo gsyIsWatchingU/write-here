@@ -217,6 +217,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import { TextSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
+import ExternalLineBreaks from '../extensions/externalLineBreaks.js'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
 import TableRow from '@tiptap/extension-table-row'
@@ -374,6 +375,7 @@ provider.awareness.on('change', updateCollabUsers)
 
 const editor = useEditor({
   extensions: [
+    ExternalLineBreaks,
     StarterKit.configure({
       history: false, // Collaboration 自带 undo 管理
       codeBlock: false,

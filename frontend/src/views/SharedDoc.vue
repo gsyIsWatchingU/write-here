@@ -105,6 +105,7 @@ import { useRoute } from 'vue-router'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import { TextSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
+import ExternalLineBreaks from '../extensions/externalLineBreaks.js'
 import Link from '@tiptap/extension-link'
 import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
@@ -192,6 +193,7 @@ let provider = null
 
 const editor = useEditor({
   extensions: [
+    ExternalLineBreaks,
     StarterKit.configure({ history: false, codeBlock: false }),
     DocImage,
     ImageGroup,
