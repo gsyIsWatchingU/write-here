@@ -47,6 +47,21 @@
             <strong>{{ document.title || '无标题文档' }}</strong>
             <small>{{ formatUpdatedAt(document.updatedAt) }}</small>
           </span>
+          <span
+            v-if="isDeleting(document.id)"
+            class="entry-busy"
+            role="status"
+          >删除中</span>
+          <span
+            v-else
+            class="entry-more"
+            role="button"
+            tabindex="0"
+            title="更多操作"
+            aria-label="更多操作"
+            @click.stop="toggleMenu($event, document, true)"
+            @keydown.enter.prevent.stop="toggleMenu($event, document, true)"
+          >⋯</span>
         </button>
       </section>
 
@@ -67,8 +82,31 @@
             <strong>{{ document.title || '无标题文档' }}</strong>
             <small>{{ document.username ? `作者：${document.username}` : '协作文档' }}</small>
           </span>
+          <span
+            class="entry-more"
+            role="button"
+            tabindex="0"
+            title="更多操作"
+            aria-label="更多操作"
+            @click.stop="toggleMenu($event, document, false)"
+            @keydown.enter.prevent.stop="toggleMenu($event, document, false)"
+          >⋯</span>
         </button>
       </section>
+    </div>
+
+    <div
+      v-if="menuState"
+      class="entry-menu"
+      :style="{ left: menuState.x + 'px', top: menuState.y + 'px' }"
+      @click.stop
+    >
+      <button type="button" @click="runAction('download', menuState.doc)">下载为 Markdown</button>
+      <button type="button" @click="runAction('duplicate', menuState.doc)">创建副本</button>
+      <template v-if="menuState.owned">
+        <div class="menu-divider" aria-hidden="true"></div>
+        <button type="button" class="danger" @click="runAction('delete', menuState.doc)">删除</button>
+      </template>
     </div>
 
     <button type="button" class="directory-home" @click="$emit('home')">全部文档 / 工作台 →</button>
@@ -76,7 +114,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { filterDocumentDirectory, reorderDocumentDirectory } from '../utils/documentDirectory.js'
 import { formatServerDateTime } from '../utils/dateTime.js'
 
@@ -86,21 +124,33 @@ const props = defineProps({
   activeDocumentId: { type: [String, Number], default: null },
   loading: { type: Boolean, default: false },
   open: { type: Boolean, default: true },
+  deletingId: { type: [String, Number], default: null },
 })
 
-const emit = defineEmits(['close', 'create', 'select', 'home', 'reorder'])
+const emit = defineEmits(['close', 'create', 'select', 'home', 'reorder', 'download', 'duplicate', 'delete'])
 
 const keyword = ref('')
 const draggedId = ref(null)
 const dropTargetId = ref(null)
 const dropPlacement = ref('before')
 let suppressClickUntil = 0
+
+// 条目 ⋯ 菜单：fixed 定位弹层，记录触发按钮位置与目标文档
+const MENU_WIDTH = 168
+const MENU_HEIGHT_OWNED = 132
+const MENU_HEIGHT_SHARED = 96
+const menuState = ref(null)
+
 const filteredDocuments = computed(() => filterDocumentDirectory(props.documents, keyword.value))
 const filteredCollaborationDocuments = computed(() => filterDocumentDirectory(props.collaborationDocuments, keyword.value))
 const canReorder = computed(() => !keyword.value.trim() && props.documents.length > 1)
 
 function isActive(id) {
   return String(id) === String(props.activeDocumentId)
+}
+
+function isDeleting(id) {
+  return props.deletingId != null && String(props.deletingId) === String(id)
 }
 
 function formatUpdatedAt(value) {
@@ -119,6 +169,53 @@ function selectDocument(id) {
   if (Date.now() < suppressClickUntil) return
   emit('select', id)
 }
+
+function toggleMenu(event, doc, owned) {
+  if (menuState.value && String(menuState.value.doc.id) === String(doc.id)) {
+    closeMenu()
+    return
+  }
+  const rect = event.currentTarget.getBoundingClientRect()
+  const menuHeight = owned ? MENU_HEIGHT_OWNED : MENU_HEIGHT_SHARED
+  const below = rect.bottom + 6 + menuHeight <= window.innerHeight
+  menuState.value = {
+    doc,
+    owned,
+    x: Math.max(8, Math.min(rect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8)),
+    y: below ? rect.bottom + 4 : Math.max(8, rect.top - menuHeight - 4),
+  }
+}
+
+function closeMenu() {
+  menuState.value = null
+}
+
+function runAction(action, doc) {
+  closeMenu()
+  emit(action, doc)
+}
+
+function handleDocumentMousedown(event) {
+  if (!menuState.value) return
+  if (event.target.closest && event.target.closest('.entry-menu, .entry-more')) return
+  closeMenu()
+}
+
+function handleKeydown(event) {
+  if (event.key === 'Escape') closeMenu()
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', handleDocumentMousedown, true)
+  document.addEventListener('keydown', handleKeydown)
+  window.addEventListener('scroll', closeMenu, true)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleDocumentMousedown, true)
+  document.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('scroll', closeMenu, true)
+})
 
 function handleDragStart(event, id) {
   if (!canReorder.value) {
@@ -284,6 +381,55 @@ function resetDrag() {
 .document-copy strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .document-copy small { overflow: hidden; color: var(--text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .document-entry.active small { color: var(--text-secondary); }
+.entry-more {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+.document-entry:hover .entry-more,
+.document-entry.active .entry-more,
+.entry-more:focus-visible { opacity: 1; }
+.entry-more:hover, .entry-more:focus-visible {
+  color: var(--text);
+  background: var(--surface-hover);
+  border-color: var(--border-soft);
+  outline: none;
+}
+.entry-busy { flex: none; margin-left: auto; color: var(--text-muted); font-size: 11px; }
+.entry-menu {
+  position: fixed;
+  z-index: 300;
+  width: 168px;
+  padding: 4px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  box-shadow: 4px 4px 0 var(--primary);
+}
+.entry-menu button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  color: var(--text);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.entry-menu button:hover { background: var(--surface-hover); }
+.entry-menu button.danger { color: var(--danger); }
+.entry-menu button.danger:hover { background: var(--danger-hover); }
+.entry-menu .menu-divider { height: 1px; margin: 4px 2px; background: var(--border-soft); }
 .directory-empty { padding: 18px 8px; color: var(--text-muted); text-align: center; font-size: 12px; }
 .directory-home {
   min-height: 42px;
@@ -306,6 +452,7 @@ function resetDrag() {
     box-shadow: 6px 0 0 rgba(0, 0, 0, .16);
     transform: translateX(-105%);
   }
+  .entry-more { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
   .document-directory { transition: none; }

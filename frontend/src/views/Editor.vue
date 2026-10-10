@@ -69,11 +69,15 @@
         :active-document-id="docId"
         :loading="directoryLoading"
         :open="documentPanelOpen"
+        :deleting-id="deletingDocId"
         @close="documentPanelOpen = false"
         @create="createDocumentFromDirectory"
         @select="openDocumentFromDirectory"
         @reorder="reorderDocumentsFromDirectory"
         @home="goBack"
+        @download="handleDownloadDocument"
+        @duplicate="handleDuplicateDocument"
+        @delete="handleDeleteDocument"
       />
 
       <button
@@ -263,6 +267,7 @@ import { insertParagraphInClickedGap, insertParagraphInLeadingBlank } from '../u
 import { scrollToOutlineHeading } from '../utils/outlineNavigation.js'
 import { useHeaderHeight } from '../utils/useHeaderHeight.js'
 import { getDocumentPath } from '../utils/documentIdentity.js'
+import { htmlToMarkdown } from '../utils/htmlToMarkdown.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -296,6 +301,7 @@ const commentCount = ref(0)
 const userDocuments = ref([])
 const collaborationDocuments = ref([])
 const directoryLoading = ref(false)
+const deletingDocId = ref(null)
 const imageNotice = ref('')
 const imageNoticeError = ref(false)
 let imageNoticeTimer = null
@@ -558,6 +564,68 @@ async function reorderDocumentsFromDirectory(documentIds) {
   } catch (error) {
     userDocuments.value = previousDocuments
     alert('调整文档顺序失败：' + error.message)
+  }
+}
+
+// 目录 ⋯ 菜单：下载为 Markdown（复用 AI 润色的 turndown 转换，私有文档也可导出）
+async function handleDownloadDocument(doc) {
+  try {
+    const detail = await api.getDoc(doc.id, user.id)
+    const markdown = htmlToMarkdown(detail.content || '')
+    const safeName = (detail.title || '未命名文档').replace(/[\\/:*?"<>|]/g, '').trim() || '未命名文档'
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${safeName}.md`
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    alert('下载失败：' + error.message)
+  }
+}
+
+// 目录 ⋯ 菜单：创建副本（内容复制为自己名下的新文档，不跳转）
+async function handleDuplicateDocument(doc) {
+  try {
+    const detail = await api.getDoc(doc.id, user.id)
+    const copy = await api.createDoc(
+      user.id,
+      `${detail.title || '无标题文档'}（副本）`,
+      detail.content || '<p></p>',
+      detail.kind
+    )
+    userDocuments.value = [copy, ...userDocuments.value]
+  } catch (error) {
+    alert('创建副本失败：' + error.message)
+  }
+}
+
+// 目录 ⋯ 菜单：删除（仅自己的文档显示此入口；删当前文档则回工作台）
+async function handleDeleteDocument(doc) {
+  const title = doc.title || '无标题文档'
+  if (!window.confirm(`确定要删除「${title}」吗？此操作不可恢复。`)) return
+  deletingDocId.value = doc.id
+  try {
+    await api.deleteDoc(doc.id, user.id)
+    userDocuments.value = userDocuments.value.filter(item => String(item.id) !== String(doc.id))
+    if (String(doc.id) === String(docId.value)) {
+      router.push('/')
+      return
+    }
+    // 静默刷新列表，以服务端为准（不置 loading，目录不闪「加载中...」）
+    try {
+      const fresh = await api.getDocs(user.id)
+      if (fresh) userDocuments.value = fresh
+    } catch (error) {
+      console.error(error)
+    }
+  } catch (error) {
+    alert('删除失败：' + error.message)
+  } finally {
+    deletingDocId.value = null
   }
 }
 
