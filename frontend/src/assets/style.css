@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   color-scheme: light;
   --primary: #97b39b;
   --primary-hover: #e2ebe0;
@@ -846,3 +846,35 @@ a {
     transition: none !important;
   }
 }
+
+/* 折叠块（飞书式 toggle：标题行可展开/收拢下面的内容） */
+
+/* Collapsible block (Feishu-style toggle) */
+#app .editor-content .doc-collapsible {
+  margin: 10px 0;
+  padding: 6px 12px;
+  background: var(--bg-gray);
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--primary-strong);
+}
+#app .editor-content .doc-collapsible-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-weight: 700;
+}
+#app .editor-content .doc-collapsible-arrow {
+  flex: none;
+  width: 16px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+#app .editor-content .doc-collapsible-arrow::before { content: '\25b8'; }
+#app .editor-content .doc-collapsible[data-open='true'] .doc-collapsible-arrow::before { content: '\25be'; }
+#app .editor-content .doc-collapsible[data-open='false'] > *:not(.doc-collapsible-summary) { display: none; }
+#app .editor-content .doc-collapsible > *:last-child { margin-bottom: 0; }

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="editor-page" :style="{ '--editor-header-height': `${headerHeight}px` }">
     <div ref="headerElement" class="editor-sticky-head">
       <header class="editor-topbar">
@@ -256,6 +256,7 @@ import NotificationBell from '../components/NotificationBell.vue'
 import SettingsEntry from '../components/SettingsEntry.vue'
 import CodeBlockWithCopy from '../extensions/codeBlockWithCopy.js'
 import { DocImage, ImageGroup } from '../extensions/docImage.js'
+import { Collapsible, CollapsibleSummary } from '../extensions/collapsible.js'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 import { normalizeImportedMarkdown } from '../utils/markdown'
 import { promoteInlineImages } from '../utils/legacyImageHtml.js'
@@ -393,6 +394,8 @@ const editor = useEditor({
     Link.configure({ openOnClick: false }),
     ResizableTable,
     DocTable,
+    Collapsible,
+    CollapsibleSummary,
     TableRow,
     TableCell,
     TableHeader,

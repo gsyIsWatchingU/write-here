@@ -134,6 +134,7 @@ import CommentPanel from '../components/CommentPanel.vue'
 import SelectionCommentButton from '../components/SelectionCommentButton.vue'
 import CodeBlockWithCopy from '../extensions/codeBlockWithCopy.js'
 import { DocImage, ImageGroup } from '../extensions/docImage.js'
+import { Collapsible, CollapsibleSummary } from '../extensions/collapsible.js'
 import { api, getUser, getWebSocketUrl } from '../utils/api'
 import { promoteInlineImages } from '../utils/legacyImageHtml.js'
 import { insertUploadedImages } from '../utils/editorImages.js'
@@ -200,6 +201,8 @@ const editor = useEditor({
     Link.configure({ openOnClick: true }),
     ResizableTable,
     DocTable,
+    Collapsible,
+    CollapsibleSummary,
     TableRow,
     TableCell,
     TableHeader,

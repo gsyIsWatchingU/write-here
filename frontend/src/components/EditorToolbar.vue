@@ -58,6 +58,7 @@
     <div class="toolbar-group">
       <button class="icon-btn" :class="{ active: editor.isActive('codeBlock') }" @click="editor.chain().focus().toggleCodeBlock().run()" title="代码块">&lt;/&gt;</button>
       <button class="icon-btn" @click="editor.chain().focus().setHorizontalRule().run()" title="分割线">&#8212;</button>
+      <button class="icon-btn" @click="editor.chain().focus().insertCollapsible().run()" title="插入折叠块（标题行可展开/收拢下面的内容）">折叠块</button>
     </div>
 
     <span class="toolbar-divider"></span>
