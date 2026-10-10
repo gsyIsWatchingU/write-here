@@ -6,6 +6,27 @@ import { TextSelection } from '@tiptap/pm/state'
  */
 const TRAILING_ESCAPE_TYPES = new Set(['paragraph', 'heading'])
 
+// ---- 双击防误触 ----
+// 代码块前后、图片上下以及文档顶部/底部的空白，单击只保留 ProseMirror 默认行为
+// （光标定位/选中），同一空隙的第二次点击（双击）才插入一行，避免点击空白定位时误插入。
+// 判定依据：
+// 1. event.detail === 2：浏览器按系统双击速度与移动阈值维护的连续点击计数；
+//    三连击（detail >= 3）不触发，防止双击插入一行后连击继续插入。
+// 2. 两次点击必须落在同一空隙：跨空隙的快速连续点击不算双击。
+const blankClickTracker = new WeakMap()
+
+function isSecondClickOnSameGap(view, key, detail) {
+  if (detail === 2) {
+    const previous = blankClickTracker.get(view)
+    if (previous && previous.key === key) {
+      blankClickTracker.delete(view)
+      return true
+    }
+  }
+  blankClickTracker.set(view, { key, detail })
+  return false
+}
+
 export function findBlockGapInsertionIndex(blockRects, clientY) {
   if (!Array.isArray(blockRects) || !Number.isFinite(clientY)) return -1
 
@@ -144,6 +165,8 @@ export function insertParagraphInLeadingBlank(view, event) {
     if (blockElements.length !== view.state.doc.childCount) return false
     const lastRect = blockElements[blockElements.length - 1].getBoundingClientRect()
     if (!lastRect || event.clientY <= lastRect.bottom) return false
+    // 单击只做默认行为，同一底部空白双击才补行
+    if (!isSecondClickOnSameGap(view, 'bottom', event.detail)) return false
     return insertTrailingParagraph(view, event)
   }
 
@@ -153,6 +176,9 @@ export function insertParagraphInLeadingBlank(view, event) {
   // 第一个块是段落、标题（能直接回车在块前新建一行）时不补行；
   // 代码块、图片、列表、引用等才需要这个出口。
   if (!shouldInsertTrailingParagraph(firstNode)) return false
+
+  // 单击只做默认行为，同一顶部空白双击才补行
+  if (!isSecondClickOnSameGap(view, 'top', event.detail)) return false
 
   const paragraphType = view.state.schema.nodes.paragraph
   if (!paragraphType) return false
@@ -184,6 +210,9 @@ export function insertParagraphInClickedGap(view, event) {
   const trailingIndex = gapIndex < 0 ? findTrailingInsertionIndex(blockRects, event.clientY) : -1
   const childIndex = gapIndex >= 0 ? gapIndex : trailingIndex
   if (childIndex < 0) return false
+
+  // 单击只做默认光标定位；同一空隙双击才补行，避免误插入
+  if (!isSecondClickOnSameGap(view, childIndex, event.detail)) return false
 
   if (trailingIndex >= 0) {
     return insertTrailingParagraph(view, event)

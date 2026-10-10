@@ -12,6 +12,8 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 ## 已完成
 
+- 2026-10-10：块边界空白补行改为**双击触发**（反馈「点击空白容易误插一行」）：代码块前后、图片上下、文档开头/结尾的空白，单击只保留 ProseMirror 默认光标定位/选中行为，**同一空隙双击**才插入一行，避免误插入。判定基于 mousedown 的 `event.detail === 2`（浏览器按系统双击速度与移动阈值维护的连续点击计数）+ 两次点击落在同一空隙（块间/末尾空隙按顶层块索引、顶部/底部按 `top`/`bottom` 标识）：跨空隙快速连点不误判为双击，三连击（detail≥3）在双击插入后不再继续插入。实现位于 `frontend/src/utils/blockGapInsertion.js`：新增 `blankClickTracker`（WeakMap 按 EditorView 记录上一次点击）与 `isSecondClickOnSameGap`，`insertParagraphInClickedGap`（块间/末尾）与 `insertParagraphInLeadingBlank`（顶部/底部）在原有判据之后统一过双击判定；Editor.vue 与 SharedDoc.vue 的事件接线不变。
+
 - 2026-10-10：修复 GPT 复制内容整张列表被当成一块：块菜单定位当前列表项，复制、删除、上下移动及拖动均按单项操作，支持嵌套列表；外部列表的显式换行自动拆项，旧内容可用「按换行拆成段落」修复，保留粗体、链接和列表属性。
 
 - 2026-10-10：个人设置弹窗加宽至 680px 并消除横向滚动条；新增「接口类型」选择（Anthropic / OpenAI 兼容），AI 润色后端新增 OpenAI 兼容直连通道（/chat/completions），支持 DeepSeek 官方 API（接口类型选「OpenAI 兼容」，地址 https://api.deepseek.com，模型 deepseek-chat 或 deepseek-reasoner）。根因：帮助文本继承弹窗内容区 nowrap 且含长 URL（DeepSeek 示例、MCP 文档链接）撑破容器，MCP 配置 textarea wrap=off 也产生横向滚动条。改动：SettingsEntry.vue（弹窗宽度、接口类型下拉与回显、help 显式 white-space:normal + overflow-wrap:anywhere）、McpTokensSection.vue（help 同样处理、配置 textarea 改 wrap=soft）、server.js（user_settings 表加 aiProtocol 列 + 老库 ALTER 迁移）、userSettings.js（aiProtocol 读写/合并/校验）、aiPolish.js（aiPolishConfig.protocol、runOpenAiCompatible 直连、polishDocument 按协议分支、/ai/polish/config 返回 protocol）。验证：后端 47 项测试（新增 OpenAI 直连/拼接/超时/缺模型与协议路由用例）、前端 162 项测试、生产构建通过；无头 Chrome + CDP 加载真实构建产物实测弹窗 680px、弹窗与页面均无横向滚动、接口类型保存/回显/合并正确（截图 run/settings-*/settings.png，脚本 run/verify-settings-modal.mjs）。DeepSeek 直连的远端调用行为由 mock 单测覆盖，真实调用需用户填入有效 API Key 后验证。
@@ -124,6 +126,7 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 ## 验证结果
 
+- 2026-10-10：块边界空白双击补行通过前端 166 项测试（新增 4 项：单击空白不插入、三连击不重复插入、快速点击两个不同空隙不误判、顶部/底部单击不插入；既有块间/末尾/顶部/底部补行断言全部改为双击语义）与前端生产构建；后端无改动。
 - 2026-10-10：列表块修复通过前端 162 项测试、生产构建和后端语法检查；隔离 SQLite + 真实 Chrome 20 项验收通过，覆盖单项高亮、复制、删除、移动、原生拖动、格式转换、外部粘贴、旧内容拆分、撤销、保存刷新及分享编辑页。CI/CD 和线上版本按交接要求核对。
 
 - 2026-10-10：设置弹窗改造通过后端 47 项测试（新增 OpenAI 直连/拼接/超时/缺模型与协议路由用例）、前端 162 项测试与生产构建；无头 Chrome + CDP 实测弹窗 680px、页面与弹窗均无横向滚动、接口类型下拉/保存/回显/合并正确（截图 `run/settings-*/settings.png`，脚本 `run/verify-settings-modal.mjs`，均为忽略目录）。
