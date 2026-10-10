@@ -24,80 +24,97 @@
           <button class="ghost small" @click="closeSettings">关闭</button>
         </div>
 
-        <div v-if="settingsLoading" class="settings-loading">加载中...</div>
-        <template v-else>
-          <section class="settings-section">
-            <h4>用户昵称</h4>
-            <div class="settings-row">
-              <input
-                v-model.trim="nickname"
-                maxlength="40"
-                placeholder="显示在顶栏、协作与评论中的昵称"
-                aria-label="用户昵称"
-                @keyup.enter="saveNickname"
-              >
-              <button
-                class="primary"
-                :disabled="savingNickname || !nickname || nickname === originalNickname"
-                @click="saveNickname"
-              >
-                {{ savingNickname ? '保存中...' : '保存' }}
-              </button>
-            </div>
-            <p class="settings-help">昵称会显示在顶栏、协作文档与评论中；留空时默认取邮箱 @ 前的部分。</p>
-          </section>
-
-          <section class="settings-section">
-            <h4>AI 模型接入</h4>
-            <p class="settings-help">用于编辑器「AI 润色」。填写你自己的 API 地址与密钥后，润色将优先使用你的配置；留空则回退到站点配置。DeepSeek 示例：接口类型选「OpenAI 兼容」，地址填 https://api.deepseek.com，模型填 deepseek-chat。</p>
-            <div class="settings-field">
-              <label for="ai-protocol">接口类型</label>
-              <select id="ai-protocol" v-model="aiProtocol">
-                <option value="anthropic">Anthropic（Claude）</option>
-                <option value="openai">OpenAI 兼容（DeepSeek 等）</option>
-              </select>
-            </div>
-            <div class="settings-field">
-              <label for="ai-base-url">API 地址</label>
-              <input id="ai-base-url" v-model.trim="aiBaseUrl" placeholder="https://api.deepseek.com 或 https://api.openai.com/v1" maxlength="500">
-            </div>
-            <div class="settings-field">
-              <label for="ai-api-key">API Key</label>
-              <div class="settings-field-row">
+        <div class="settings-body">
+          <div v-if="settingsLoading" class="settings-loading">加载中...</div>
+          <template v-else>
+            <section class="settings-section">
+              <h4>用户昵称</h4>
+              <div class="settings-row">
                 <input
-                  id="ai-api-key"
-                  v-model="aiApiKey"
-                  type="password"
-                  :placeholder="aiHasApiKey ? '已设置（留空保持不变，输入新值将替换）' : 'sk-...'"
-                  autocomplete="off"
-                  maxlength="4096"
+                  v-model.trim="nickname"
+                  maxlength="40"
+                  placeholder="显示在顶栏、协作与评论中的昵称"
+                  aria-label="用户昵称"
+                  @keyup.enter="saveNickname"
                 >
                 <button
-                  v-if="aiHasApiKey"
-                  class="ghost small"
-                  title="移除已保存的 API Key"
-                  @click="removeAiApiKey"
-                >移除</button>
+                  class="primary"
+                  :disabled="savingNickname || !nickname || nickname === originalNickname"
+                  @click="saveNickname"
+                >
+                  {{ savingNickname ? '保存中...' : '保存' }}
+                </button>
               </div>
-            </div>
-            <div class="settings-field">
-              <label for="ai-model">模型</label>
-              <input id="ai-model" v-model.trim="aiModel" placeholder="例如 deepseek-chat / claude-sonnet-4-5" maxlength="120">
-            </div>
-            <div class="settings-row">
-              <button class="primary" :disabled="savingAi" @click="saveAiSettings(false)">
-                {{ savingAi ? '保存中...' : '保存 AI 设置' }}
-              </button>
-              <span v-if="aiSaveMsg" class="settings-msg">{{ aiSaveMsg }}</span>
-            </div>
-          </section>
+              <p class="settings-help">昵称会显示在顶栏、协作文档与评论中；留空时默认取邮箱 @ 前的部分。</p>
+            </section>
 
-          <section class="settings-section">
-            <h4>MCP 接入</h4>
-            <p class="settings-help">生成个人 Token 并配置 MCP 客户端，让 AI 通过 MCP 读取和编辑你的文档。</p>
-            <McpTokensSection />
-          </section>
-        </template>
+            <section class="settings-section">
+              <h4>AI 模型接入</h4>
+              <p class="settings-help">用于编辑器「AI 润色」。填写你自己的 API 地址与密钥后，润色将优先使用你的配置；留空则回退到站点配置。DeepSeek 示例：接口类型选「OpenAI 兼容」，地址填 https://api.deepseek.com，再点右侧「获取模型」选择模型。</p>
+              <div class="settings-field">
+                <label for="ai-protocol">接口类型</label>
+                <select id="ai-protocol" v-model="aiProtocol" @change="aiModelList = []">
+                  <option value="anthropic">Anthropic（Claude）</option>
+                  <option value="openai">OpenAI 兼容（DeepSeek 等）</option>
+                </select>
+              </div>
+              <div class="settings-field">
+                <label for="ai-base-url">API 地址</label>
+                <input id="ai-base-url" v-model.trim="aiBaseUrl" placeholder="https://api.deepseek.com 或 https://api.openai.com/v1" maxlength="500">
+              </div>
+              <div class="settings-field">
+                <label for="ai-api-key">API Key</label>
+                <div class="settings-field-row">
+                  <input
+                    id="ai-api-key"
+                    v-model="aiApiKey"
+                    type="password"
+                    :placeholder="aiHasApiKey ? '已设置（留空保持不变，输入新值将替换）' : 'sk-...'"
+                    autocomplete="off"
+                    maxlength="4096"
+                  >
+                  <button
+                    v-if="aiHasApiKey"
+                    class="ghost small"
+                    title="移除已保存的 API Key"
+                    @click="removeAiApiKey"
+                  >移除</button>
+                </div>
+              </div>
+              <div class="settings-field">
+                <label for="ai-model">模型</label>
+                <div class="settings-field-row">
+                  <select id="ai-model" v-model="aiModel" class="ai-model-select">
+                    <option value="" disabled>
+                      {{ aiModelsLoading ? '加载中...' : (aiModelList.length ? '选择模型' : '点击右侧「获取模型」拉取列表') }}
+                    </option>
+                    <option v-if="aiModel && !aiModelList.includes(aiModel)" :value="aiModel">{{ aiModel }}（已保存）</option>
+                    <option v-for="m in aiModelList" :key="m" :value="m">{{ m }}</option>
+                  </select>
+                  <button
+                    class="ghost small"
+                    :disabled="aiModelsLoading"
+                    title="根据 API 地址与 Key 拉取可用模型列表"
+                    @click="fetchModels"
+                  >{{ aiModelsLoading ? '获取中...' : '获取模型' }}</button>
+                </div>
+                <p v-if="aiModelError" class="settings-help ai-model-error">{{ aiModelError }}</p>
+              </div>
+              <div class="settings-row">
+                <button class="primary" :disabled="savingAi" @click="saveAiSettings(false)">
+                  {{ savingAi ? '保存中...' : '保存 AI 设置' }}
+                </button>
+                <span v-if="aiSaveMsg" class="settings-msg">{{ aiSaveMsg }}</span>
+              </div>
+            </section>
+
+            <section class="settings-section">
+              <h4>MCP 接入</h4>
+              <p class="settings-help">生成个人 Token 并配置 MCP 客户端，让 AI 通过 MCP 读取和编辑你的文档。</p>
+              <McpTokensSection />
+            </section>
+          </template>
+        </div>
       </div>
     </div>
   </div>
@@ -123,6 +140,9 @@ const aiModel = ref('')
 const aiProtocol = ref('anthropic')
 const savingAi = ref(false)
 const aiSaveMsg = ref('')
+const aiModelList = ref([])
+const aiModelsLoading = ref(false)
+const aiModelError = ref('')
 let aiSaveMsgTimer = null
 
 function flashAiMsg(text) {
@@ -131,10 +151,35 @@ function flashAiMsg(text) {
   aiSaveMsgTimer = setTimeout(() => { aiSaveMsg.value = '' }, 3000)
 }
 
+// 根据当前表单里的协议 / 地址 / Key 拉取可用模型列表。
+// Key 优先用输入框里的新值（未保存也能预览），否则后端回退到已保存的 Key。
+async function fetchModels() {
+  if (aiModelsLoading.value) return
+  aiModelsLoading.value = true
+  aiModelError.value = ''
+  try {
+    const payload = {
+      protocol: aiProtocol.value,
+      baseUrl: aiBaseUrl.value,
+    }
+    if (aiApiKey.value.trim()) payload.apiKey = aiApiKey.value.trim()
+    const data = await api.fetchAiModels(payload)
+    aiModelList.value = Array.isArray(data.models) ? data.models : []
+    if (!aiModelList.value.length) aiModelError.value = '接口未返回任何模型'
+  } catch (e) {
+    aiModelList.value = []
+    aiModelError.value = e.message || '获取模型列表失败'
+  } finally {
+    aiModelsLoading.value = false
+  }
+}
+
 async function openSettings() {
   showSettings.value = true
   settingsLoading.value = true
   aiSaveMsg.value = ''
+  aiModelList.value = []
+  aiModelError.value = ''
   try {
     const settings = await api.getSettings()
     nickname.value = settings.nickname || ''
@@ -144,6 +189,8 @@ async function openSettings() {
     aiHasApiKey.value = Boolean(settings.ai.hasApiKey)
     aiModel.value = settings.ai.model || ''
     aiProtocol.value = settings.ai.protocol === 'openai' ? 'openai' : 'anthropic'
+    // 已保存过 Key 的用户打开弹窗时自动拉一次模型列表，省去手动点按钮
+    if (settings.ai.hasApiKey) fetchModels()
   } catch (e) {
     alert(e.message || '无法加载个人设置')
     showSettings.value = false
@@ -273,13 +320,20 @@ async function removeAiApiKey() {
 .settings-modal {
   width: 680px;
   max-height: min(86vh, 780px);
-  overflow-y: auto;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .settings-modal-header {
+  flex: none;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
 }
 .settings-modal-header h3 {
   margin: 0;
@@ -287,6 +341,10 @@ async function removeAiApiKey() {
 .settings-modal-header button {
   flex: none;
   white-space: nowrap;
+}
+.settings-body {
+  overflow-y: auto;
+  padding: 0 24px 24px;
 }
 .settings-loading {
   padding: 40px 0;
@@ -350,6 +408,14 @@ async function removeAiApiKey() {
 .settings-field-row .ghost.small {
   flex: none;
 }
+.ai-model-select {
+  flex: 1;
+  min-width: 0;
+}
+.ai-model-error {
+  margin-top: 6px;
+  color: #c0392b;
+}
 .settings-msg {
   font-size: 12px;
   color: var(--primary);
@@ -359,7 +425,12 @@ async function removeAiApiKey() {
   .settings-modal {
     width: calc(100vw - 24px);
     max-width: none;
-    padding: 20px 16px;
+  }
+  .settings-modal-header {
+    padding: 16px;
+  }
+  .settings-body {
+    padding: 0 16px 16px;
   }
   .settings-field-row {
     flex-wrap: wrap;

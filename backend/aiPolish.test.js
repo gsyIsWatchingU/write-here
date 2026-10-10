@@ -4,7 +4,7 @@ const { EventEmitter } = require('node:events');
 const http = require('node:http');
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
-const { AiPolishError, aiPolishConfig, buildPolishPrompt, createAiPolishRouter, polishDocument, runClaudeCli, runOpenAiCompatible } = require('./aiPolish');
+const { AiPolishError, aiPolishConfig, buildPolishPrompt, createAiPolishRouter, polishDocument, runClaudeCli, runOpenAiCompatible, fetchAvailableModels } = require('./aiPolish');
 
 function exec(db, sql) {
     return new Promise((resolve, reject) => db.exec(sql, (error) => error ? reject(error) : resolve()));
@@ -473,4 +473,79 @@ test('polishDocument：protocol=openai 走 OpenAI 兼容通道，默认 anthropi
         runOpenAi: async () => { used = 'openai'; return 'x'; },
     });
     assert.equal(used, 'cli');
+});
+
+test('fetchAvailableModels：anthropic 走 /v1/models 并带 x-api-key，openai 走 /models 并带 Bearer', async () => {
+    const calls = [];
+    const fetchImpl = async (url, options) => {
+        calls.push({ url, headers: options.headers });
+        return { ok: true, json: async () => ({ data: [
+            { id: 'claude-sonnet-4-5' },
+            { id: 'claude-opus-4-1' },
+            { type: 'model', id: 'claude-3-5-haiku' },
+        ] }) };
+    };
+    const r1 = await fetchAvailableModels({
+        protocol: 'anthropic', baseUrl: '', apiKey: 'sk-ant-1', fetchImpl,
+    });
+    assert.equal(calls[0].url, 'https://api.anthropic.com/v1/models');
+    assert.equal(calls[0].headers['x-api-key'], 'sk-ant-1');
+    assert.equal(calls[0].headers['anthropic-version'], '2023-06-01');
+    assert.deepEqual(r1.models, ['claude-3-5-haiku', 'claude-opus-4-1', 'claude-sonnet-4-5']);
+
+    const r2 = await fetchAvailableModels({
+        protocol: 'openai', baseUrl: 'https://api.deepseek.com/', apiKey: 'sk-ds-1', fetchImpl,
+    });
+    assert.equal(calls[1].url, 'https://api.deepseek.com/models');
+    assert.equal(calls[1].headers.Authorization, 'Bearer sk-ds-1');
+    assert.equal(calls[1].headers['x-api-key'], undefined);
+    assert.deepEqual(r2.models, ['claude-3-5-haiku', 'claude-opus-4-1', 'claude-sonnet-4-5']);
+});
+
+test('fetchAvailableModels：缺 Key / 缺地址报 400，上游非 2xx 报 502', async () => {
+    await assert.rejects(
+        () => fetchAvailableModels({ protocol: 'anthropic', baseUrl: '', apiKey: '' }),
+        (e) => e.status === 400 && /API Key/.test(e.message)
+    );
+    await assert.rejects(
+        () => fetchAvailableModels({ protocol: 'openai', baseUrl: '', apiKey: 'k' }),
+        (e) => e.status === 400 && /API 地址/.test(e.message)
+    );
+    await assert.rejects(
+        () => fetchAvailableModels({
+            protocol: 'openai', baseUrl: 'https://api.deepseek.com', apiKey: 'bad',
+            fetchImpl: async () => ({ ok: false, status: 401, text: async () => 'unauthorized' }),
+        }),
+        (e) => e.status === 502 && /401/.test(e.message)
+    );
+});
+
+test('POST /ai/models：未登录 401，带表单配置返回模型列表', async (t) => {
+    const ctx = await startServer({ config: configuredConfig() });
+    t.after(ctx.close);
+
+    const anon = await requestJson(ctx.base, '/ai/models', {
+        method: 'POST', body: { protocol: 'openai', baseUrl: 'https://api.deepseek.com', apiKey: 'k' }, token: null,
+    });
+    assert.equal(anon.status, 401);
+
+    // 用一个自定义 fetch 拦截：startServer 里的 router 用的是全局 fetchImpl，
+    // 这里直接验证路由鉴权 + 参数透传即可，实际模型拉取逻辑由上面单测覆盖。
+    // 由于路由内部直接调全局 fetch，这里 mock 全局 fetch 一次。
+    const originalFetch = global.fetch;
+    global.fetch = async (url, options) => {
+        if (String(url).startsWith('http://127.0.0.1')) return originalFetch(url, options);
+        assert.equal(String(url), 'https://api.deepseek.com/models');
+        return { ok: true, json: async () => ({ data: [{ id: 'deepseek-chat' }, { id: 'deepseek-reasoner' }] }) };
+    };
+    try {
+        const ok = await requestJson(ctx.base, '/ai/models', {
+            method: 'POST', body: { protocol: 'openai', baseUrl: 'https://api.deepseek.com', apiKey: 'sk-real-1' },
+        });
+        assert.equal(ok.status, 200);
+        const body = await ok.json();
+        assert.deepEqual(body.models, ['deepseek-chat', 'deepseek-reasoner']);
+    } finally {
+        global.fetch = originalFetch;
+    }
 });

@@ -170,6 +170,54 @@ function runOpenAiCompatible({ prompt, config, fetchImpl = fetch, timeoutMs = DE
     });
 }
 
+// 拉取第三方账号下可用的模型 ID 列表（供设置页下拉选择，避免手输模型名出错）。
+// anthropic: GET {baseUrl||https://api.anthropic.com}/v1/models，Header x-api-key + anthropic-version
+// openai 兼容: GET {baseUrl}/models，Header Authorization: Bearer <key>
+// 两种响应都是 { data: [{ id: "..." }] }，统一抽出 id 字符串数组返回。
+function fetchAvailableModels({ protocol, baseUrl, apiKey, fetchImpl = fetch, timeoutMs = 15000 }) {
+    return new Promise((resolve, reject) => {
+        const key = String(apiKey || '').trim();
+        if (!key) {
+            return reject(new AiPolishError(400, '请先填写 API Key，再获取模型列表'));
+        }
+        const url = protocol === 'anthropic'
+            ? `${String(baseUrl || 'https://api.anthropic.com').trim().replace(/\/+$/, '')}/v1/models`
+            : `${String(baseUrl || '').trim().replace(/\/+$/, '')}/models`;
+        if (protocol !== 'anthropic' && !String(baseUrl || '').trim()) {
+            return reject(new AiPolishError(400, '请先填写 API 地址，再获取模型列表'));
+        }
+        const headers = protocol === 'anthropic'
+            ? { 'x-api-key': key, 'anthropic-version': '2023-06-01' }
+            : { Authorization: `Bearer ${key}` };
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        fetchImpl(url, { method: 'GET', headers, signal: controller.signal })
+            .then(async (response) => {
+                clearTimeout(timer);
+                if (!response.ok) {
+                    const detail = await response.text().catch(() => '');
+                    throw new AiPolishError(502, `模型列表接口返回 ${response.status}：${String(detail).slice(0, 300)}`);
+                }
+                const data = await response.json();
+                const list = Array.isArray(data?.data) ? data.data : [];
+                const models = list
+                    .map((item) => (item && typeof item.id === 'string' ? item.id : ''))
+                    .filter(Boolean)
+                    .sort();
+                resolve({ models });
+            })
+            .catch((error) => {
+                clearTimeout(timer);
+                if (error instanceof AiPolishError) return reject(error);
+                if (error.name === 'AbortError') {
+                    return reject(new AiPolishError(502, `获取模型列表超时（超过 ${Math.round(timeoutMs / 1000)} 秒）`));
+                }
+                reject(new AiPolishError(502, `获取模型列表失败：${error.message}`));
+            });
+    });
+}
+
 async function polishDocument({ content, instruction, config = aiPolishConfig(), runCli = runClaudeCli, runOpenAi = runOpenAiCompatible }) {
     if (!config.apiKey && !config.baseUrl) {
         throw new AiPolishError(503, '服务器未配置 AI 接入信息（缺少 API Key / API 地址）');
@@ -201,6 +249,31 @@ function createAiPolishRouter({ db, config = aiPolishConfig(), polishImpl = poli
                 ? userSettings.aiProtocol
                 : (config.protocol || 'anthropic'),
         });
+    });
+
+    // 拉取当前账号可用的模型 ID 列表（设置页下拉选择用）。
+    // 请求体可直接带表单里的临时配置（含新输入但尚未保存的 Key），后端不持久化，只转发。
+    router.post('/ai/models', async (req, res) => {
+        const user = await authenticateSession(db, req);
+        if (!user) return res.status(401).json({ error: '登录已过期，请重新登录' });
+        const body = (req.body && typeof req.body === 'object') ? req.body : {};
+        const protocol = body.protocol === 'openai' ? 'openai' : 'anthropic';
+        // apiKey 优先用请求里带的新 Key；没带则回退到该用户已保存的 Key。
+        let apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
+        let baseUrl = typeof body.baseUrl === 'string' ? body.baseUrl.trim() : '';
+        if (!apiKey || !baseUrl) {
+            const saved = await loadUserAiSettings(db, user.id);
+            if (!apiKey) apiKey = saved.aiApiKey || '';
+            if (!baseUrl) baseUrl = saved.aiBaseUrl || '';
+        }
+        try {
+            const result = await fetchAvailableModels({ protocol, baseUrl, apiKey });
+            res.json(result);
+        } catch (error) {
+            const status = error instanceof AiPolishError ? error.status : 500;
+            if (status >= 500) console.error('获取模型列表失败:', error.message);
+            res.status(status).json({ error: error.message || '获取模型列表失败' });
+        }
     });
 
     router.post('/ai/polish', async (req, res) => {
@@ -237,4 +310,4 @@ function createAiPolishRouter({ db, config = aiPolishConfig(), polishImpl = poli
     return router;
 }
 
-module.exports = { AiPolishError, aiPolishConfig, buildPolishPrompt, createAiPolishRouter, polishDocument, runClaudeCli, runOpenAiCompatible };
+module.exports = { AiPolishError, aiPolishConfig, buildPolishPrompt, createAiPolishRouter, polishDocument, runClaudeCli, runOpenAiCompatible, fetchAvailableModels };

@@ -258,4 +258,9 @@ export const api = {
 
   saveSettings: (patch) =>
     request('/settings', { method: 'PUT', body: JSON.stringify(patch) }),
+
+  // 根据当前 API 地址 / Key / 协议拉取该账号可用的模型 ID 列表（设置页下拉选择用）。
+  // 可带表单里尚未保存的新 Key；后端不持久化，只转发到第三方 /models 端点。
+  fetchAiModels: (payload) =>
+    request('/ai/models', { method: 'POST', body: JSON.stringify(payload) }),
 }
