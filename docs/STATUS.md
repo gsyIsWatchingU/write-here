@@ -12,6 +12,8 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 ## 已完成
 
+- 2026-10-10：修复块菜单贴近视口底边时底部选项被截断（用户截图反馈「最下面这里看不见了」）。根因：`EditorBlockMenu.vue` 的 `.block-menu-panel` 固定从操作柄下方 34px 向下展开，CSS `max-height: min(420px, 70vh)` 只按视口高度算上限，没考虑面板起始位置；当光标所在块靠近屏幕底部时，下方只剩几十像素，H2 以下的 H3/H4、列表、引用、代码块、插入表格/图片/链接、复制/上移/下移/删除全部被视口下沿截断，且面板是 `position: fixed` teleport 到 body，不会随页面滚动补救。修复：打开菜单时 `adjustPanelPosition()` 临时把 `max-height` 置 `none` 实测 `scrollHeight`，分别算出下方剩余空间 `spaceBelow` 与上方剩余空间 `spaceAbove`；若自然高度超过下方空间且上方更宽裕，就给面板加 `.upward` 类翻到操作柄上方展开（CSS `bottom: 34px; top: auto`），并按剩余空间动态设置 inline `maxHeight`（两侧都不够时取较大一侧，下限 120px）；块随光标滚动/窗口缩放导致 `top.value` 变化时，`updatePosition` 在菜单打开状态下会 `nextTick(adjustPanelPosition)` 重算方向与限高。改动仅 `frontend/src/components/EditorBlockMenu.vue`。验证：前端生产构建通过；`fe8ddb7` 已通过 CI/CD 部署，服务器 `run/deployed-commit` 与本地 HEAD 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 12 个业务表，`write-here` 与 `cloudflared-write-here` 均 RUNNING）。
+
 - 2026-10-10：编辑器新增飞书式折叠块（用户截图反馈「标题下的内容应可展开/收拢」）：自定义 TipTap 节点 `Collapsible`（容器 `<div data-collapsible data-open>` + 首行 `CollapsibleSummary` 标题行 + 任意内容块），标题行左侧箭头 ▸/▾ 点击切换 `open`（ProseMirror plugin 拦截箭头点击、posAtDOM 定位容器后 setNodeMarkup 翻转属性），折叠时 CSS 隐藏非标题行的子元素；标题行 Enter 在容器后新建段落跳出；`open` 随 HTML 持久化、随 Yjs 协同同步；可整体拖动。工具栏新增「折叠块」按钮插入；Editor.vue 与 SharedDoc.vue 同时注册。导出 Markdown 时按普通块内容展开，无需 turndown 特殊规则；旧文档无折叠块不受影响。验证：前端 166 项测试全绿、生产构建通过；`9203f77` 已通过 CI/CD 部署，deployed-commit 与本地 HEAD 一致，verify-public.sh 全绿。
 
 - 2026-10-10：编辑页左侧文档目录条目新增飞书式 ⋯ 操作菜单（用户对照飞书「⋯」菜单要求）：条目 hover 时右侧出现 ⋯（当前活动条目与移动端常显），点击弹出菜单含「下载为 Markdown / 创建副本 / 删除」三项；「与我协作」分组的条目只显示前两项，不显示删除。下载复用 `htmlToMarkdown`（turndown，同 AI 润色链路）把正文 HTML 转 Markdown 后 Blob 导出 `.md`，私有文档也可导出；副本走 `getDoc` + `createDoc`（带原 kind）插入目录列表头部、不跳转；删除二次确认后调 `deleteDoc`，删的是当前打开文档则回工作台，否则本地移除该条目并静默刷新目录（不置 loading，不闪「加载中...」），条目上显示「删除中」。菜单 fixed 定位、按视口自动上下翻转，点击外部 / Esc / 滚动即关闭。改动仅 `DocumentDirectory.vue`（菜单 UI 与定位、`deletingId` prop）与 `Editor.vue`（三个 handler、事件接线）。验证：后端 `node --check` 通过、前端 166 项测试连续两次全绿（其间少量失败为 blockGapInsertion 时序敏感 flaky，纯 HEAD 基线 162/0，与本改动无关）、前端生产构建通过。
@@ -129,6 +131,8 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 退出登录只保证本地登出即时生效；若 `/logout` 请求失败（离线、后端不可达），服务端会话记录会残留到过期，期间该 token 仍有效。当前演示级认证下可接受，做生产级鉴权时应一并收紧（例如短会话有效期 + 服务端主动失效）。
 
 ## 验证结果
+
+- 2026-10-10：块菜单视口边缘防截断修复通过前端生产构建；`fe8ddb7` 已通过 CI/CD 的「构建检查」与「部署到 GPU 服务器」，服务器 `run/deployed-commit` 与本地 HEAD 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，`/ws/verify-room` 与 `/notifications?userId=999999` 两条 WebSocket 连接成功，SQLite 12 个业务表，`write-here` pid 34200 uptime 1m、`cloudflared-write-here` 均 RUNNING）。
 
 - 2026-10-10：块边界空白双击补行通过前端 166 项测试（新增 4 项：单击空白不插入、三连击不重复插入、快速点击两个不同空隙不误判、顶部/底部单击不插入；既有块间/末尾/顶部/底部补行断言全部改为双击语义）与前端生产构建；后端无改动。
 - 2026-10-10：列表块修复通过前端 162 项测试、生产构建和后端语法检查；隔离 SQLite + 真实 Chrome 20 项验收通过，覆盖单项高亮、复制、删除、移动、原生拖动、格式转换、外部粘贴、旧内容拆分、撤销、保存刷新及分享编辑页。CI/CD 和线上版本按交接要求核对。
