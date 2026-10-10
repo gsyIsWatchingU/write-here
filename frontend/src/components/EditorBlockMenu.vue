@@ -24,7 +24,15 @@
         <span aria-hidden="true">⋮⋮</span>
       </button>
 
-      <div v-if="open" class="block-menu-panel" role="menu" @mousedown.prevent @click.stop>
+      <div
+        v-if="open"
+        class="block-menu-panel"
+        :class="{ upward: menuUpward }"
+        :style="panelMaxHeight ? { maxHeight: `${panelMaxHeight}px` } : null"
+        role="menu"
+        @mousedown.prevent
+        @click.stop
+      >
         <div class="block-menu-heading">
           <span>转换为</span>
           <span class="block-menu-current">{{ currentBlockLabel }}</span>
@@ -221,6 +229,8 @@ const canMoveDown = ref(false)
 const canSplitLines = ref(false)
 const dragging = ref(false)
 const pointerOnMenu = ref(false)
+const menuUpward = ref(false)
+const panelMaxHeight = ref(null)
 const dropInsertionIndex = ref(null)
 const dropTop = ref(0)
 const dropLeft = ref(0)
@@ -325,8 +335,43 @@ function markMenuPointer() {
 
 function setOpen(value) {
   open.value = value
-  if (value) visible.value = true
+  if (value) {
+    visible.value = true
+    // 面板 v-if 刚渲染，等一帧拿到真实 DOM 后再按视口余量决定向上/向下展开。
+    nextTick(adjustPanelPosition)
+  } else {
+    menuUpward.value = false
+    panelMaxHeight.value = null
+  }
   syncTargetHighlight()
+}
+
+// 面板默认从操作柄下方往下弹。当所在块贴近视口底边时，下方空间不够，
+// 就翻到操作柄上方展开；两侧都不够时按较大一侧限高，保证最后一项能点到。
+function adjustPanelPosition() {
+  if (!open.value || !menuRoot.value) return
+  const panel = menuRoot.value.querySelector('.block-menu-panel')
+  if (!(panel instanceof HTMLElement)) return
+
+  const gap = 8
+  const triggerOffset = 34
+  const spaceBelow = window.innerHeight - (top.value + triggerOffset) - gap
+  const spaceAbove = top.value - gap
+
+  const previousMaxHeight = panel.style.maxHeight
+  panel.style.maxHeight = 'none'
+  const naturalHeight = panel.scrollHeight
+  panel.style.maxHeight = previousMaxHeight
+
+  const desired = Math.min(naturalHeight, 420)
+
+  if (desired > spaceBelow && spaceAbove > spaceBelow && spaceAbove >= 120) {
+    menuUpward.value = true
+    panelMaxHeight.value = Math.max(120, spaceAbove)
+  } else {
+    menuUpward.value = false
+    panelMaxHeight.value = Math.max(120, Math.min(desired, spaceBelow))
+  }
 }
 
 function toggleMenu() {
@@ -405,6 +450,8 @@ function updatePosition() {
     canMoveDown.value = currentBlock.index < currentBlock.parent.childCount - 1
     canSplitLines.value = Boolean(splitBlockLines(currentBlock.node))
     visible.value = true
+    // 块随光标滚动到视口边缘后，展开方向和限高要跟着 top.value 重算。
+    if (open.value) nextTick(adjustPanelPosition)
   })
 }
 
@@ -836,6 +883,11 @@ onBeforeUnmount(() => {
   background: var(--bg);
   border: 2px solid var(--border);
   box-shadow: 5px 5px 0 var(--border);
+}
+
+.block-menu-panel.upward {
+  top: auto;
+  bottom: 34px;
 }
 
 .block-menu-heading {
