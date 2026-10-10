@@ -12,6 +12,8 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 ## 已完成
 
+- 2026-10-10：编辑器新增飞书式折叠块（用户截图反馈「标题下的内容应可展开/收拢」）：自定义 TipTap 节点 `Collapsible`（容器 `<div data-collapsible data-open>` + 首行 `CollapsibleSummary` 标题行 + 任意内容块），标题行左侧箭头 ▸/▾ 点击切换 `open`（ProseMirror plugin 拦截箭头点击、posAtDOM 定位容器后 setNodeMarkup 翻转属性），折叠时 CSS 隐藏非标题行的子元素；标题行 Enter 在容器后新建段落跳出；`open` 随 HTML 持久化、随 Yjs 协同同步；可整体拖动。工具栏新增「折叠块」按钮插入；Editor.vue 与 SharedDoc.vue 同时注册。导出 Markdown 时按普通块内容展开，无需 turndown 特殊规则；旧文档无折叠块不受影响。验证：前端 166 项测试全绿、生产构建通过；`9203f77` 已通过 CI/CD 部署，deployed-commit 与本地 HEAD 一致，verify-public.sh 全绿。
+
 - 2026-10-10：编辑页左侧文档目录条目新增飞书式 ⋯ 操作菜单（用户对照飞书「⋯」菜单要求）：条目 hover 时右侧出现 ⋯（当前活动条目与移动端常显），点击弹出菜单含「下载为 Markdown / 创建副本 / 删除」三项；「与我协作」分组的条目只显示前两项，不显示删除。下载复用 `htmlToMarkdown`（turndown，同 AI 润色链路）把正文 HTML 转 Markdown 后 Blob 导出 `.md`，私有文档也可导出；副本走 `getDoc` + `createDoc`（带原 kind）插入目录列表头部、不跳转；删除二次确认后调 `deleteDoc`，删的是当前打开文档则回工作台，否则本地移除该条目并静默刷新目录（不置 loading，不闪「加载中...」），条目上显示「删除中」。菜单 fixed 定位、按视口自动上下翻转，点击外部 / Esc / 滚动即关闭。改动仅 `DocumentDirectory.vue`（菜单 UI 与定位、`deletingId` prop）与 `Editor.vue`（三个 handler、事件接线）。验证：后端 `node --check` 通过、前端 166 项测试连续两次全绿（其间少量失败为 blockGapInsertion 时序敏感 flaky，纯 HEAD 基线 162/0，与本改动无关）、前端生产构建通过。
 
 - 2026-10-10：块边界空白补行改为**双击触发**（反馈「点击空白容易误插一行」）：代码块前后、图片上下、文档开头/结尾的空白，单击只保留 ProseMirror 默认光标定位/选中行为，**同一空隙双击**才插入一行，避免误插入。判定基于 mousedown 的 `event.detail === 2`（浏览器按系统双击速度与移动阈值维护的连续点击计数）+ 两次点击落在同一空隙（块间/末尾空隙按顶层块索引、顶部/底部按 `top`/`bottom` 标识）：跨空隙快速连点不误判为双击，三连击（detail≥3）在双击插入后不再继续插入。实现位于 `frontend/src/utils/blockGapInsertion.js`：新增 `blankClickTracker`（WeakMap 按 EditorView 记录上一次点击）与 `isSecondClickOnSameGap`，`insertParagraphInClickedGap`（块间/末尾）与 `insertParagraphInLeadingBlank`（顶部/底部）在原有判据之后统一过双击判定；Editor.vue 与 SharedDoc.vue 的事件接线不变。
