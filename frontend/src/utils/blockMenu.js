@@ -4,6 +4,48 @@ export function getBlockMenuAnchor(selection) {
   return $from
 }
 
+// 列表项可独立操作；表格仍作为整体，避免把单元格当成列表操作范围。
+export function getOperationBlock(selection) {
+  const anchor = getBlockMenuAnchor(selection)
+  if (!anchor) return null
+  let depth = 1
+  let inTable = false
+  for (let level = 1; level <= anchor.depth; level += 1) {
+    if (anchor.node(level).type.name === 'table') inTable = true
+  }
+  if (!inTable) {
+    for (let level = anchor.depth; level > 1; level -= 1) {
+      if (['listItem', 'taskItem'].includes(anchor.node(level).type.name)) {
+        depth = level
+        break
+      }
+    }
+  }
+  return {
+    index: anchor.index(depth - 1),
+    position: anchor.before(depth),
+    node: anchor.node(depth),
+    parent: anchor.node(depth - 1),
+    parentPosition: depth === 1 ? null : anchor.before(depth - 1),
+  }
+}
+
+export function moveSiblingBlock(transaction, sourceIndex, targetIndex, parentPosition = null) {
+  const parent = parentPosition === null ? transaction.doc : transaction.doc.nodeAt(parentPosition)
+  if (!parent || !Number.isInteger(sourceIndex) || !Number.isInteger(targetIndex)
+    || sourceIndex < 0 || targetIndex < 0 || sourceIndex >= parent.childCount
+    || targetIndex >= parent.childCount || sourceIndex === targetIndex) return null
+  const children = []
+  parent.forEach(node => children.push(node))
+  const start = parentPosition === null ? 0 : parentPosition + 1
+  const sourcePosition = start + children.slice(0, sourceIndex).reduce((sum, child) => sum + child.nodeSize, 0)
+  const [node] = children.splice(sourceIndex, 1)
+  const insertPosition = start + children.slice(0, targetIndex).reduce((sum, child) => sum + child.nodeSize, 0)
+  transaction.delete(sourcePosition, sourcePosition + node.nodeSize)
+  transaction.insert(insertPosition, node)
+  return { transaction, insertPosition, node }
+}
+
 // 飞书式判定：操作柄属于「当前正在操作的块」，而不是「编辑器是否聚焦」。
 // 点击操作柄、打开菜单或拖动过程中编辑器会失焦，此时操作柄必须继续可用。
 export function shouldShowBlockMenu({ isDestroyed, isEditable, isFocused, interacting, hasTarget }) {

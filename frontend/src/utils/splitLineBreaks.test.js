@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { Schema, Slice, Fragment } from '@tiptap/pm/model'
 import { EditorState, TextSelection } from '@tiptap/pm/state'
-import { handleExternalLineBreakPaste, splitParagraphLines, splitPastedParagraphs } from './splitLineBreaks.js'
+import { handleExternalLineBreakPaste, splitBlockLines, splitParagraphLines, splitPastedParagraphs } from './splitLineBreaks.js'
 
 const schema = new Schema({
   nodes: {
@@ -11,9 +11,30 @@ const schema = new Schema({
     hardBreak: { inline: true, group: 'inline' },
     codeBlock: { content: 'text*', group: 'block', code: true },
     blockquote: { content: 'block+', group: 'block' },
+    bulletList: { content: 'listItem+', group: 'block' },
+    orderedList: { content: 'listItem+', group: 'block', attrs: { start: { default: 1 } } },
+    listItem: { content: 'paragraph block*' },
+    taskList: { content: 'taskItem+', group: 'block' },
+    taskItem: { content: 'paragraph block*', attrs: { checked: { default: false } } },
     text: { group: 'inline' },
   },
   marks: { bold: {}, link: { attrs: { href: {} } } },
+})
+
+test('GPT 列表显式换行拆成独立项，保留格式、序号、后续段落和嵌套结构', () => {
+  const nested = schema.node('bulletList', null, schema.node('listItem', null, p(text('子项'))))
+  const item = schema.node('listItem', null, [p([
+    schema.text('问题', [schema.mark('bold')]), br(),
+    schema.text('回答', [schema.mark('link', { href: 'https://example.com' })]),
+  ]), p(text('补充')), nested])
+  const original = schema.node('orderedList', { start: 4 }, [item, schema.node('listItem', null, p(text('另一项')))])
+  const converted = splitPastedParagraphs(new Slice(Fragment.from(original), 0, 0)).content.firstChild
+  assert.equal(converted.attrs.start, 4)
+  assert.deepEqual(converted.content.content.map(node => node.textContent), ['问题', '回答补充子项', '另一项'])
+  assert.equal(converted.firstChild.firstChild.firstChild.marks[0].type.name, 'bold')
+  assert.equal(converted.child(1).firstChild.firstChild.marks[0].attrs.href, 'https://example.com')
+  assert.ok(converted.child(1).lastChild.eq(nested))
+  assert.equal(splitBlockLines(schema.node('taskItem', { checked: true }, p([text('甲'), br(), text('乙')])))[1].attrs.checked, true)
 })
 const br = () => schema.node('hardBreak')
 const p = content => schema.node('paragraph', null, content)
@@ -69,6 +90,19 @@ test('编辑器内部复制的软换行与纯文本粘贴保持原行为', () =>
   const view = viewFor()
   assert.equal(handleExternalLineBreakPaste(view, eventFor('<p data-pm-slice="1 1 []">甲<br>乙</p>'), pasted()), false)
   assert.equal(handleExternalLineBreakPaste(view, eventFor(''), pasted()), false)
+})
+
+test('列表光标处粘贴显式换行拆段，不吞掉当前项前后文字', () => {
+  const doc = schema.node('doc', null, schema.node('bulletList', null,
+    schema.node('listItem', null, p(text('前后')))))
+  const view = {
+    editable: true,
+    state: EditorState.create({ doc, selection: TextSelection.create(doc, 4) }),
+    dispatch(tr) { this.state = this.state.apply(tr) },
+  }
+  assert.equal(handleExternalLineBreakPaste(view, eventFor('<p>甲<br>乙</p>'), pasted()), true)
+  assert.equal(view.state.doc.textContent, '前甲乙后')
+  assert.equal(view.state.doc.firstChild.firstChild.childCount, 2)
 })
 
 test('只读、代码块、嵌套容器不自动拆段', () => {

@@ -171,13 +171,13 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   getBlockInsertionIndex,
-  getBlockMenuAnchor,
+  getOperationBlock,
   getBlockMoveTargetIndex,
-  moveTopLevelBlock,
+  moveSiblingBlock,
   shouldShowBlockMenu,
 } from '../utils/blockMenu.js'
 import { insertUploadedImages } from '../utils/editorImages.js'
-import { splitParagraphLines } from '../utils/splitLineBreaks.js'
+import { splitBlockLines } from '../utils/splitLineBreaks.js'
 import {
   TABLE_WIDTH_AUTO,
   TABLE_WIDTH_FULL,
@@ -353,16 +353,10 @@ function getCurrentBlockType() {
 }
 
 function getCurrentBlock() {
-  const $from = getBlockMenuAnchor(props.editor.state.selection)
-  if (!$from) return null
-
-  const index = $from.index(0)
-  const position = $from.before(1)
-  const node = props.editor.state.doc.child(index)
-  return { index, position, node }
+  return getOperationBlock(props.editor.state.selection)
 }
 
-function getTopLevelBlockElement(editor, currentBlock) {
+function getBlockElement(editor, currentBlock) {
   const element = editor.view.nodeDOM(currentBlock.position)
   return element instanceof HTMLElement ? element : null
 }
@@ -380,7 +374,7 @@ function updatePosition() {
     }
 
     const currentBlock = getCurrentBlock()
-    const blockElement = currentBlock ? getTopLevelBlockElement(editor, currentBlock) : null
+    const blockElement = currentBlock ? getBlockElement(editor, currentBlock) : null
     const canShow = shouldShowBlockMenu({
       isDestroyed: editor.isDestroyed,
       isEditable: editor.isEditable,
@@ -408,8 +402,8 @@ function updatePosition() {
     tableWidthMode.value = getTableWidthMode(currentBlock.node)
     currentBlockType.value = isTableBlock.value ? 'table' : getCurrentBlockType()
     canMoveUp.value = currentBlock.index > 0
-    canMoveDown.value = currentBlock.index < editor.state.doc.childCount - 1
-    canSplitLines.value = Boolean(splitParagraphLines(currentBlock.node))
+    canMoveDown.value = currentBlock.index < currentBlock.parent.childCount - 1
+    canSplitLines.value = Boolean(splitBlockLines(currentBlock.node))
     visible.value = true
   })
 }
@@ -474,7 +468,7 @@ function duplicateBlock() {
 function splitLines() {
   const currentBlock = getCurrentBlock()
   if (!currentBlock || !props.editor.isEditable) return
-  const lines = splitParagraphLines(currentBlock.node)
+  const lines = splitBlockLines(currentBlock.node)
   if (!lines) return
   const transaction = props.editor.state.tr.replaceWith(
     currentBlock.position,
@@ -492,26 +486,11 @@ function moveBlock(direction) {
   const currentBlock = getCurrentBlock()
   if (!currentBlock) return
 
-  const { doc } = props.editor.state
-  const targetIndex = currentBlock.index + direction
-  if (targetIndex < 0 || targetIndex >= doc.childCount) return
-
-  const transaction = props.editor.state.tr
-  const currentEnd = currentBlock.position + currentBlock.node.nodeSize
-  let insertPosition
-
-  if (direction < 0) {
-    const previousNode = doc.child(targetIndex)
-    insertPosition = currentBlock.position - previousNode.nodeSize
-    transaction.delete(currentBlock.position, currentEnd)
-    transaction.insert(insertPosition, currentBlock.node)
-  } else {
-    const nextNode = doc.child(targetIndex)
-    insertPosition = currentBlock.position + nextNode.nodeSize
-    transaction.delete(currentBlock.position, currentEnd)
-    transaction.insert(insertPosition, currentBlock.node)
-  }
-
+  const move = moveSiblingBlock(
+    props.editor.state.tr, currentBlock.index, currentBlock.index + direction, currentBlock.parentPosition,
+  )
+  if (!move) return
+  const { transaction, insertPosition } = move
   focusTransactionBlock(transaction, insertPosition)
   props.editor.view.dispatch(transaction)
   props.editor.commands.focus()
@@ -525,7 +504,12 @@ function deleteBlock() {
 
   const transaction = props.editor.state.tr
   const currentEnd = currentBlock.position + currentBlock.node.nodeSize
-  if (props.editor.state.doc.childCount === 1) {
+  if (currentBlock.parentPosition !== null && currentBlock.parent.childCount === 1) {
+    // 删除最后一项时删除列表容器，避免 schema 自动补回空列表项。
+    const parentEnd = currentBlock.parentPosition + currentBlock.parent.nodeSize
+    transaction.delete(currentBlock.parentPosition, parentEnd)
+    focusTransactionBlock(transaction, Math.min(currentBlock.parentPosition, transaction.doc.content.size))
+  } else if (props.editor.state.doc.childCount === 1 && currentBlock.parentPosition === null) {
     const paragraph = props.editor.schema.nodes.paragraph.create()
     transaction.replaceWith(currentBlock.position, currentEnd, paragraph)
     focusTransactionBlock(transaction, currentBlock.position)
@@ -595,11 +579,16 @@ function insertTable() {
   setOpen(false)
 }
 
-function getTopLevelBlockEntries() {
+function getSiblingBlockEntries() {
   const editor = props.editor
   const entries = []
 
-  editor.state.doc.forEach((node, position, index) => {
+  const parentPosition = draggedBlock?.parentPosition ?? null
+  const parent = parentPosition === null ? editor.state.doc : editor.state.doc.nodeAt(parentPosition)
+  if (!parent) return entries
+  const start = parentPosition === null ? 0 : parentPosition + 1
+  parent.forEach((node, offset, index) => {
+    const position = start + offset
     const element = editor.view.nodeDOM(position)
     if (!(element instanceof HTMLElement)) return
     entries.push({ index, node, position, element, rect: element.getBoundingClientRect() })
@@ -623,7 +612,7 @@ function startDrag(event) {
     return
   }
 
-  const element = getTopLevelBlockElement(props.editor, currentBlock)
+  const element = getBlockElement(props.editor, currentBlock)
   if (!element) {
     event.preventDefault()
     return
@@ -660,7 +649,7 @@ function handleDragOver(event) {
   event.preventDefault()
   event.stopPropagation()
 
-  const entries = getTopLevelBlockEntries()
+  const entries = getSiblingBlockEntries()
   if (!entries.length) return
 
   const insertionIndex = getBlockInsertionIndex(entries.map((entry) => entry.rect), event.clientY)
@@ -698,15 +687,16 @@ function handleDrop(event) {
     return
   }
   const { doc } = props.editor.state
-  if (draggedBlock.index >= doc.childCount) {
+  const parent = draggedBlock.parentPosition === null ? doc : doc.nodeAt(draggedBlock.parentPosition)
+  if (!parent || !parent.eq(draggedBlock.parent) || draggedBlock.index >= parent.childCount) {
     finishDrag()
     return
   }
-  const sourceNode = doc.child(draggedBlock.index)
+  const sourceNode = parent.child(draggedBlock.index)
   const targetIndex = getBlockMoveTargetIndex(
     draggedBlock.index,
     dropInsertionIndex.value,
-    doc.childCount,
+    parent.childCount,
   )
 
   if (targetIndex === null || !sourceNode?.eq(draggedBlock.node)) {
@@ -714,7 +704,7 @@ function handleDrop(event) {
     return
   }
 
-  const move = moveTopLevelBlock(props.editor.state.tr, draggedBlock.index, targetIndex)
+  const move = moveSiblingBlock(props.editor.state.tr, draggedBlock.index, targetIndex, draggedBlock.parentPosition)
   if (!move) {
     finishDrag()
     return
