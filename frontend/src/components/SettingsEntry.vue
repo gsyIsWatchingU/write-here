@@ -49,10 +49,17 @@
 
           <section class="settings-section">
             <h4>AI 模型接入</h4>
-            <p class="settings-help">用于编辑器「AI 润色」。填写你自己的 API 地址与密钥后，润色将优先使用你的配置；留空则回退到站点配置。</p>
+            <p class="settings-help">用于编辑器「AI 润色」。填写你自己的 API 地址与密钥后，润色将优先使用你的配置；留空则回退到站点配置。DeepSeek 示例：接口类型选「OpenAI 兼容」，地址填 https://api.deepseek.com，模型填 deepseek-chat。</p>
+            <div class="settings-field">
+              <label for="ai-protocol">接口类型</label>
+              <select id="ai-protocol" v-model="aiProtocol">
+                <option value="anthropic">Anthropic（Claude）</option>
+                <option value="openai">OpenAI 兼容（DeepSeek 等）</option>
+              </select>
+            </div>
             <div class="settings-field">
               <label for="ai-base-url">API 地址</label>
-              <input id="ai-base-url" v-model.trim="aiBaseUrl" placeholder="https://api.example.com/v1" maxlength="500">
+              <input id="ai-base-url" v-model.trim="aiBaseUrl" placeholder="https://api.deepseek.com 或 https://api.openai.com/v1" maxlength="500">
             </div>
             <div class="settings-field">
               <label for="ai-api-key">API Key</label>
@@ -75,7 +82,7 @@
             </div>
             <div class="settings-field">
               <label for="ai-model">模型</label>
-              <input id="ai-model" v-model.trim="aiModel" placeholder="例如 claude-sonnet-4-5" maxlength="120">
+              <input id="ai-model" v-model.trim="aiModel" placeholder="例如 deepseek-chat / claude-sonnet-4-5" maxlength="120">
             </div>
             <div class="settings-row">
               <button class="primary" :disabled="savingAi" @click="saveAiSettings(false)">
@@ -113,6 +120,7 @@ const aiBaseUrl = ref('')
 const aiApiKey = ref('')
 const aiHasApiKey = ref(false)
 const aiModel = ref('')
+const aiProtocol = ref('anthropic')
 const savingAi = ref(false)
 const aiSaveMsg = ref('')
 let aiSaveMsgTimer = null
@@ -135,6 +143,7 @@ async function openSettings() {
     aiApiKey.value = ''
     aiHasApiKey.value = Boolean(settings.ai.hasApiKey)
     aiModel.value = settings.ai.model || ''
+    aiProtocol.value = settings.ai.protocol === 'openai' ? 'openai' : 'anthropic'
   } catch (e) {
     alert(e.message || '无法加载个人设置')
     showSettings.value = false
@@ -172,6 +181,7 @@ async function saveAiSettings(clearKey) {
     ai: {
       baseUrl: aiBaseUrl.value,
       model: aiModel.value,
+      protocol: aiProtocol.value,
     },
   }
   if (clearKey) {
@@ -261,7 +271,7 @@ async function removeAiApiKey() {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 .settings-modal {
-  width: 560px;
+  width: 680px;
   max-height: min(86vh, 780px);
   overflow-y: auto;
 }
@@ -301,6 +311,10 @@ async function removeAiApiKey() {
   color: var(--text-muted);
   font-size: 12px;
   line-height: 1.6;
+  /* 弹窗内容区带 nowrap，help 显式恢复换行，长 URL（如 https://api.deepseek.com）断词折行，避免横向溢出 */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .settings-row {
   display: flex;

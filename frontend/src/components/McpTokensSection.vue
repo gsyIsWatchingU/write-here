@@ -23,7 +23,7 @@
       <h4>2. 配置 MCP 客户端</h4>
       <p class="mcp-help">先在本仓库执行 <code>npm install --prefix mcp</code>，再把下面配置加入支持 stdio MCP 的 AI 客户端；将路径占位符替换为仓库绝对路径。</p>
       <div class="mcp-copy-row mcp-config-row">
-        <textarea :value="mcpConfigSnippet" rows="11" wrap="off" readonly aria-label="MCP 客户端配置"></textarea>
+        <textarea :value="mcpConfigSnippet" rows="11" wrap="soft" readonly aria-label="MCP 客户端配置"></textarea>
         <button class="ghost" @click="copyMcpText(mcpConfigSnippet, '配置')">复制配置</button>
       </div>
     </section>
@@ -149,6 +149,10 @@ function formatTime(t) {
   margin: 4px 0 0;
   color: var(--text-muted);
   font-size: 12px;
+  /* 弹窗内容区带 nowrap，help 显式恢复换行，MCP 文档链接等长 URL 断词折行，避免横向溢出 */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .mcp-create-row,
 .mcp-copy-row {

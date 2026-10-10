@@ -27,6 +27,8 @@ function aiPolishConfig(env = process.env) {
         baseUrl: String(env.ANTHROPIC_BASE_URL || '').trim().replace(/\/+$/, ''),
         apiKey: String(env.ANTHROPIC_API_KEY || '').trim(),
         model: String(env.CLAUDE_MODEL || env.ANTHROPIC_MODEL || '').trim(),
+        // 接口类型：anthropic = 走 claude CLI（Anthropic Messages 协议）；openai = 直连 /chat/completions
+        protocol: 'anthropic',
         timeoutMs: Number(env.AI_POLISH_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
         maxChars: Number(env.AI_POLISH_MAX_CHARS) || DEFAULT_MAX_CHARS,
         maxInstructionChars: Number(env.AI_POLISH_MAX_INSTRUCTION_CHARS) || DEFAULT_MAX_INSTRUCTION_CHARS,
@@ -109,14 +111,75 @@ function runClaudeCli({ prompt, config, spawnImpl = spawn, timeoutMs = DEFAULT_T
     });
 }
 
-async function polishDocument({ content, instruction, config = aiPolishConfig(), runCli = runClaudeCli }) {
+// OpenAI 兼容端点（DeepSeek、OpenAI 及各类兼容服务）：直连 /chat/completions，不走 claude CLI。
+// baseUrl 约定：可填 https://api.deepseek.com 或 https://api.deepseek.com/v1，统一在末尾补 /chat/completions。
+function runOpenAiCompatible({ prompt, config, fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS }) {
+    return new Promise((resolve, reject) => {
+        const baseUrl = String(config.baseUrl || '').trim().replace(/\/+$/, '');
+        if (!baseUrl) {
+            return reject(new AiPolishError(503, '未配置 OpenAI 兼容 API 地址（请填写 API 地址，如 https://api.deepseek.com）'));
+        }
+        if (!config.apiKey) {
+            return reject(new AiPolishError(503, '未配置 OpenAI 兼容 API Key'));
+        }
+        const model = String(config.model || '').trim();
+        if (!model) {
+            return reject(new AiPolishError(503, '未填写模型名称（例如 deepseek-chat）'));
+        }
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        fetchImpl(`${baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${config.apiKey}`,
+            },
+            body: JSON.stringify({
+                model,
+                messages: [
+                    { role: 'system', content: '你是一名专业的中文文档润色助手。' },
+                    { role: 'user', content: prompt },
+                ],
+                stream: false,
+            }),
+            signal: controller.signal,
+        })
+            .then(async (response) => {
+                clearTimeout(timer);
+                if (!response.ok) {
+                    const detail = await response.text().catch(() => '');
+                    throw new AiPolishError(502, `AI 接口返回 ${response.status}：${String(detail).slice(0, 300)}`);
+                }
+                return response.json();
+            })
+            .then((data) => {
+                const content = data?.choices?.[0]?.message?.content;
+                if (typeof content !== 'string' || !content.trim()) {
+                    throw new AiPolishError(502, 'AI 未返回有效内容，请重试');
+                }
+                resolve(content);
+            })
+            .catch((error) => {
+                clearTimeout(timer);
+                if (error instanceof AiPolishError) return reject(error);
+                if (error.name === 'AbortError') {
+                    return reject(new AiPolishError(502, `AI 润色超时（超过 ${Math.round(timeoutMs / 1000)} 秒）`));
+                }
+                reject(new AiPolishError(502, `调用 AI 接口失败：${error.message}`));
+            });
+    });
+}
+
+async function polishDocument({ content, instruction, config = aiPolishConfig(), runCli = runClaudeCli, runOpenAi = runOpenAiCompatible }) {
     if (!config.apiKey && !config.baseUrl) {
-        throw new AiPolishError(503, '服务器未配置 Claude 接入信息（缺少 ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL）');
+        throw new AiPolishError(503, '服务器未配置 AI 接入信息（缺少 API Key / API 地址）');
     }
     const prompt = buildPolishPrompt({ content, instruction });
-    const stdout = await runCli({ prompt, config, timeoutMs: config.timeoutMs });
+    const stdout = config.protocol === 'openai'
+        ? await runOpenAi({ prompt, config, timeoutMs: config.timeoutMs })
+        : await runCli({ prompt, config, timeoutMs: config.timeoutMs });
     const markdown = String(stdout || '').trim();
-    if (!markdown) throw new AiPolishError(502, 'Claude 未返回有效内容，请重试');
+    if (!markdown) throw new AiPolishError(502, 'AI 未返回有效内容，请重试');
     return { markdown };
 }
 
@@ -133,6 +196,10 @@ function createAiPolishRouter({ db, config = aiPolishConfig(), polishImpl = poli
         res.json({
             configured: Boolean(config.apiKey || config.baseUrl) || Boolean(userSettings.aiApiKey || userSettings.aiBaseUrl),
             model: userSettings.aiModel || config.model || null,
+            // 接口类型：用户选择优先，未配置时按服务器默认（anthropic）
+            protocol: (userSettings.aiProtocol === 'openai' || userSettings.aiProtocol === 'anthropic')
+                ? userSettings.aiProtocol
+                : (config.protocol || 'anthropic'),
         });
     });
 
@@ -170,4 +237,4 @@ function createAiPolishRouter({ db, config = aiPolishConfig(), polishImpl = poli
     return router;
 }
 
-module.exports = { AiPolishError, aiPolishConfig, buildPolishPrompt, createAiPolishRouter, polishDocument, runClaudeCli };
+module.exports = { AiPolishError, aiPolishConfig, buildPolishPrompt, createAiPolishRouter, polishDocument, runClaudeCli, runOpenAiCompatible };

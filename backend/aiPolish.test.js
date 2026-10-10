@@ -4,7 +4,7 @@ const { EventEmitter } = require('node:events');
 const http = require('node:http');
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
-const { AiPolishError, aiPolishConfig, buildPolishPrompt, createAiPolishRouter, polishDocument, runClaudeCli } = require('./aiPolish');
+const { AiPolishError, aiPolishConfig, buildPolishPrompt, createAiPolishRouter, polishDocument, runClaudeCli, runOpenAiCompatible } = require('./aiPolish');
 
 function exec(db, sql) {
     return new Promise((resolve, reject) => db.exec(sql, (error) => error ? reject(error) : resolve()));
@@ -31,6 +31,7 @@ async function startServer({ config, polishImpl } = {}) {
             aiBaseUrl TEXT NOT NULL DEFAULT '',
             aiApiKey TEXT NOT NULL DEFAULT '',
             aiModel TEXT NOT NULL DEFAULT '',
+            aiProtocol TEXT NOT NULL DEFAULT 'anthropic',
             updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
         );
         INSERT INTO users (id, username) VALUES (1, 'tester');
@@ -390,4 +391,86 @@ test('用户个人配置只覆盖已填写的字段，未填的字段回退服�
 
     const ok = await requestJson(ctx.base, '/ai/polish', { method: 'POST', body: { content: 'x', instruction: 'y' } });
     assert.equal(ok.status, 200);
+});
+
+test('runOpenAiCompatible：OpenAI 兼容直连 /chat/completions', async () => {
+    const calls = [];
+    const fetchImpl = async (url, options) => {
+        calls.push({ url, options });
+        return { ok: true, json: async () => ({ choices: [{ message: { content: '# 润色后' } }] }) };
+    };
+    const result = await runOpenAiCompatible({
+        prompt: '请润色',
+        config: { baseUrl: 'https://api.deepseek.com', apiKey: 'sk-ds-1', model: 'deepseek-chat' },
+        fetchImpl,
+    });
+    assert.equal(result, '# 润色后');
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, 'https://api.deepseek.com/chat/completions');
+    assert.equal(calls[0].options.headers.Authorization, 'Bearer sk-ds-1');
+    const body = JSON.parse(calls[0].options.body);
+    assert.equal(body.model, 'deepseek-chat');
+    assert.equal(body.messages[0].role, 'system');
+    assert.equal(body.stream, false);
+});
+
+test('runOpenAiCompatible：/v1 地址拼接、非 2xx 报 502、缺模型报 503', async () => {
+    let url1 = '';
+    await runOpenAiCompatible({
+        prompt: 'x',
+        config: { baseUrl: 'https://api.deepseek.com/v1/', apiKey: 'k', model: 'deepseek-chat' },
+        fetchImpl: async (url) => { url1 = url; return { ok: true, json: async () => ({ choices: [{ message: { content: 'ok' } }] }) }; },
+    });
+    assert.equal(url1, 'https://api.deepseek.com/v1/chat/completions');
+
+    await assert.rejects(
+        runOpenAiCompatible({
+            prompt: 'x',
+            config: { baseUrl: 'https://api.deepseek.com', apiKey: 'k', model: 'deepseek-chat' },
+            fetchImpl: async () => ({ ok: false, status: 401, text: async () => 'invalid api key' }),
+        }),
+        (error) => error.status === 502 && /401/.test(error.message)
+    );
+
+    await assert.rejects(
+        runOpenAiCompatible({ prompt: 'x', config: { baseUrl: 'https://api.deepseek.com', apiKey: 'k', model: '' } }),
+        (error) => error.status === 503 && /模型名称/.test(error.message)
+    );
+});
+
+test('runOpenAiCompatible：超时触发 AbortError 报 502', async () => {
+    const fetchImpl = (_url, options) => new Promise((resolve, reject) => {
+        options.signal.addEventListener('abort', () => {
+            const error = new Error('aborted');
+            error.name = 'AbortError';
+            reject(error);
+        });
+    });
+    await assert.rejects(
+        runOpenAiCompatible({ prompt: 'x', config: { baseUrl: 'https://api.deepseek.com', apiKey: 'k', model: 'deepseek-chat' }, fetchImpl, timeoutMs: 50 }),
+        (error) => error.status === 502 && /超时/.test(error.message)
+    );
+});
+
+test('polishDocument：protocol=openai 走 OpenAI 兼容通道，默认 anthropic 走 claude CLI', async () => {
+    let used = '';
+    const result = await polishDocument({
+        content: '# 原文档',
+        instruction: '更专业',
+        config: { ...configuredConfig(), protocol: 'openai' },
+        runCli: async () => { used = 'cli'; return 'x'; },
+        runOpenAi: async () => { used = 'openai'; return '# 润色后'; },
+    });
+    assert.equal(used, 'openai');
+    assert.equal(result.markdown, '# 润色后');
+
+    used = '';
+    await polishDocument({
+        content: 'x',
+        instruction: 'y',
+        config: configuredConfig(),
+        runCli: async () => { used = 'cli'; return 'ok'; },
+        runOpenAi: async () => { used = 'openai'; return 'x'; },
+    });
+    assert.equal(used, 'cli');
 });

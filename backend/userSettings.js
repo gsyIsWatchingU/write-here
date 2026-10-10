@@ -18,7 +18,7 @@ function loadUserAiSettings(db, userId) {
     return new Promise((resolve) => {
         if (!db || !userId) return resolve({});
         db.get(
-            'SELECT aiBaseUrl, aiApiKey, aiModel FROM user_settings WHERE userId = ?',
+            'SELECT aiBaseUrl, aiApiKey, aiModel, aiProtocol FROM user_settings WHERE userId = ?',
             [userId],
             (err, row) => (err ? resolve({}) : resolve(row || {}))
         );
@@ -37,6 +37,10 @@ function mergeUserAiConfig(serverConfig, userSettings = {}) {
     if (userSettings.aiModel) {
         merged.model = String(userSettings.aiModel).trim();
     }
+    // 接口类型：用户显式选择优先，未配置时继承服务器默认（anthropic）
+    merged.protocol = (userSettings.aiProtocol === 'openai' || userSettings.aiProtocol === 'anthropic')
+        ? userSettings.aiProtocol
+        : (serverConfig.protocol || 'anthropic');
     return merged;
 }
 
@@ -60,6 +64,7 @@ function createUserSettingsRouter({ db }) {
             ai: {
                 baseUrl: settings.aiBaseUrl || '',
                 model: settings.aiModel || '',
+                protocol: settings.aiProtocol === 'openai' ? 'openai' : 'anthropic',
                 hasApiKey: Boolean(settings.aiApiKey),
                 apiKeyHint: maskApiKey(settings.aiApiKey),
             },
@@ -112,16 +117,23 @@ function createUserSettingsRouter({ db }) {
             }
         }
 
+        // 接口类型：anthropic（claude CLI）/ openai（OpenAI 兼容端点），非法值忽略保持原样
+        let aiProtocol = current.aiProtocol === 'openai' ? 'openai' : 'anthropic';
+        if (ai.protocol === 'openai' || ai.protocol === 'anthropic') {
+            aiProtocol = ai.protocol;
+        }
+
         await new Promise((resolve, reject) => {
             db.run(
-                `INSERT INTO user_settings (userId, aiBaseUrl, aiApiKey, aiModel, updatedAt)
-                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                `INSERT INTO user_settings (userId, aiBaseUrl, aiApiKey, aiModel, aiProtocol, updatedAt)
+                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                  ON CONFLICT(userId) DO UPDATE SET
                    aiBaseUrl = excluded.aiBaseUrl,
                    aiApiKey = excluded.aiApiKey,
                    aiModel = excluded.aiModel,
+                   aiProtocol = excluded.aiProtocol,
                    updatedAt = CURRENT_TIMESTAMP`,
-                [user.id, aiBaseUrl, aiApiKey, aiModel],
+                [user.id, aiBaseUrl, aiApiKey, aiModel, aiProtocol],
                 (err) => (err ? reject(err) : resolve())
             );
         });
@@ -131,6 +143,7 @@ function createUserSettingsRouter({ db }) {
             ai: {
                 baseUrl: aiBaseUrl,
                 model: aiModel,
+                protocol: aiProtocol,
                 hasApiKey: Boolean(aiApiKey),
                 apiKeyHint: maskApiKey(aiApiKey),
             },

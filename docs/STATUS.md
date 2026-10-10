@@ -1,4 +1,4 @@
-﻿# 项目状态
+# 项目状态
 
 最后更新：2026-10-10
 
@@ -14,6 +14,7 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 - 2026-10-10：修复 GPT 复制内容整张列表被当成一块：块菜单定位当前列表项，复制、删除、上下移动及拖动均按单项操作，支持嵌套列表；外部列表的显式换行自动拆项，旧内容可用「按换行拆成段落」修复，保留粗体、链接和列表属性。
 
+- 2026-10-10：个人设置弹窗加宽至 680px 并消除横向滚动条；新增「接口类型」选择（Anthropic / OpenAI 兼容），AI 润色后端新增 OpenAI 兼容直连通道（/chat/completions），支持 DeepSeek 官方 API（接口类型选「OpenAI 兼容」，地址 https://api.deepseek.com，模型 deepseek-chat 或 deepseek-reasoner）。根因：帮助文本继承弹窗内容区 nowrap 且含长 URL（DeepSeek 示例、MCP 文档链接）撑破容器，MCP 配置 textarea wrap=off 也产生横向滚动条。改动：SettingsEntry.vue（弹窗宽度、接口类型下拉与回显、help 显式 white-space:normal + overflow-wrap:anywhere）、McpTokensSection.vue（help 同样处理、配置 textarea 改 wrap=soft）、server.js（user_settings 表加 aiProtocol 列 + 老库 ALTER 迁移）、userSettings.js（aiProtocol 读写/合并/校验）、aiPolish.js（aiPolishConfig.protocol、runOpenAiCompatible 直连、polishDocument 按协议分支、/ai/polish/config 返回 protocol）。验证：后端 47 项测试（新增 OpenAI 直连/拼接/超时/缺模型与协议路由用例）、前端 162 项测试、生产构建通过；无头 Chrome + CDP 加载真实构建产物实测弹窗 680px、弹窗与页面均无横向滚动、接口类型保存/回显/合并正确（截图 run/settings-*/settings.png，脚本 run/verify-settings-modal.mjs）。DeepSeek 直连的远端调用行为由 mock 单测覆盖，真实调用需用户填入有效 API Key 后验证。
 - 2026-10-10：编辑页顶栏右侧控件高度统一为 36px（用户反馈「这些框高度不一样」）。根因：ghost 按钮（导入 MD / 分享）默认上下内边距 7px + 2px 边框被内容撑到 38.8px，可见性下拉框（select）仅 32.4px，而铃铛与用户 chip 为 36px（全局 min-height），三者不等高。改动仅在 Editor.vue：`.topbar-right button.ghost` 固定 `height/min-height:36px` 并把上下内边距收至 5px；`.visibility-control select` 加 `height/min-height:36px`。用无头 Chrome + CDP 加载真实构建产物实测五个控件（导入 MD / 分享 / 可见性 select / 铃铛 / 用户 chip）高度全部为 36px；前端 158 项测试与生产构建通过，后端无改动。
 
 - 2026-10-08：修复网页粘贴多行合成一块：外部 HTML 普通段落中的显式换行自动拆段；块菜单顶部新增「按换行拆成段落」，用于修复旧内容。保留粗体、链接、段落对齐与空行；内部复制、自动折行及代码/表格/列表容器沿用原规则。编辑页和分享编辑页均接入；工具栏兼容缺失的撤销命令，避免分享页整条工具栏报错。前端 158 项测试、生产构建、后端语法检查通过；隔离 SQLite + 真实 Chrome 验证 9 项通过，含菜单修复、撤销、粘贴、保存落库和刷新回读。线上验收按 CI/CD、deployed-commit 与 verify-public.sh 执行。后续单独排查协同编辑重做不可用，并统一分享页撤销/重做命令。
@@ -125,6 +126,7 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 - 2026-10-10：列表块修复通过前端 162 项测试、生产构建和后端语法检查；隔离 SQLite + 真实 Chrome 20 项验收通过，覆盖单项高亮、复制、删除、移动、原生拖动、格式转换、外部粘贴、旧内容拆分、撤销、保存刷新及分享编辑页。CI/CD 和线上版本按交接要求核对。
 
+- 2026-10-10：设置弹窗改造通过后端 47 项测试（新增 OpenAI 直连/拼接/超时/缺模型与协议路由用例）、前端 162 项测试与生产构建；无头 Chrome + CDP 实测弹窗 680px、页面与弹窗均无横向滚动、接口类型下拉/保存/回显/合并正确（截图 `run/settings-*/settings.png`，脚本 `run/verify-settings-modal.mjs`，均为忽略目录）。
 - 2026-10-10：顶栏控件高度统一通过前端 158 项测试与生产构建；用临时无头 Chrome + CDP 加载真实构建产物（隔离后端 + 注入登录态打开真实文档页）实测：导入 MD 36px、分享 36px、可见性 select 36px、铃铛 36px、用户 chip 36px（截图在 `run/topbar-*/topbar.png`，脚本 `run/verify-topbar-heights.mjs`，均为忽略目录）。后端无改动。
 - 2026-09-03：前端 `vite build` 通过，共转换 421 个模块。
 - 2026-09-03：`node --check backend/server.js` 通过。

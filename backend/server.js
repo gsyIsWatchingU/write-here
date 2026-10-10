@@ -175,18 +175,27 @@ function initDatabase() {
             )
         `);
 
-        // 个人设置：昵称存 users.displayName，AI 模型接入配置（API 地址/Key/模型）存这里。
+        // 个人设置：昵称存 users.displayName，AI 模型接入配置（API 地址/Key/模型/接口类型）存这里。
         // API Key 原文保存（后端润色要拿它调用模型 API），读取接口只回掩码。
+        // aiProtocol：anthropic（claude CLI，默认）/ openai（OpenAI 兼容端点，如 DeepSeek）。
         db.run(`
             CREATE TABLE IF NOT EXISTS user_settings (
                 userId INTEGER PRIMARY KEY,
                 aiBaseUrl TEXT NOT NULL DEFAULT '',
                 aiApiKey TEXT NOT NULL DEFAULT '',
                 aiModel TEXT NOT NULL DEFAULT '',
+                aiProtocol TEXT NOT NULL DEFAULT 'anthropic',
                 updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
             )
         `);
+
+        // 迁移：旧库 user_settings 表补 aiProtocol 列（老用户无设置时保持默认 anthropic）
+        db.run(`ALTER TABLE user_settings ADD COLUMN aiProtocol TEXT NOT NULL DEFAULT 'anthropic'`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.error('迁移 user_settings.aiProtocol 列失败:', err.message);
+            }
+        });
 
         // 评论点赞独立存储，避免重复点赞并保留用户维度
         db.run(`

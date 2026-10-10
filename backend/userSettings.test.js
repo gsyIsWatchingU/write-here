@@ -34,6 +34,7 @@ async function startServer() {
             aiBaseUrl TEXT NOT NULL DEFAULT '',
             aiApiKey TEXT NOT NULL DEFAULT '',
             aiModel TEXT NOT NULL DEFAULT '',
+            aiProtocol TEXT NOT NULL DEFAULT 'anthropic',
             updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
         );
         INSERT INTO users (id, username) VALUES (1, 'tester@example.com');
@@ -192,4 +193,33 @@ test('PUT /settings 校验模型名长度', async (t) => {
     const res = await requestJson(ctx.base, '/settings', { method: 'PUT', body: { ai: { model: 'm'.repeat(121) } } });
     assert.equal(res.status, 400);
     assert.match((await res.json()).error, /模型名过长/);
+});
+
+test('PUT /settings 保存并回显 aiProtocol（默认 anthropic，非法值忽略）', async (t) => {
+    const ctx = await startServer();
+    t.after(ctx.close);
+
+    const got0 = await requestJson(ctx.base, '/settings');
+    assert.equal((await got0.json()).ai.protocol, 'anthropic');
+
+    const res = await requestJson(ctx.base, '/settings', {
+        method: 'PUT',
+        body: { ai: { baseUrl: 'https://api.deepseek.com', protocol: 'openai' } },
+    });
+    assert.equal(res.status, 200);
+    assert.equal((await res.json()).ai.protocol, 'openai');
+
+    const row = await get(ctx.db, 'SELECT aiProtocol FROM user_settings WHERE userId = 1');
+    assert.equal(row.aiProtocol, 'openai');
+
+    const got = await requestJson(ctx.base, '/settings');
+    assert.equal((await got.json()).ai.protocol, 'openai');
+
+    // 非法值忽略，保持原样
+    const bad = await requestJson(ctx.base, '/settings', { method: 'PUT', body: { ai: { protocol: 'weird' } } });
+    assert.equal((await bad.json()).ai.protocol, 'openai');
+
+    // 显式切回 anthropic
+    const back = await requestJson(ctx.base, '/settings', { method: 'PUT', body: { ai: { protocol: 'anthropic' } } });
+    assert.equal((await back.json()).ai.protocol, 'anthropic');
 });
