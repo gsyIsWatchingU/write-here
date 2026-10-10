@@ -854,6 +854,14 @@ function copyLink() {
   min-width: 0;
 }
 .topbar-right > * { flex-shrink: 0; white-space: nowrap; }
+/* 顶栏右侧交互控件统一 36px 高：ghost 按钮默认被 7px 上下内边距 + 2px 边框撑到 38.8px，
+   与铃铛、用户 chip（min-height:36px）及可见性下拉框高度不一致，这里统一压到 36px。 */
+.topbar-right button.ghost {
+  height: 36px;
+  min-height: 36px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
 .topbar-divider {
   width: 1px;
   height: 20px;
@@ -876,6 +884,8 @@ function copyLink() {
   color: var(--text-secondary);
 }
 .visibility-control select {
+  height: 36px;
+  min-height: 36px;
   padding: 4px 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
