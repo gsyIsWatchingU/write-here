@@ -32,29 +32,8 @@
           <div v-if="settingsLoading" class="settings-loading">加载中...</div>
           <template v-else>
             <section class="settings-section">
-              <h4>用户昵称</h4>
-              <div class="settings-row">
-                <input
-                  v-model.trim="nickname"
-                  maxlength="40"
-                  placeholder="显示在顶栏、协作与评论中的昵称"
-                  aria-label="用户昵称"
-                  @keyup.enter="saveNickname"
-                >
-                <button
-                  class="primary"
-                  :disabled="savingNickname || !nickname || nickname === originalNickname"
-                  @click="saveNickname"
-                >
-                  {{ savingNickname ? '保存中...' : '保存' }}
-                </button>
-              </div>
-              <p class="settings-help">昵称会显示在顶栏、协作文档与评论中；留空时默认取邮箱 @ 前的部分。</p>
-            </section>
-
-            <section class="settings-section">
               <h4>AI 模型接入</h4>
-              <p class="settings-help">用于编辑器「AI 润色」。填写你自己的 API 地址与密钥后，润色将优先使用你的配置；留空则回退到站点配置。DeepSeek 示例：接口类型选「OpenAI 兼容」，地址填 https://api.deepseek.com，再点右侧「获取模型」选择模型。</p>
+              <p class="settings-help">用于编辑器「AI 润色」，按四步操作：① 选接口类型（DeepSeek 选 OpenAI 兼容）；② 填 API 地址（DeepSeek 用 https://api.deepseek.com）；③ 填你的 API Key，点右侧按钮拉取模型列表；④ 选好模型点「保存 AI 设置」。全部留空则使用站点默认配置。</p>
               <div class="settings-field">
                 <label for="ai-protocol">接口类型</label>
                 <select id="ai-protocol" v-model="aiProtocol" @change="aiModelList = []">
@@ -159,9 +138,6 @@ const router = useRouter()
 // ==================== 个人设置弹窗 ====================
 const showSettings = ref(false)
 const settingsLoading = ref(false)
-const nickname = ref('')
-const originalNickname = ref('')
-const savingNickname = ref(false)
 const aiBaseUrl = ref('')
 const aiApiKey = ref('')
 const aiHasApiKey = ref(false)
@@ -211,8 +187,6 @@ async function openSettings() {
   aiModelError.value = ''
   try {
     const settings = await api.getSettings()
-    nickname.value = settings.nickname || ''
-    originalNickname.value = settings.nickname || ''
     aiBaseUrl.value = settings.ai.baseUrl || ''
     aiApiKey.value = ''
     aiHasApiKey.value = Boolean(settings.ai.hasApiKey)
@@ -236,24 +210,6 @@ function handleLogout() {
   if (!confirm('确定退出登录吗？')) return
   clearUser()
   router.push('/login')
-}
-
-async function saveNickname() {
-  const name = nickname.value.trim()
-  if (!name || savingNickname.value || name === originalNickname.value) return
-  savingNickname.value = true
-  try {
-    const res = await api.saveSettings({ nickname: name })
-    originalNickname.value = res.nickname
-    // 同步本地用户态：标签上的用户名立即刷新，且其它页面重新挂载时读到的也是新昵称
-    const current = getUser() || {}
-    setUser({ ...current, username: res.nickname })
-    user.value = getUser()
-  } catch (e) {
-    alert(e.message || '昵称保存失败')
-  } finally {
-    savingNickname.value = false
-  }
 }
 
 // clearKey：true 表示显式移除已保存的 Key；否则非空 apiKey 替换，空串保持原样
@@ -393,6 +349,7 @@ async function removeAiApiKey() {
   overflow-y: auto;
   padding: 0 24px 24px;
   flex: 1;
+  min-height: 0;
 }
 .settings-loading {
   padding: 40px 0;

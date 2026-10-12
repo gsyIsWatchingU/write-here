@@ -1,6 +1,6 @@
 <template>
   <div>
-    <p class="mcp-help">Token 代表你的身份，只能管理你自己的普通文档。</p>
+    <p class="mcp-help">MCP 让你的 AI 客户端（如 Codex、Claude Desktop）直接读写你的文档。只需三步：① 起个名字生成 Token；② 点右侧按钮复制下面的配置；③ 把配置粘到你的 AI 客户端配置文件里，把路径和 Token 替换好即可。</p>
 
     <section class="mcp-section">
       <h4>1. 生成个人 Token</h4>
@@ -18,8 +18,9 @@
           <textarea :value="generatedToken" rows="2" readonly aria-label="新生成的 MCP Token"></textarea>
           <button class="icon-btn primary" title="复制 Token" aria-label="复制 Token" @click="copyMcpText(generatedToken, 'Token')">
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="9" y="9" width="13" height="13" rx="0" />
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              <rect x="10" y="10" width="10" height="10" />
+              <path d="M4 18V4a0 0 0 0 1 0 0h14" />
+              <rect x="4" y="4" width="10" height="10" />
             </svg>
           </button>
         </div>
@@ -27,14 +28,15 @@
     </section>
 
     <section class="mcp-section">
-      <h4>2. 配置 MCP 客户端</h4>
-      <p class="mcp-help">先在本仓库执行 <code>npm install --prefix mcp</code>，再把下面配置加入支持 stdio MCP 的 AI 客户端；将路径占位符替换为仓库绝对路径。</p>
+      <h4>2. 复制 MCP 配置</h4>
+      <p class="mcp-help">先在本仓库执行 <code>npm install --prefix mcp</code>，再把下面这段配置加到你的 AI 客户端 MCP 配置里；把 <code>&lt;仓库绝对路径&gt;</code> 替换成本地仓库的完整路径，<code>&lt;刚生成的 Token&gt;</code> 替换成上面的 Token。</p>
       <div class="mcp-copy-row mcp-config-row">
         <textarea :value="mcpConfigSnippet" rows="11" wrap="soft" readonly aria-label="MCP 客户端配置"></textarea>
         <button class="icon-btn ghost" title="复制配置" aria-label="复制配置" @click="copyMcpText(mcpConfigSnippet, '配置')">
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="9" y="9" width="13" height="13" rx="0" />
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            <rect x="10" y="10" width="10" height="10" />
+            <path d="M4 18V4a0 0 0 0 1 0 0h14" />
+            <rect x="4" y="4" width="10" height="10" />
           </svg>
         </button>
       </div>
