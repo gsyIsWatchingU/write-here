@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <header class="topbar">
     <h1 class="logo brand-logo" @click="router.push('/')">
       <img src="/lumi-icon.png" alt="" aria-hidden="true">
@@ -18,12 +18,12 @@
     </div>
     <div class="topbar-right">
       <slot name="actions"></slot>
-      <!-- 涓汉璁剧疆鍏ュ彛锛氬儚绱犻鎸夐挳锛堥粦鎻忚竟鐩磋锛夛紝榻胯疆鍥炬爣 + 鐢ㄦ埛鍚嶏紝鐐瑰嚮鎵撳紑璁剧疆寮圭獥 -->
+      <!-- 个人设置入口：像素风按钮（黑描边直角），齿轮图标 + 用户名，点击打开设置弹窗 -->
       <button
         v-if="user?.username"
         class="user-chip"
-        aria-label="涓汉璁剧疆"
-        title="涓汉璁剧疆"
+        aria-label="个人设置"
+        title="个人设置"
         :aria-expanded="showSettings"
         @click.stop="openSettings"
       >
@@ -35,24 +35,24 @@
       </button>
     </div>
 
-    <!-- 涓汉璁剧疆寮圭獥锛氭樀绉般€丄I 妯″瀷鎺ュ叆锛圓PI 鍦板潃 / Key / 妯″瀷锛夈€丮CP 鎺ュ叆 -->
+    <!-- 个人设置弹窗：昵称、AI 模型接入（API 地址 / Key / 模型）、MCP 接入 -->
     <div v-if="showSettings" class="modal-overlay" @click.self="closeSettings">
       <div class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
         <div class="settings-modal-header">
-          <h3 id="settings-modal-title">涓汉璁剧疆</h3>
-          <button class="ghost small" @click="closeSettings">鍏抽棴</button>
+          <h3 id="settings-modal-title">个人设置</h3>
+          <button class="ghost small" @click="closeSettings">关闭</button>
         </div>
 
-        <div v-if="settingsLoading" class="settings-loading">鍔犺浇涓?..</div>
+        <div v-if="settingsLoading" class="settings-loading">加载中...</div>
         <template v-else>
           <section class="settings-section">
-            <h4>鐢ㄦ埛鏄电О</h4>
+            <h4>用户昵称</h4>
             <div class="settings-row">
               <input
                 v-model.trim="nickname"
                 maxlength="40"
-                placeholder="鏄剧ず鍦ㄩ《鏍忋€佸崗浣滀笌璇勮涓殑鏄电О"
-                aria-label="鐢ㄦ埛鏄电О"
+                placeholder="显示在顶栏、协作与评论中的昵称"
+                aria-label="用户昵称"
                 @keyup.enter="saveNickname"
               >
               <button
@@ -60,17 +60,17 @@
                 :disabled="savingNickname || !nickname || nickname === originalNickname"
                 @click="saveNickname"
               >
-                {{ savingNickname ? '淇濆瓨涓?..' : '淇濆瓨' }}
+                {{ savingNickname ? '保存中...' : '保存' }}
               </button>
             </div>
-            <p class="settings-help">鏄电О浼氭樉绀哄湪椤舵爮銆佸崗浣滄枃妗ｄ笌璇勮涓紱鐣欑┖鏃堕粯璁ゅ彇閭 @ 鍓嶇殑閮ㄥ垎銆?/p>
+            <p class="settings-help">昵称会显示在顶栏、协作文档与评论中；留空时默认取邮箱 @ 前的部分。</p>
           </section>
 
           <section class="settings-section">
-            <h4>AI 妯″瀷鎺ュ叆</h4>
-            <p class="settings-help">鐢ㄤ簬缂栬緫鍣ㄣ€孉I 娑﹁壊銆嶃€傚～鍐欎綘鑷繁鐨?API 鍦板潃涓庡瘑閽ュ悗锛屾鼎鑹插皢浼樺厛浣跨敤浣犵殑閰嶇疆锛涚暀绌哄垯鍥為€€鍒扮珯鐐归厤缃€?/p>
+            <h4>AI 模型接入</h4>
+            <p class="settings-help">用于编辑器「AI 润色」。填写你自己的 API 地址与密钥后，润色将优先使用你的配置；留空则回退到站点配置。</p>
             <div class="settings-field">
-              <label for="ai-base-url">API 鍦板潃</label>
+              <label for="ai-base-url">API 地址</label>
               <input id="ai-base-url" v-model.trim="aiBaseUrl" placeholder="https://api.example.com/v1" maxlength="500">
             </div>
             <div class="settings-field">
@@ -80,39 +80,39 @@
                   id="ai-api-key"
                   v-model="aiApiKey"
                   type="password"
-                  :placeholder="aiHasApiKey ? '宸茶缃紙鐣欑┖淇濇寔涓嶅彉锛岃緭鍏ユ柊鍊煎皢鏇挎崲锛? : 'sk-...'"
+                  :placeholder="aiHasApiKey ? '已设置（留空保持不变，输入新值将替换）' : 'sk-...'"
                   autocomplete="off"
                   maxlength="4096"
                 >
                 <button
                   v-if="aiHasApiKey"
                   class="ghost small"
-                  title="绉婚櫎宸蹭繚瀛樼殑 API Key"
+                  title="移除已保存的 API Key"
                   @click="removeAiApiKey"
-                >绉婚櫎</button>
+                >移除</button>
               </div>
             </div>
             <div class="settings-field">
-              <label for="ai-model">妯″瀷</label>
-              <input id="ai-model" v-model.trim="aiModel" placeholder="渚嬪 claude-sonnet-4-5" maxlength="120">
+              <label for="ai-model">模型</label>
+              <input id="ai-model" v-model.trim="aiModel" placeholder="例如 claude-sonnet-4-5" maxlength="120">
             </div>
             <div class="settings-row">
               <button class="primary" :disabled="savingAi" @click="saveAiSettings(false)">
-                {{ savingAi ? '淇濆瓨涓?..' : '淇濆瓨 AI 璁剧疆' }}
+                {{ savingAi ? '保存中...' : '保存 AI 设置' }}
               </button>
               <span v-if="aiSaveMsg" class="settings-msg">{{ aiSaveMsg }}</span>
             </div>
           </section>
 
           <section class="settings-section">
-            <h4>MCP 鎺ュ叆</h4>
-            <p class="settings-help">鐢熸垚涓汉 Token 骞堕厤缃?MCP 瀹㈡埛绔紝璁?AI 閫氳繃 MCP 璇诲彇鍜岀紪杈戜綘鐨勬枃妗ｃ€?/p>
+            <h4>MCP 接入</h4>
+            <p class="settings-help">生成个人 Token 并配置 MCP 客户端，让 AI 通过 MCP 读取和编辑你的文档。</p>
             <McpTokensSection />
           </section>
 
           <section class="settings-section">
             <div class="settings-row">
-              <button class="danger" @click="handleLogout">閫€鍑虹櫥褰?/button>
+              <button class="danger" @click="handleLogout">退出登录</button>
             </div>
           </section>
         </template>
@@ -132,11 +132,13 @@ const router = useRouter()
 const route = useRoute()
 const user = ref(getUser())
 
-// 瀵艰埅椤逛笌缂栧彿鐢?utils/navigation.js 缁熶竴鎻愪緵锛岄〉闈笉鍐嶅悇鍐欎竴浠姐€?const navItems = computed(() => resolveNavItems(user.value))
+// 导航项与编号由 utils/navigation.js 统一提供，页面不再各写一份。
+const navItems = computed(() => resolveNavItems(user.value))
 
-// 鎸夎矾鐢?name 鍒ゅ畾锛岃€屼笉鏄?route.path锛氭棫鍐欐硶娣风敤浜?path 姣旇緝銆佸啓姝荤殑
-// active class 鍜屽畬鍏ㄤ笉鍒ゅ畾锛孭roblems 椤甸偅涓啓姝荤殑 active 瀵艰嚧瀵艰埅姘歌繙楂樹寒
-// 涓旂偣鑷繁娌℃湁鍙嶅簲銆?function isActive(item) {
+// 按路由 name 判定，而不是 route.path：旧写法混用了 path 比较、写死的
+// active class 和完全不判定，Problems 页那个写死的 active 导致导航永远高亮
+// 且点自己没有反应。
+function isActive(item) {
   return route.name === item.name
 }
 
@@ -146,12 +148,16 @@ function go(item) {
 }
 
 function handleLogout() {
-  // 閫€鍑烘槸鍗遍櫓鎿嶄綔锛屽厛纭鍐嶆墽琛屻€?  if (!confirm('纭畾閫€鍑虹櫥褰曞悧锛?)) return
-  // 鏈湴鐧诲嚭涓庤烦杞繀椤绘槸鍚屾鐨勶紝涓嶈兘 await /logout 缃戠粶璇锋眰 鈥斺€?  // 鍚庣鍗′綇鎴栫绾挎椂锛岀瓑寰呬細璁┿€岄€€鍑恒€嶇湅璧锋潵瀹屽叏娌″弽搴斻€?  // clearUser() 鍐呴儴宸蹭繚璇佹湰鍦板嚟鎹棤鏉′欢娓呴櫎锛屽苟鎶婅姹傚け璐ラ檷绾т负璀﹀憡銆?  clearUser()
+  // 退出是危险操作，先确认再执行。
+  if (!confirm('确定退出登录吗？')) return
+  // 本地登出与跳转必须是同步的，不能 await /logout 网络请求 ——
+  // 后端卡住或离线时，等待会让「退出」看起来完全没反应。
+  // clearUser() 内部已保证本地凭据无条件清除，并把请求失败降级为警告。
+  clearUser()
   router.push('/login')
 }
 
-// ==================== 涓汉璁剧疆寮圭獥 ====================
+// ==================== 个人设置弹窗 ====================
 const showSettings = ref(false)
 const settingsLoading = ref(false)
 const nickname = ref('')
@@ -184,7 +190,7 @@ async function openSettings() {
     aiHasApiKey.value = Boolean(settings.ai.hasApiKey)
     aiModel.value = settings.ai.model || ''
   } catch (e) {
-    alert(e.message || '鏃犳硶鍔犺浇涓汉璁剧疆')
+    alert(e.message || '无法加载个人设置')
     showSettings.value = false
   } finally {
     settingsLoading.value = false
@@ -202,18 +208,19 @@ async function saveNickname() {
   try {
     const res = await api.saveSettings({ nickname: name })
     originalNickname.value = res.nickname
-    // 鍚屾鏈湴鐢ㄦ埛鎬侊細椤舵爮鐢ㄦ埛鍚嶇珛鍗冲埛鏂帮紝涓斿叾瀹冮〉闈㈤噸鏂版寕杞芥椂璇诲埌鐨勪篃鏄柊鏄电О
+    // 同步本地用户态：顶栏用户名立即刷新，且其它页面重新挂载时读到的也是新昵称
     const current = getUser() || {}
     setUser({ ...current, username: res.nickname })
     user.value = getUser()
   } catch (e) {
-    alert(e.message || '鏄电О淇濆瓨澶辫触')
+    alert(e.message || '昵称保存失败')
   } finally {
     savingNickname.value = false
   }
 }
 
-// clearKey锛歵rue 琛ㄧず鏄惧紡绉婚櫎宸蹭繚瀛樼殑 Key锛涘惁鍒欓潪绌?apiKey 鏇挎崲锛岀┖涓蹭繚鎸佸師鏍?async function saveAiSettings(clearKey) {
+// clearKey：true 表示显式移除已保存的 Key；否则非空 apiKey 替换，空串保持原样
+async function saveAiSettings(clearKey) {
   if (savingAi.value) return
   const patch = {
     ai: {
@@ -231,16 +238,16 @@ async function saveNickname() {
     const res = await api.saveSettings(patch)
     aiHasApiKey.value = Boolean(res.ai.hasApiKey)
     aiApiKey.value = ''
-    flashAiMsg(clearKey ? '宸茬Щ闄?API Key' : 'AI 璁剧疆宸蹭繚瀛?)
+    flashAiMsg(clearKey ? '已移除 API Key' : 'AI 设置已保存')
   } catch (e) {
-    alert(e.message || 'AI 璁剧疆淇濆瓨澶辫触')
+    alert(e.message || 'AI 设置保存失败')
   } finally {
     savingAi.value = false
   }
 }
 
 async function removeAiApiKey() {
-  if (!confirm('纭畾绉婚櫎宸蹭繚瀛樼殑 API Key 鍚楋紵绉婚櫎鍚庛€孉I 娑﹁壊銆嶅皢鍥為€€鍒扮珯鐐归厤缃€?)) return
+  if (!confirm('确定移除已保存的 API Key 吗？移除后「AI 润色」将回退到站点配置。')) return
   await saveAiSettings(true)
 }
 </script>
@@ -273,18 +280,19 @@ async function removeAiApiKey() {
 }
 .nav-btn {
   padding: 6px 12px;
-  /* 瑕嗙洊鍏ㄥ眬 button 鐨?2px 榛戞弿杈?/ 36px 鏈€灏忛珮 / 700 绮椾綋锛?     鍙傝€冨鑸槸杞荤泩鐨勬枃瀛楁爣绛撅紝涓嶆槸鍍忕礌椋庢寜閽?*/
+  /* 覆盖全局 button 的 2px 黑描边 / 36px 最小高 / 700 粗体：
+     参考导航是轻盈的文字标签，不是像素风按钮 */
   border: none;
   min-height: 0;
   background: transparent;
   font-size: 14px;
   font-weight: 400;
-  /* 鏈€変腑椤圭敤鏇存贰鐨勭伆锛屽榻愬弬鑰冨鑸偅绉嶈交鐩堟劅 */
+  /* 未选中项用更淡的灰，对齐参考导航那种轻盈感 */
   color: #5b665e;
   cursor: pointer;
-  /* 鍙傝€冨鑸殑閫変腑鎸夐挳鏄煍鍜屽皬鍦嗚锛岃€屼笉鏄」鐩粯璁ょ殑鍍忕礌椋庣洿瑙?*/
+  /* 参考导航的选中按钮是柔和小圆角，而不是项目默认的像素风直角 */
   border-radius: 0;
-  /* 鍙繃娓￠鑹茬浉鍏冲睘鎬э紝涓嶇敤 all锛岄伩鍏嶅竷灞€灞炴€ц鎰忓杩囨浮 */
+  /* 只过渡颜色相关属性，不用 all，避免布局属性被意外过渡 */
   transition: background-color 0.15s, color 0.15s, border-color 0.15s;
   white-space: nowrap;
 }
@@ -293,12 +301,12 @@ async function removeAiApiKey() {
   color: var(--text-primary);
 }
 .nav-btn.active {
-  /* 姣?--primary(#97b39b) 鏇存祬鏇存煍鐨勭伆缁垮簳锛岄厤娣辫壊鍔犵矖鏂囧瓧 */
+  /* 比 --primary(#97b39b) 更浅更柔的灰绿底，配深色加粗文字 */
   background: #e2ebe0;
   color: var(--text-primary);
   font-weight: 700;
 }
-/* 瀵艰埅 tab 鐐瑰嚮鏃朵笉瑕佷綅绉伙紝閬垮厤鍒囨崲鏃剁湅璧锋潵鍍忔姈鍔?*/
+/* 导航 tab 点击时不要位移，避免切换时看起来像抖动 */
 .nav-btn:active {
   transform: none;
 }
@@ -312,7 +320,7 @@ async function removeAiApiKey() {
   font-size: 14px;
   color: var(--text-secondary);
 }
-/* 鐢ㄦ埛鏍囩 chip锛氬儚绱犻鎸夐挳锛堥粦鎻忚竟鐩磋锛夛紝榻胯疆鍥炬爣 + 鐢ㄦ埛鍚嶏紝鐐瑰嚮鎵撳紑璁剧疆 */
+/* 用户标签 chip：像素风按钮（黑描边直角），齿轮图标 + 用户名，点击打开设置 */
 .user-chip {
   display: inline-flex;
   align-items: center;
@@ -350,7 +358,7 @@ async function removeAiApiKey() {
   text-overflow: ellipsis;
 }
 
-/* 璁剧疆寮圭獥 */
+/* 设置弹窗 */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -449,10 +457,12 @@ async function removeAiApiKey() {
   color: var(--primary);
 }
 
-/* 妗岄潰绔細瀵艰埅绨囩粷瀵瑰畾浣嶅浐瀹氬湪椤舵爮姝ｄ腑锛屼綅缃彧鐢卞鍣ㄥ搴﹀喅瀹氾紝
-   涓嶅啀绛変簬銆宭ogo 瀹藉害涓庡彸渚у尯鍩熷搴︿箣闂寸殑涓棿鍊笺€嶁€斺€斿悇椤甸潰鍙充晶瀹藉害涓嶅悓
-   锛堚€滄垜鐨勬枃妗ｂ€濇瘮鈥滅ぞ鍖?棰樺簱/鏂囨。绠＄悊鈥濆涓や釜鍔ㄤ綔鎸夐挳锛夛紝flex 甯冨眬涓?   鍒囨崲椤甸潰鏃舵暣鎺?tab 浼氭í鍚戜綅绉伙紝鐪嬭捣鏉ュ儚鏍峰紡璺冲姩銆?   .topbar 鏈韩鏄?position: sticky锛堝凡瀹氫綅鍏冪礌锛夛紝鍗冲彲浣滀负缁濆瀹氫綅
-   瀛愬厓绱犵殑鍖呭惈鍧楋紝鏃犻渶涔熶笉鑳芥敼鎴?relative锛堜細澶卞幓鍚搁《锛夈€?*/
+/* 桌面端：导航簇绝对定位固定在顶栏正中，位置只由容器宽度决定，
+   不再等于「logo 宽度与右侧区域宽度之间的中间值」——各页面右侧宽度不同
+   （“我的文档”比“社区/题库/文档管理”多两个动作按钮），flex 布局下
+   切换页面时整排 tab 会横向位移，看起来像样式跳动。
+   .topbar 本身是 position: sticky（已定位元素），即可作为绝对定位
+   子元素的包含块，无需也不能改成 relative（会失去吸顶）。 */
 @media (min-width: 761px) {
   .topbar-center {
     position: absolute;
