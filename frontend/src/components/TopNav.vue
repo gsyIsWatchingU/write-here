@@ -33,7 +33,6 @@
         </svg>
         <span class="user-chip-name">{{ user.username }}</span>
       </button>
-      <button class="ghost" @click="handleLogout">退出</button>
     </div>
 
     <!-- 个人设置弹窗：昵称、AI 模型接入（API 地址 / Key / 模型）、MCP 接入 -->
@@ -110,6 +109,12 @@
             <p class="settings-help">生成个人 Token 并配置 MCP 客户端，让 AI 通过 MCP 读取和编辑你的文档。</p>
             <McpTokensSection />
           </section>
+
+          <section class="settings-section">
+            <div class="settings-row">
+              <button class="danger" @click="handleLogout">退出登录</button>
+            </div>
+          </section>
         </template>
       </div>
     </div>
@@ -143,6 +148,8 @@ function go(item) {
 }
 
 function handleLogout() {
+  // 退出是危险操作，先确认再执行。
+  if (!confirm('确定退出登录吗？')) return
   // 本地登出与跳转必须是同步的，不能 await /logout 网络请求 ——
   // 后端卡住或离线时，等待会让「退出」看起来完全没反应。
   // clearUser() 内部已保证本地凭据无条件清除，并把请求失败降级为警告。

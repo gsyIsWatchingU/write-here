@@ -113,6 +113,12 @@
               <p class="settings-help">生成个人 Token 并配置 MCP 客户端，让 AI 通过 MCP 读取和编辑你的文档。</p>
               <McpTokensSection />
             </section>
+
+            <section class="settings-section">
+              <div class="settings-row">
+                <button class="danger" @click="handleLogout">退出登录</button>
+              </div>
+            </section>
           </template>
         </div>
       </div>
@@ -122,10 +128,12 @@
 
 <script setup>
 import { ref } from 'vue'
-import { api, getUser, setUser } from '../utils/api'
+import { useRouter } from 'vue-router'
+import { api, getUser, setUser, clearUser } from '../utils/api'
 import McpTokensSection from './McpTokensSection.vue'
 
 const user = ref(getUser())
+const router = useRouter()
 
 // ==================== 个人设置弹窗 ====================
 const showSettings = ref(false)
@@ -201,6 +209,12 @@ async function openSettings() {
 
 function closeSettings() {
   showSettings.value = false
+}
+
+function handleLogout() {
+  if (!confirm('确定退出登录吗？')) return
+  clearUser()
+  router.push('/login')
 }
 
 async function saveNickname() {

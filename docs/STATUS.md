@@ -1,6 +1,6 @@
 # 项目状态
 
-最后更新：2026-10-10
+最后更新：2026-10-12
 
 ## 当前阶段
 
@@ -11,6 +11,12 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 将随机公网地址升级为固定域名，并继续完善生产安全能力。
 
 ## 已完成
+
+- 2026-10-12：三处顶栏/操作栏 UI 调整（用户截图反馈「退出应该放在个人设置里；搜索框没有搜索 icon 且和后面两个框样式不一样；把 MCP 接入的功能移进个人设置」）。
+  1. **退出移进个人设置**：TopNav 顶栏右侧独立「退出」按钮移除；TopNav 与 SettingsEntry（编辑页）的个人设置弹窗底部新增「退出登录」danger 按钮（`confirm` 二次确认后 `clearUser()` 同步清凭据并跳转 `/login`，沿用原注释保证的同步逻辑）。
+  2. **搜索框统一像素风 + 搜索 icon**：Home 操作栏搜索框加放大镜 SVG icon（左侧 10px，`pointer-events:none`）；输入框从 1px 细边框/矮高改为 2px 黑描边、直角、36px 高（与操作栏按钮视觉一致，左内边距 32px 给 icon、右 30px 给清除按钮）；focus 去掉自定义蓝阴影，走全局 `outline: 3px solid var(--primary)`；清除按钮补 `min-height:20px; padding:0` 修正被全局 button 最小高度撑高的问题。
+  3. **MCP 接入并入个人设置**：Home 操作栏「[MCP] AI 接入」按钮与独立 MCP 弹窗删除（含 `showMcpModal`/`openMcpModal`/`closeMcpModal`/`McpTokensSection` import 及 `.mcp-modal*` 样式），MCP Token 管理由个人设置弹窗内的 `McpTokensSection` 提供（TopNav/SettingsEntry 两处本已具备）。
+  改动：`frontend/src/components/TopNav.vue`、`frontend/src/components/SettingsEntry.vue`、`frontend/src/views/Home.vue`、`docs/STATUS.md`。验证：前端生产构建通过（2.09s），无残留 MCP 弹窗引用；后端无改动。
 
 - 2026-10-10：个人设置弹窗两项改造（用户截图反馈「弹窗标题需要吸顶；模型选择不应该是自己输入，而应调接口查可选模型列表」）。
   1. **标题吸顶**：`.settings-modal` 从整体 `overflow-y:auto` 改为 flex 纵向布局（`padding:0; display:flex; flex-direction:column; overflow:hidden`），`.settings-modal-header` 自带 `padding:20px 24px` + 底边框固定不滚动，内容包进新 `.settings-body`（`overflow-y:auto; padding:0 24px 24px`）。滚动 MCP 接入等长内容时，「个人设置」标题与关闭按钮始终钉在弹窗顶部。

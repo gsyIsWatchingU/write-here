@@ -26,10 +26,13 @@
         </div>
         <div class="toolbar-actions">
           <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-4.3-4.3" />
+            </svg>
             <input v-model.trim="searchQuery" class="search-input" placeholder="搜索文档标题或内容..." @input="handleSearchInput" @keyup.escape="clearSearch" />
             <button v-if="searchQuery" class="search-clear" @click="clearSearch" aria-label="清除搜索">×</button>
           </div>
-          <button class="ghost" @click="openMcpModal">[MCP] AI 接入</button>
           <template v-if="activeView === 'bagu'">
             <button class="primary" @click="createNewDoc('bagu-question')">+ 新建题干</button>
             <button class="primary" @click="createNewDoc('bagu-answer')">+ 新建解析</button>
@@ -150,20 +153,6 @@
       </div>
     </div>
 
-    <!-- MCP 接入弹窗：Token 管理内容统一由 McpTokensSection 提供（个人设置弹窗复用同一组件） -->
-    <div v-if="showMcpModal" class="modal-overlay" @click.self="closeMcpModal">
-      <div class="modal mcp-modal" role="dialog" aria-modal="true" aria-labelledby="mcp-modal-title">
-        <div class="mcp-modal-header">
-          <div>
-            <h3 id="mcp-modal-title">AI / MCP 接入</h3>
-          </div>
-          <button class="ghost small" aria-label="关闭 MCP 接入弹窗" @click="closeMcpModal">关闭</button>
-        </div>
-
-        <McpTokensSection />
-      </div>
-    </div>
-
     <!-- 铃铛面板：消息 + 协作请求 -->
     <div v-if="showBellPanel" ref="bellDropdownRef" class="bell-dropdown" @click.stop>
       <div class="bell-tabs" role="tablist">
@@ -248,7 +237,6 @@ import { api, getUser, clearUser, getWebSocketUrl } from '../utils/api'
 import { formatServerDateTime } from '../utils/dateTime'
 import { getDocumentPath } from '../utils/documentIdentity'
 import TopNav from '../components/TopNav.vue'
-import McpTokensSection from '../components/McpTokensSection.vue'
 
 const router = useRouter()
 const user = ref(getUser())
@@ -273,7 +261,6 @@ const showBellPanel = ref(false)
 const activeTab = ref('messages')
 const notifications = ref([])
 const collabRequests = ref([])
-const showMcpModal = ref(false)
 
 let ws = null
 
@@ -556,14 +543,6 @@ async function handleDeleteShare() {
 function copyLink() {
   navigator.clipboard.writeText(shareLink.value)
   alert('链接已复制')
-}
-
-async function openMcpModal() {
-  showMcpModal.value = true
-}
-
-function closeMcpModal() {
-  showMcpModal.value = false
 }
 
 function stripHtml(html) {
@@ -1134,24 +1113,6 @@ async function respondToCollaboration(requestId, status) {
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
-.mcp-modal {
-  width: 680px;
-  max-height: min(86vh, 780px);
-  overflow-y: auto;
-}
-.mcp-modal-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-.mcp-modal-header h3 {
-  margin: 0;
-}
-.mcp-modal-header button {
-  flex: none;
-  white-space: nowrap;
-}
 
 @media (max-width: 760px) {
   .bell-dropdown {
@@ -1164,16 +1125,12 @@ async function respondToCollaboration(requestId, status) {
   .toolbar-actions button {
     padding-inline: 9px;
   }
-  .mcp-modal {
-    width: calc(100vw - 24px);
-    max-width: none;
-    padding: 20px 16px;
-  }
 }
 
 .search-box { position: relative; display: flex; align-items: center; }
-.search-input { width: 240px; padding: 6px 28px 6px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
-.search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(0, 120, 255, 0.1); }
-.search-clear { position: absolute; right: 6px; width: 20px; height: 20px; border: none; background: var(--bg-gray); border-radius: 50%; font-size: 14px; line-height: 1; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; }
+.search-icon { position: absolute; left: 10px; width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: square; stroke-linejoin: miter; color: var(--text-secondary); pointer-events: none; }
+/* 搜索框与操作栏按钮统一像素风：2px 黑描边、直角、36px 高 */
+.search-input { width: 240px; height: 36px; padding: 0 30px 0 32px; border: 2px solid var(--border); border-radius: 0; font-size: 13px; outline: none; transition: border-color 0.2s; }
+.search-clear { position: absolute; right: 6px; width: 20px; height: 20px; min-height: 20px; padding: 0; border: none; background: var(--bg-gray); border-radius: 50%; font-size: 14px; line-height: 1; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; }
 .search-clear:hover { background: var(--border); color: var(--text-primary); }
 </style>
