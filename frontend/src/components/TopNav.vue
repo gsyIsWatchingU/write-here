@@ -280,10 +280,13 @@ async function removeAiApiKey() {
 }
 .nav-btn {
   padding: 6px 14px;
-  /* 明确固定 border-width，避免与全局样式叠加时切换状态出现尺寸抖动 */
-  border: 1px solid transparent;
+  /* 覆盖全局 button 的 2px 黑描边 / 36px 最小高 / 700 粗体：
+     参考导航是轻盈的文字标签，不是像素风按钮 */
+  border: none;
+  min-height: 0;
   background: transparent;
   font-size: 14px;
+  font-weight: 400;
   /* 未选中项用更淡的灰，对齐参考导航那种轻盈感 */
   color: #9aa39b;
   cursor: pointer;
@@ -299,7 +302,7 @@ async function removeAiApiKey() {
 }
 .nav-btn.active {
   /* 比 --primary(#97b39b) 更浅更柔的灰绿底，配深色加粗文字 */
-  background: #a7b7a1;
+  background: #b2c1ab;
   color: var(--text-primary);
   font-weight: 600;
 }
