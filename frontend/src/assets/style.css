@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   color-scheme: light;
   --primary: #97b39b;
   --primary-hover: #e2ebe0;
@@ -28,9 +28,9 @@
 
 html {
   background: var(--bg-gray);
-  /* 始终预留垂直滚动条槽位：各页面内容高度不同（如我的文档内容多、社区内容少），
-     滚动条出现/消失会让视口宽度变化约 15px，顶部整行随之横向位移，
-     切换 tab 时看起来像跳动。stable 保证槽位恒定。 */
+  /* 濮嬬粓棰勭暀鍨傜洿婊氬姩鏉℃Ы浣嶏細鍚勯〉闈㈠唴瀹归珮搴︿笉鍚岋紙濡傛垜鐨勬枃妗ｅ唴瀹瑰銆佺ぞ鍖哄唴瀹瑰皯锛夛紝
+     婊氬姩鏉″嚭鐜?娑堝け浼氳瑙嗗彛瀹藉害鍙樺寲绾?15px锛岄《閮ㄦ暣琛岄殢涔嬫í鍚戜綅绉伙紝
+     鍒囨崲 tab 鏃剁湅璧锋潵鍍忚烦鍔ㄣ€俿table 淇濊瘉妲戒綅鎭掑畾銆?*/
   scrollbar-gutter: stable;
 }
 
@@ -182,7 +182,7 @@ a {
   border-bottom-style: dashed;
 }
 
-/* CLI List 风格层：黑色描边、方形控件、无柔光阴影。 */
+/* CLI List 椋庢牸灞傦細榛戣壊鎻忚竟銆佹柟褰㈡帶浠躲€佹棤鏌斿厜闃村奖銆?*/
 #app :is(.home-page, .community-page, .admin-page, .editor-page, .shared-page, .login-page) {
   color: var(--text);
   background: var(--bg-gray);
@@ -211,6 +211,8 @@ a {
   gap: 11px;
   min-width: max-content;
   line-height: 1;
+  font-size: 16px;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -476,12 +478,10 @@ a {
   border-left: 4px solid var(--primary-strong);
 }
 
-/* 表格列宽：prosemirror-tables 只生成 DOM、不注入任何样式，下面几条缺一不可。
-   - .column-resize-handle 是插在单元格里的 widget div，没有 absolute + 单元格 relative
-     时它是个 0×0 的透明块，鼠标永远命中不到，所以「没有可拖的地方」；
-   - table-layout 默认 auto 时 <colgroup> 的 width 只是建议值，浏览器按内容重排，
-     就算拖成功写入 colwidth，渲染宽度也不会变，表现为「拖了没反应」；
-   - .tableWrapper 负责窄屏横向滚动，避免表格被压扁后列宽设定失效。 */
+/* 琛ㄦ牸鍒楀锛歱rosemirror-tables 鍙敓鎴?DOM銆佷笉娉ㄥ叆浠讳綍鏍峰紡锛屼笅闈㈠嚑鏉＄己涓€涓嶅彲銆?   - .column-resize-handle 鏄彃鍦ㄥ崟鍏冩牸閲岀殑 widget div锛屾病鏈?absolute + 鍗曞厓鏍?relative
+     鏃跺畠鏄釜 0脳0 鐨勯€忔槑鍧楋紝榧犳爣姘歌繙鍛戒腑涓嶅埌锛屾墍浠ャ€屾病鏈夊彲鎷栫殑鍦版柟銆嶏紱
+   - table-layout 榛樿 auto 鏃?<colgroup> 鐨?width 鍙槸寤鸿鍊硷紝娴忚鍣ㄦ寜鍐呭閲嶆帓锛?     灏辩畻鎷栨垚鍔熷啓鍏?colwidth锛屾覆鏌撳搴︿篃涓嶄細鍙橈紝琛ㄧ幇涓恒€屾嫋浜嗘病鍙嶅簲銆嶏紱
+   - .tableWrapper 璐熻矗绐勫睆妯悜婊氬姩锛岄伩鍏嶈〃鏍艰鍘嬫墎鍚庡垪瀹借瀹氬け鏁堛€?*/
 #app .editor-content .tableWrapper {
   position: relative;
   margin: 16px 0;
@@ -495,14 +495,10 @@ a {
   margin: 0;
 }
 
-/* 表格宽度模式：块操作柄菜单里切换「适应窗口宽度 / 适应内容」。
-   模式值存在 table 节点的 widthMode 属性上，实时渲染由表格 NodeView 写成
-   <table data-table-width="...">，导出与粘贴的 HTML 由属性 renderHTML 输出同一个
-   属性，两条路径共用下面这两条规则。
-   - full：NodeView 每次都会按列宽重写 table.style.width / min-width，普通样式
-     声明盖不住内联宽度，必须 !important 才能真正铺满正文区；
-   - auto：同时切回 table-layout: auto，否则 colgroup 里的 px 列宽会继续主导，
-     表格不会按内容收窄。 */
+/* 琛ㄦ牸瀹藉害妯″紡锛氬潡鎿嶄綔鏌勮彍鍗曢噷鍒囨崲銆岄€傚簲绐楀彛瀹藉害 / 閫傚簲鍐呭銆嶃€?   妯″紡鍊煎瓨鍦?table 鑺傜偣鐨?widthMode 灞炴€т笂锛屽疄鏃舵覆鏌撶敱琛ㄦ牸 NodeView 鍐欐垚
+   <table data-table-width="...">锛屽鍑轰笌绮樿创鐨?HTML 鐢卞睘鎬?renderHTML 杈撳嚭鍚屼竴涓?   灞炴€э紝涓ゆ潯璺緞鍏辩敤涓嬮潰杩欎袱鏉¤鍒欍€?   - full锛歂odeView 姣忔閮戒細鎸夊垪瀹介噸鍐?table.style.width / min-width锛屾櫘閫氭牱寮?     澹版槑鐩栦笉浣忓唴鑱斿搴︼紝蹇呴』 !important 鎵嶈兘鐪熸閾烘弧姝ｆ枃鍖猴紱
+   - auto锛氬悓鏃跺垏鍥?table-layout: auto锛屽惁鍒?colgroup 閲岀殑 px 鍒楀浼氱户缁富瀵硷紝
+     琛ㄦ牸涓嶄細鎸夊唴瀹规敹绐勩€?*/
 #app .editor-content table[data-table-width='full'] {
   width: 100% !important;
   table-layout: fixed;
@@ -538,12 +534,12 @@ a {
   z-index: 20;
 }
 
-/* 拖拽中的整列高亮：class 由 prosemirror-tables 加在 td/th 上 */
+/* 鎷栨嫿涓殑鏁村垪楂樹寒锛歝lass 鐢?prosemirror-tables 鍔犲湪 td/th 涓?*/
 #app .editor-content .column-resize-dragging {
   background: var(--primary-hover);
 }
 
-/* 悬停在列边界时的光标：class 由 prosemirror-tables 加在编辑器根元素上 */
+/* 鎮仠鍦ㄥ垪杈圭晫鏃剁殑鍏夋爣锛歝lass 鐢?prosemirror-tables 鍔犲湪缂栬緫鍣ㄦ牴鍏冪礌涓?*/
 #app .editor-content .resize-cursor {
   cursor: col-resize;
 }
@@ -553,7 +549,7 @@ a {
   border-radius: 0;
 }
 
-/* 文档插图：块级节点，默认居中（飞书口径），align 走 figure 的 data-align */
+/* 鏂囨。鎻掑浘锛氬潡绾ц妭鐐癸紝榛樿灞呬腑锛堥涔﹀彛寰勶級锛宎lign 璧?figure 鐨?data-align */
 #app .editor-content figure.doc-image {
   margin: 10px 0;
   padding: 0;
@@ -577,8 +573,7 @@ a {
   margin: 0;
 }
 
-/* TipTap 会把节点选中态标在外层 figure/div 上；图片本身常驻黑框，
-   因此额外用绿色像素光环区分“已选中”，避免选中前后看起来完全一样。 */
+/* TipTap 浼氭妸鑺傜偣閫変腑鎬佹爣鍦ㄥ灞?figure/div 涓婏紱鍥剧墖鏈韩甯搁┗榛戞锛?   鍥犳棰濆鐢ㄧ豢鑹插儚绱犲厜鐜尯鍒嗏€滃凡閫変腑鈥濓紝閬垮厤閫変腑鍓嶅悗鐪嬭捣鏉ュ畬鍏ㄤ竴鏍枫€?*/
 #app .editor-content figure.doc-image.ProseMirror-selectednode > img {
   border-color: var(--border);
   box-shadow:
@@ -593,14 +588,13 @@ a {
   box-shadow: 0 0 0 4px var(--border);
 }
 
-/* 多图同行：按宽高比分配宽度（--doc-image-ratio 由节点渲染），
-   容器变窄时靠 flex-wrap + min 基准自动折行，窄容器直接单列 */
+/* 澶氬浘鍚岃锛氭寜瀹介珮姣斿垎閰嶅搴︼紙--doc-image-ratio 鐢辫妭鐐规覆鏌擄級锛?   瀹瑰櫒鍙樼獎鏃堕潬 flex-wrap + min 鍩哄噯鑷姩鎶樿锛岀獎瀹瑰櫒鐩存帴鍗曞垪 */
 #app .editor-content .doc-image-group {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
-  /* stretch：同一行里高度有零头差异时对齐上沿，不留参差 */
+  /* stretch锛氬悓涓€琛岄噷楂樺害鏈夐浂澶村樊寮傛椂瀵归綈涓婃部锛屼笉鐣欏弬宸?*/
   align-items: stretch;
   margin: 10px 0;
 }
@@ -619,8 +613,7 @@ a {
   margin: 0;
 }
 
-/* 两张及以上：基准 0 + 按宽高比放大 ⇒ 宽度严格正比于宽高比，同行自然等高。
-   min-width 同时是折行阈值：容器连 160px 都塞不下时才换行，不会挤成细条。 */
+/* 涓ゅ紶鍙婁互涓婏細鍩哄噯 0 + 鎸夊楂樻瘮鏀惧ぇ 鈬?瀹藉害涓ユ牸姝ｆ瘮浜庡楂樻瘮锛屽悓琛岃嚜鐒剁瓑楂樸€?   min-width 鍚屾椂鏄姌琛岄槇鍊硷細瀹瑰櫒杩?160px 閮藉涓嶄笅鏃舵墠鎹㈣锛屼笉浼氭尋鎴愮粏鏉°€?*/
 #app .editor-content .doc-image-group:not([data-count='1']) > figure.doc-image {
   flex: var(--doc-image-ratio, 1) 1 0;
   min-width: 160px;
@@ -630,8 +623,8 @@ a {
   width: 100%;
 }
 
-/* 飞书口径：多图同行在任何宽度下都保持一行，窄屏靠缩小 min-width 让图片自然挤在一行，
-   而不是切到 column 竖排。flex-wrap: wrap 兜底：实在塞不下才换行。 */
+/* 椋炰功鍙ｅ緞锛氬鍥惧悓琛屽湪浠讳綍瀹藉害涓嬮兘淇濇寔涓€琛岋紝绐勫睆闈犵缉灏?min-width 璁╁浘鐗囪嚜鐒舵尋鍦ㄤ竴琛岋紝
+   鑰屼笉鏄垏鍒?column 绔栨帓銆俧lex-wrap: wrap 鍏滃簳锛氬疄鍦ㄥ涓嶄笅鎵嶆崲琛屻€?*/
 @media (max-width: 640px) {
   #app .editor-content .doc-image-group:not([data-count='1']) > figure.doc-image {
     flex: var(--doc-image-ratio, 1) 1 0;
@@ -643,7 +636,7 @@ a {
   }
 }
 
-/* 上传进度/结果提示：不打断写作，贴在正文上方 */
+/* 涓婁紶杩涘害/缁撴灉鎻愮ず锛氫笉鎵撴柇鍐欎綔锛岃创鍦ㄦ鏂囦笂鏂?*/
 #app .image-notice {
   margin: 0 0 8px;
   padding: 6px 10px;
@@ -850,7 +843,7 @@ a {
   }
 }
 
-/* 折叠块（飞书式 toggle：标题行可展开/收拢下面的内容） */
+/* 鎶樺彔鍧楋紙椋炰功寮?toggle锛氭爣棰樿鍙睍寮€/鏀舵嫝涓嬮潰鐨勫唴瀹癸級 */
 
 /* Collapsible block (Feishu-style toggle) */
 #app .editor-content .doc-collapsible {
