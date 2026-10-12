@@ -12,6 +12,8 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 ## 已完成
 
+- 2026-10-12：顶栏导航 tab 视觉对齐参考图（用户给的「力扣 HOT 100」学习平台导航截图，对照当前「[01] 我的文档 / [02] 社区」样式）。改动仅 `frontend/src/components/TopNav.vue` 的 `.nav-btn` 样式：选中态背景从实色 `var(--primary)`(#97b39b) + 白字改为更浅更柔的灰绿 `#a7b7a1` + 深色加粗文字（`var(--text-primary)` + 600）；未选中项文字从中灰 `var(--text-secondary)` 改为更淡的 `#9aa39b`；圆角从像素风直角（`var(--radius):0`）改为 4px 小圆角；导航项间距 16px→20px。hover 底色与 active 位移逻辑不变。验证：前端生产构建通过（1.90s）；后端无改动。
+
 - 2026-10-12：三处顶栏/操作栏 UI 调整（用户截图反馈「退出应该放在个人设置里；搜索框没有搜索 icon 且和后面两个框样式不一样；把 MCP 接入的功能移进个人设置」）。
   1. **退出移进个人设置**：TopNav 顶栏右侧独立「退出」按钮移除；TopNav 与 SettingsEntry（编辑页）的个人设置弹窗底部新增「退出登录」danger 按钮（`confirm` 二次确认后 `clearUser()` 同步清凭据并跳转 `/login`，沿用原注释保证的同步逻辑）。
   2. **搜索框统一像素风 + 搜索 icon**：Home 操作栏搜索框加放大镜 SVG icon（左侧 10px，`pointer-events:none`）；输入框从 1px 细边框/矮高改为 2px 黑描边、直角、36px 高（与操作栏按钮视觉一致，左内边距 32px 给 icon、右 30px 给清除按钮）；focus 去掉自定义蓝阴影，走全局 `outline: 3px solid var(--primary)`；清除按钮补 `min-height:20px; padding:0` 修正被全局 button 最小高度撑高的问题。
@@ -142,6 +144,8 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 退出登录只保证本地登出即时生效；若 `/logout` 请求失败（离线、后端不可达），服务端会话记录会残留到过期，期间该 token 仍有效。当前演示级认证下可接受，做生产级鉴权时应一并收紧（例如短会话有效期 + 服务端主动失效）。
 
 ## 验证结果
+
+- 2026-10-12：顶栏导航 tab 柔和灰绿选中态改造通过前端生产构建（1.90s），后端无改动；线上按 CI/CD、`run/deployed-commit` 与 `deploy/verify-public.sh` 核对。
 
 - 2026-10-10：块菜单视口边缘防截断修复通过前端生产构建；`fe8ddb7` 已通过 CI/CD 的「构建检查」与「部署到 GPU 服务器」，服务器 `run/deployed-commit` 与本地 HEAD 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，`/ws/verify-room` 与 `/notifications?userId=999999` 两条 WebSocket 连接成功，SQLite 12 个业务表，`write-here` pid 34200 uptime 1m、`cloudflared-write-here` 均 RUNNING）。
 

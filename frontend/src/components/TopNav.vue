@@ -275,18 +275,20 @@ async function removeAiApiKey() {
 .topbar-center {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
   min-width: 0;
 }
 .nav-btn {
-  padding: 6px 12px;
+  padding: 6px 14px;
   /* 明确固定 border-width，避免与全局样式叠加时切换状态出现尺寸抖动 */
   border: 1px solid transparent;
   background: transparent;
   font-size: 14px;
-  color: var(--text-secondary);
+  /* 未选中项用更淡的灰，对齐参考导航那种轻盈感 */
+  color: #9aa39b;
   cursor: pointer;
-  border-radius: var(--radius);
+  /* 参考导航的选中按钮是柔和小圆角，而不是项目默认的像素风直角 */
+  border-radius: 4px;
   /* 只过渡颜色相关属性，不用 all，避免布局属性被意外过渡 */
   transition: background-color 0.15s, color 0.15s, border-color 0.15s;
   white-space: nowrap;
@@ -296,8 +298,10 @@ async function removeAiApiKey() {
   color: var(--text-primary);
 }
 .nav-btn.active {
-  background: var(--primary);
-  color: #fff;
+  /* 比 --primary(#97b39b) 更浅更柔的灰绿底，配深色加粗文字 */
+  background: #a7b7a1;
+  color: var(--text-primary);
+  font-weight: 600;
 }
 /* 导航 tab 点击时不要位移，避免切换时看起来像抖动 */
 .nav-btn:active {
