@@ -6,15 +6,22 @@
       <h4>1. 生成个人 Token</h4>
       <div class="mcp-create-row">
         <input v-model.trim="newTokenName" maxlength="60" placeholder="例如：Codex 桌面端" @keyup.enter="createMcpToken">
-        <button class="primary" :disabled="creatingToken || !newTokenName" @click="createMcpToken">
-          {{ creatingToken ? '生成中...' : '生成 Token' }}
+        <button class="icon-btn primary" :disabled="creatingToken || !newTokenName" title="生成 Token" aria-label="生成 Token" @click="createMcpToken">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" />
+          </svg>
         </button>
       </div>
       <div v-if="generatedToken" class="mcp-token-once">
         <strong>请立即复制，关闭后无法再次查看明文：</strong>
         <div class="mcp-copy-row">
           <textarea :value="generatedToken" rows="2" readonly aria-label="新生成的 MCP Token"></textarea>
-          <button class="primary" @click="copyMcpText(generatedToken, 'Token')">复制 Token</button>
+          <button class="icon-btn primary" title="复制 Token" aria-label="复制 Token" @click="copyMcpText(generatedToken, 'Token')">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="0" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          </button>
         </div>
       </div>
     </section>
@@ -24,14 +31,24 @@
       <p class="mcp-help">先在本仓库执行 <code>npm install --prefix mcp</code>，再把下面配置加入支持 stdio MCP 的 AI 客户端；将路径占位符替换为仓库绝对路径。</p>
       <div class="mcp-copy-row mcp-config-row">
         <textarea :value="mcpConfigSnippet" rows="11" wrap="soft" readonly aria-label="MCP 客户端配置"></textarea>
-        <button class="ghost" @click="copyMcpText(mcpConfigSnippet, '配置')">复制配置</button>
+        <button class="icon-btn ghost" title="复制配置" aria-label="复制配置" @click="copyMcpText(mcpConfigSnippet, '配置')">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="0" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+        </button>
       </div>
     </section>
 
     <section class="mcp-section">
       <div class="mcp-section-title">
         <h4>有效 Token</h4>
-        <button class="ghost small" @click="loadApiTokens">刷新</button>
+        <button class="icon-btn ghost" title="刷新列表" aria-label="刷新列表" @click="loadApiTokens">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M21 12a9 9 0 1 1-3-6.7L21 8" />
+            <path d="M21 3v5h-5" />
+          </svg>
+        </button>
       </div>
       <p v-if="loadingTokens" class="mcp-help">加载中...</p>
       <p v-else-if="apiTokens.length === 0" class="mcp-help">暂无有效 Token。</p>
@@ -42,7 +59,13 @@
             <code>{{ token.prefix }}</code>
             <small>创建：{{ formatTime(token.createdAt) }} · 最近使用：{{ token.lastUsedAt ? formatTime(token.lastUsedAt) : '从未' }}</small>
           </div>
-          <button class="danger small" @click="revokeMcpToken(token)">撤销</button>
+          <button class="icon-btn danger" title="撤销 Token" aria-label="撤销 Token" @click="revokeMcpToken(token)">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 6h18" />
+              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            </svg>
+          </button>
         </div>
       </div>
     </section>
@@ -126,6 +149,60 @@ function formatTime(t) {
 </script>
 
 <style scoped>
+/* Icon 按钮：与 SettingsEntry 保持一致的像素风方形图标按钮 */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 80ms steps(2, end), color 80ms steps(2, end), transform 80ms steps(2, end);
+  flex: none;
+}
+.icon-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+.icon-btn:active:not(:disabled) {
+  transform: translate(1px, 1px);
+}
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  flex: none;
+}
+.icon-btn.primary {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.icon-btn.primary:hover:not(:disabled) {
+  background: var(--primary);
+  color: #fff;
+}
+.icon-btn.danger {
+  color: #c0392b;
+  border-color: #c0392b;
+}
+.icon-btn.danger:hover:not(:disabled) {
+  background: #fdf0ef;
+  color: #a02f23;
+}
+
 .mcp-section {
   margin-top: 20px;
   padding-top: 18px;

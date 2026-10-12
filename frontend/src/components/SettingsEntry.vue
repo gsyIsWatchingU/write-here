@@ -21,7 +21,11 @@
       <div class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
         <div class="settings-modal-header">
           <h3 id="settings-modal-title">个人设置</h3>
-          <button class="ghost small" @click="closeSettings">关闭</button>
+          <button class="icon-btn ghost" aria-label="关闭" title="关闭" @click="closeSettings">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         <div class="settings-body">
@@ -75,10 +79,15 @@
                   >
                   <button
                     v-if="aiHasApiKey"
-                    class="ghost small"
+                    class="icon-btn ghost"
                     title="移除已保存的 API Key"
+                    aria-label="移除 API Key"
                     @click="removeAiApiKey"
-                  >移除</button>
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M20 12H4M12 4v16" />
+                    </svg>
+                  </button>
                 </div>
               </div>
               <div class="settings-field">
@@ -92,11 +101,18 @@
                     <option v-for="m in aiModelList" :key="m" :value="m">{{ m }}</option>
                   </select>
                   <button
-                    class="ghost small"
+                    class="icon-btn ghost"
                     :disabled="aiModelsLoading"
                     title="根据 API 地址与 Key 拉取可用模型列表"
+                    aria-label="获取模型列表"
                     @click="fetchModels"
-                  >{{ aiModelsLoading ? '获取中...' : '获取模型' }}</button>
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path v-if="!aiModelsLoading" d="M21 12a9 9 0 1 1-3-6.7L21 8" />
+                      <path v-if="!aiModelsLoading" d="M21 3v5h-5" />
+                      <circle v-if="aiModelsLoading" cx="12" cy="12" r="9" stroke-dasharray="40 20" />
+                    </svg>
+                  </button>
                 </div>
                 <p v-if="aiModelError" class="settings-help ai-model-error">{{ aiModelError }}</p>
               </div>
@@ -113,13 +129,18 @@
               <p class="settings-help">生成个人 Token 并配置 MCP 客户端，让 AI 通过 MCP 读取和编辑你的文档。</p>
               <McpTokensSection />
             </section>
-
-            <section class="settings-section">
-              <div class="settings-row">
-                <button class="danger" @click="handleLogout">退出登录</button>
-              </div>
-            </section>
           </template>
+        </div>
+
+        <div class="settings-modal-footer">
+          <button class="icon-btn danger" title="退出登录" aria-label="退出登录" @click="handleLogout">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <path d="M16 17l5-5-5-5" />
+              <path d="M21 12H9" />
+            </svg>
+            <span>退出登录</span>
+          </button>
         </div>
       </div>
     </div>
@@ -348,6 +369,10 @@ async function removeAiApiKey() {
   padding: 20px 24px;
   border-bottom: 1px solid var(--border);
   background: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 .settings-modal-header h3 {
   margin: 0;
@@ -356,9 +381,18 @@ async function removeAiApiKey() {
   flex: none;
   white-space: nowrap;
 }
+.settings-modal-footer {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 24px;
+  border-top: 1px solid var(--border);
+  background: #fff;
+}
 .settings-body {
   overflow-y: auto;
   padding: 0 24px 24px;
+  flex: 1;
 }
 .settings-loading {
   padding: 40px 0;
@@ -433,6 +467,59 @@ async function removeAiApiKey() {
 .settings-msg {
   font-size: 12px;
   color: var(--primary);
+}
+
+/* Icon 按钮：方形、等大、仅图标，靠 title/aria-label 提供可访问名称 */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 80ms steps(2, end), color 80ms steps(2, end), transform 80ms steps(2, end);
+}
+.icon-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+.icon-btn:active:not(:disabled) {
+  transform: translate(1px, 1px);
+}
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  flex: none;
+}
+.icon-btn.danger {
+  color: #c0392b;
+  border-color: #c0392b;
+}
+.icon-btn.danger:hover:not(:disabled) {
+  background: #fdf0ef;
+  color: #a02f23;
+}
+.icon-btn span {
+  font-size: 13px;
+}
+/* footer 里的退出登录保留文字 + 图标组合，宽度自适应 */
+.settings-modal-footer .icon-btn {
+  width: auto;
+  padding: 0 12px;
 }
 
 @media (max-width: 760px) {
