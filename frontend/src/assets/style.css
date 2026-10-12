@@ -208,7 +208,7 @@ a {
 #app .brand-logo {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 11px;
   min-width: max-content;
   line-height: 1;
   text-transform: uppercase;
@@ -219,9 +219,11 @@ a {
 }
 
 #app .brand-logo img {
-  height: 36px;
-  width: auto;
-  object-fit: contain;
+  height: 34px;
+  width: 34px;
+  object-fit: cover;
+  border: 2px solid var(--border);
+  border-radius: 0;
 }
 
 
@@ -751,7 +753,8 @@ a {
 
   #app .topbar .brand-logo img {
     height: 30px;
-    width: auto;
+    width: 30px;
+    object-fit: cover;
   }
 
   #app .username {

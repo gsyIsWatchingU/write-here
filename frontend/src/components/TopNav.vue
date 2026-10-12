@@ -1,7 +1,7 @@
 <template>
   <header class="topbar">
     <h1 class="logo brand-logo" @click="router.push('/')">
-      <img src="/lumi-logo.png" alt="" aria-hidden="true">
+      <img src="/lumi-icon.png" alt="" aria-hidden="true">
       <span>Lumi Doc</span>
     </h1>
     <div class="topbar-center">
