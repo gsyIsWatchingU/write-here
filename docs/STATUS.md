@@ -154,7 +154,7 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 ## 验证结果
 
-- 2026-10-13：编辑器工具栏与顶栏 UI 改造通过前端 166 项测试与生产构建；无头 Chrome + CDP 加载真实构建产物（隔离后端 + 注入登录态打开真实文档页）10 项浏览器验收全过：顶栏独立「导入 MD / 分享」按钮已移除、⋯ 按钮 36px 且菜单初始关闭；点击 ⋯ 弹出「导入 MD / 分享 / 删除」（删除为 danger + 分隔线）；再次点击、点击外部、Esc 三种方式均正确关闭；删除项弹出二次确认、取消后留在文档页；「正文」select /「识别 MD 格式」/「折叠」三控件高度 34px、边框 2px 一致且文字单行不溢出；点击「折叠」插入新折叠块（默认展开、含标题行、光标落进标题行——PM 选区 parent=collapsibleSummary）；再点一键折叠（data-open 翻转为 false）、再点一键展开（toggle 往返）。同时浏览器运行验收发现并修复两处此前未暴露的崩溃：折叠块插入 RangeError（renderHTML 内容洞规则）与编辑页白屏（docTable 的 super 调用）。线上按 CI/CD、`run/deployed-commit` 与 `deploy/verify-public.sh` 核对。
+- 2026-10-13：编辑器工具栏与顶栏 UI 改造通过前端 166 项测试与生产构建；无头 Chrome + CDP 加载真实构建产物（隔离后端 + 注入登录态打开真实文档页）10 项浏览器验收全过：顶栏独立「导入 MD / 分享」按钮已移除、⋯ 按钮 36px 且菜单初始关闭；点击 ⋯ 弹出「导入 MD / 分享 / 删除」（删除为 danger + 分隔线）；再次点击、点击外部、Esc 三种方式均正确关闭；删除项弹出二次确认、取消后留在文档页；「正文」select /「识别 MD 格式」/「折叠」三控件高度 34px、边框 2px 一致且文字单行不溢出；点击「折叠」插入新折叠块（默认展开、含标题行、光标落进标题行——PM 选区 parent=collapsibleSummary）；再点一键折叠（data-open 翻转为 false）、再点一键展开（toggle 往返）。同时浏览器运行验收发现并修复两处此前未暴露的崩溃：折叠块插入 RangeError（renderHTML 内容洞规则）与编辑页白屏（docTable 的 super 调用）。`b5c61ef` 已通过 CI/CD 两个 job（构建检查 + 部署到 GPU 服务器）：服务器 `run/deployed-commit` 与本地 HEAD 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同 `/ws/verify-room` 与通知 `/notifications?userId=999999` 两条 WebSocket 连接成功，SQLite 12 个业务表，`write-here` 与 `cloudflared-write-here` 均 RUNNING）。
 
 - 2026-10-13：表格只读跨列拖选修复通过前端 166 项测试与生产构建（2.07s），后端无改动；线上按 CI/CD、`run/deployed-commit` 与 `deploy/verify-public.sh` 核对。
 
