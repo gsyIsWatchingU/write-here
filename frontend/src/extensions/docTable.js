@@ -61,6 +61,38 @@ export const DocTable = Table.extend({
       },
     }
   },
+
+  /**
+   * 包装 tableEditing 插件的 mousedown：只读查看时不接管表格拖选。
+   *
+   * prosemirror-tables 的 tableEditing 插件（PluginKey 名 "selectingCells"）
+   * 默认在 mousedown 时挂 mousemove 监听，鼠标一旦拖出起始单元格就派发
+   * CellSelection（整块单元格高亮），覆盖浏览器原生的连续文字拖选。
+   * 可编辑模式下这是预期行为（跨格拖选后批量删除/合并）；但只读查看时
+   * （SharedDoc 始终只读、Editor 拿到编辑权限前的窗口期）用户只是想跨列
+   * 选中一段文字复制，被这个接管打断后表现为"多列无法同时拖选"。
+   *
+   * 这里在 view.editable === false 时直接放行 mousedown，让浏览器原生
+   * 跨单元格文字选中生效；setEditable(true) 后 view.editable 翻回 true，
+   * 原 CellSelection 行为自动恢复，无需重建插件。
+   */
+  addProseMirrorPlugins() {
+    const plugins = super.addProseMirrorPlugins()
+    return plugins.map((plugin) => {
+      if (plugin.spec.key?.name !== 'selectingCells') return plugin
+      const origHandleDOMEvents = plugin.spec.props?.handleDOMEvents
+      const origMouseDown = origHandleDOMEvents?.mousedown
+      if (!origMouseDown) return plugin
+      plugin.spec.props.handleDOMEvents = {
+        ...origHandleDOMEvents,
+        mousedown: (view, event) => {
+          if (!view.editable) return false
+          return origMouseDown(view, event)
+        },
+      }
+      return plugin
+    })
+  },
 }).configure({
   resizable: true,
   View: TableWidthView,

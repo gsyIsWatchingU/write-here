@@ -1,6 +1,6 @@
 # 项目状态
 
-最后更新：2026-10-12
+最后更新：2026-10-13
 
 ## 当前阶段
 
@@ -11,6 +11,8 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 将随机公网地址升级为固定域名，并继续完善生产安全能力。
 
 ## 已完成
+
+- 2026-10-13：修复表格多列无法同时鼠标拖选（用户截图反馈）。根因：`@tiptap/extension-table` 无条件注册 prosemirror-tables 的 `tableEditing` 插件（PluginKey 名 `selectingCells`），其 `mousedown` 处理器在鼠标拖出起始单元格时会派发 `CellSelection`（整块单元格高亮），覆盖浏览器原生的连续文字拖选。可编辑模式下这是预期行为（跨格拖选后批量删除/合并），但只读查看时（SharedDoc 始终只读、Editor 拿到编辑权限前的窗口期）用户只是想跨列选中一段文字复制，被这个接管打断后表现为"多列无法同时拖选"。修复：在 `frontend/src/extensions/docTable.js` 覆盖 `addProseMirrorPlugins`，遍历 `super.addProseMirrorPlugins()` 返回的插件，定位 `spec.key.name === 'selectingCells'` 的那个，包装其 `props.handleDOMEvents.mousedown`——`view.editable === false` 时直接 `return false` 放行给浏览器原生拖选，可编辑时走原 `origMouseDown`；`setEditable(true)` 后 `view.editable` 翻回 true，原 CellSelection 行为自动恢复，无需重建插件。columnResizing、列宽手柄、triple click、keyDown、paste 等其他行为不动。改动仅 `frontend/src/extensions/docTable.js`。验证：前端 166 项测试全过、生产构建通过（2.07s）；后端无改动。
 
 - 2026-10-12：顶栏导航 tab 视觉对齐参考图（用户给的「力扣 HOT 100」学习平台导航截图，对照当前「[01] 我的文档 / [02] 社区」样式）。改动仅 `frontend/src/components/TopNav.vue` 的 `.nav-btn` 样式：选中态背景从实色 `var(--primary)`(#97b39b) + 白字改为更浅更柔的灰绿 `#a7b7a1` + 深色加粗文字（`var(--text-primary)` + 600）；未选中项文字从中灰 `var(--text-secondary)` 改为更淡的 `#9aa39b`；圆角从像素风直角（`var(--radius):0`）改为 4px 小圆角；导航项间距 16px→20px。hover 底色与 active 位移逻辑不变。验证：前端生产构建通过（1.90s）；后端无改动。
 
@@ -144,6 +146,8 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 退出登录只保证本地登出即时生效；若 `/logout` 请求失败（离线、后端不可达），服务端会话记录会残留到过期，期间该 token 仍有效。当前演示级认证下可接受，做生产级鉴权时应一并收紧（例如短会话有效期 + 服务端主动失效）。
 
 ## 验证结果
+
+- 2026-10-13：表格只读跨列拖选修复通过前端 166 项测试与生产构建（2.07s），后端无改动；线上按 CI/CD、`run/deployed-commit` 与 `deploy/verify-public.sh` 核对。
 
 - 2026-10-12：顶栏导航 tab 柔和灰绿选中态改造通过前端生产构建（1.90s），后端无改动；线上按 CI/CD、`run/deployed-commit` 与 `deploy/verify-public.sh` 核对。
 
