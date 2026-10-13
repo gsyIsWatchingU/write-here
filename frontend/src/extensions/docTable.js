@@ -77,7 +77,13 @@ export const DocTable = Table.extend({
    * 原 CellSelection 行为自动恢复，无需重建插件。
    */
   addProseMirrorPlugins() {
-    const plugins = super.addProseMirrorPlugins()
+    // 注意：tiptap v2 的扩展方法存放在 extension.config 里，getExtensionField
+    // 会把 this 绑定为「当前扩展上下文 + this.parent」，所以这里不能写
+    // super.addProseMirrorPlugins()——config 对象字面量里的 super 指向
+    // Object.prototype，运行时会直接抛 "super.addProseMirrorPlugins is not a
+    // function"。正确做法是调用基类 Table.config 里的实现（this 已由 tiptap
+    // 绑定，this.options 即 DocTable 配置后的选项，含 resizable/View）。
+    const plugins = Table.config.addProseMirrorPlugins.call(this)
     return plugins.map((plugin) => {
       if (plugin.spec.key?.name !== 'selectingCells') return plugin
       const origHandleDOMEvents = plugin.spec.props?.handleDOMEvents

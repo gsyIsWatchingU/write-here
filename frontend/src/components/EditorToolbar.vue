@@ -58,7 +58,12 @@
     <div class="toolbar-group">
       <button class="icon-btn" :class="{ active: editor.isActive('codeBlock') }" @click="editor.chain().focus().toggleCodeBlock().run()" title="代码块">&lt;/&gt;</button>
       <button class="icon-btn" @click="editor.chain().focus().setHorizontalRule().run()" title="分割线">&#8212;</button>
-      <button class="icon-btn" @click="editor.chain().focus().insertCollapsible().run()" title="插入折叠块（标题行可展开/收拢下面的内容）">折叠块</button>
+      <button
+        class="icon-btn collapse-toggle-btn"
+        :class="{ active: editor.isActive('collapsible') }"
+        @click="toggleCollapsible"
+        title="一键折叠/展开：光标在折叠块内时直接切换展开状态；不在折叠块内则插入一个新折叠块"
+      >折叠</button>
     </div>
 
     <span class="toolbar-divider"></span>
@@ -95,6 +100,7 @@ import EditorBlockMenu from './EditorBlockMenu.vue'
 import VoiceInputButton from './VoiceInputButton.vue'
 import AiPolishButton from './AiPolishButton.vue'
 import { convertMarkdownFormats } from '../utils/markdownFormats'
+import { TextSelection } from '@tiptap/pm/state'
 
 const props = defineProps({
   editor: { type: Object, required: true }
@@ -120,6 +126,48 @@ function setHeading(e) {
   } else {
     props.editor.chain().focus().toggleHeading({ level }).run()
   }
+}
+
+// 一键折叠/展开：光标所在块已是折叠块时翻转 open 属性（等价于点箭头），
+// 否则插入一个新折叠块，并把光标放进标题行（用户可直接输入标题，
+// 再点一次即切换折叠/展开）。
+function toggleCollapsible() {
+  const { state, view } = props.editor
+  const { $from } = state.selection
+  for (let d = $from.depth; d > 0; d--) {
+    const node = $from.node(d)
+    if (node.type.name === 'collapsible') {
+      view.dispatch(
+        state.tr.setNodeMarkup($from.before(d), null, { ...node.attrs, open: !node.attrs.open })
+      )
+      view.focus()
+      return
+    }
+  }
+
+  const from = state.selection.from
+  props.editor.chain().focus().insertCollapsible().run()
+
+  // 插入成功后把光标放进新折叠块的标题行（可直接输入标题，再点一次即切换折叠）。
+  // 空标题行没有独立的内容位置，但 PM 对节点起始边界按「跟随块」解析，
+  // 用 TextSelection.create(doc, summary 节点位置) 即可把选区落进标题行文本块。
+  // TipTap 在文本块内插入块级节点时会先拆分段落，新折叠块实际落在
+  // 光标之后（不一定是 from 本身），因此匹配「第一个位置 >= from 的折叠块」。
+  for (const container of view.dom.querySelectorAll('[data-collapsible]')) {
+    const containerPos = view.posAtDOM(container, 0)
+    if (containerPos == null || containerPos < from) continue
+    const summaryEl = container.querySelector('.doc-collapsible-summary')
+    if (summaryEl) {
+      const summaryPos = view.posAtDOM(summaryEl, 0)
+      if (summaryPos != null && summaryPos >= 0) {
+        view.dispatch(
+          view.state.tr.setSelection(TextSelection.create(view.state.doc, summaryPos))
+        )
+      }
+    }
+    break
+  }
+  view.focus()
 }
 
 function recognizeMarkdownFormats() {
@@ -161,19 +209,31 @@ onBeforeUnmount(() => {
   background: var(--border);
   margin: 0 6px;
 }
+/* 正文 select 与「识别 MD 格式」/「折叠」文本按钮统一：高 34px、2px 黑描边、
+   直角，文字单行不溢出（此前 select 只有 ~30px 高、1px 边框，与按钮不一致）。 */
 .heading-select {
+  height: 34px;
+  min-height: 34px;
   padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 2px solid var(--border);
+  border-radius: 0;
   font-size: 13px;
   outline: none;
   background: #fff;
+  white-space: nowrap;
+}
+.markdown-format-btn,
+.collapse-toggle-btn {
+  width: auto;
+  height: 34px;
+  min-height: 34px;
+  padding-inline: 8px;
+  border: 2px solid var(--border);
+  border-radius: 0;
+  white-space: nowrap;
 }
 .markdown-format-btn {
-  width: auto;
   min-width: 92px;
-  padding-inline: 8px;
-  white-space: nowrap;
 }
 button:disabled {
   opacity: 0.3;

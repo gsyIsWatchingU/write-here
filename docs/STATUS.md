@@ -12,7 +12,14 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 ## 已完成
 
-- 2026-10-13：修复表格多列无法同时鼠标拖选（用户截图反馈）。根因：`@tiptap/extension-table` 无条件注册 prosemirror-tables 的 `tableEditing` 插件（PluginKey 名 `selectingCells`），其 `mousedown` 处理器在鼠标拖出起始单元格时会派发 `CellSelection`（整块单元格高亮），覆盖浏览器原生的连续文字拖选。可编辑模式下这是预期行为（跨格拖选后批量删除/合并），但只读查看时（SharedDoc 始终只读、Editor 拿到编辑权限前的窗口期）用户只是想跨列选中一段文字复制，被这个接管打断后表现为"多列无法同时拖选"。修复：在 `frontend/src/extensions/docTable.js` 覆盖 `addProseMirrorPlugins`，遍历 `super.addProseMirrorPlugins()` 返回的插件，定位 `spec.key.name === 'selectingCells'` 的那个，包装其 `props.handleDOMEvents.mousedown`——`view.editable === false` 时直接 `return false` 放行给浏览器原生拖选，可编辑时走原 `origMouseDown`；`setEditable(true)` 后 `view.editable` 翻回 true，原 CellSelection 行为自动恢复，无需重建插件。columnResizing、列宽手柄、triple click、keyDown、paste 等其他行为不动。改动仅 `frontend/src/extensions/docTable.js`。验证：前端 166 项测试全过、生产构建通过（2.07s）；后端无改动。
+- 2026-10-13：编辑器工具栏与顶栏 UI 改造（用户截图反馈：①「折叠块」按钮看不懂、②「正文」与「识别 MD 格式」两个框高度/边框粗细不一致、③文字溢出、④顶栏「导入/分享/删除」应收进「⋯」更多菜单）。
+  1. **「折叠块」改为一键折叠**：工具栏按钮更名「折叠」，语义变成切换——光标在折叠块内时点击直接翻转 `open`（折叠/展开），不在折叠块内时插入新折叠块并把光标放进标题行（`TextSelection.create(doc, summaryNodePos)`：PM 对节点起始边界按「跟随块」解析，能落进空标题行文本块，此前 setSelection 边界位置会解析进下一个段落）。按钮在折叠块内时显示 active 态。
+  2. **样式统一**：「正文」select 与「识别 MD 格式」「折叠」文本按钮统一为高 34px、2px 黑描边、直角、`white-space: nowrap` 单行不溢出（此前 select 约 30px 高 + 1px 边框，「折叠块」文字在 34px 图标框里溢出）。
+  3. **顶栏 ⋯ 更多菜单**：独立「导入 MD」「分享」按钮移除，改为「⋯」按钮（36px ghost，仅当用户可编辑或属主时显示），点击弹出下拉菜单：导入 MD（可编辑）、分享 / 删除（属主，删除前二次确认、删后回工作台）；点击外部 / 再次点击 / Esc / 滚动均关闭。可见性 select 保留在顶栏。
+  4. **顺带修复两个真实运行时会崩溃的缺陷**（此前只过了测试与构建、没做浏览器运行验证）：a) 折叠块插入即崩溃——`CollapsibleSummary.renderHTML` 在 `<p>` 里同时放箭头 span 和内容洞 0，违反 ProseMirror DOM spec（"Content hole must be the only child of its parent node"），插入任何折叠块都会 RangeError，箭头改为标题行 `::before` 伪元素绘制，点击热区按标题行左侧坐标判定；b) 编辑页整体白屏——`docTable.js` 的 `addProseMirrorPlugins` 用 `super.addProseMirrorPlugins()` 调基类实现，但 tiptap v2 的扩展方法存放在 `extension.config` 里（config 对象字面量的 `super` 指向 Object.prototype），运行时报 "super.addProseMirrorPlugins is not a function"，编辑器在 setup 阶段就抛错、页面无法渲染；改为 `Table.config.addProseMirrorPlugins.call(this)`。
+  改动：`frontend/src/views/Editor.vue`、`frontend/src/components/EditorToolbar.vue`、`frontend/src/extensions/collapsible.js`、`frontend/src/extensions/docTable.js`、`frontend/src/assets/style.css`、`docs/STATUS.md`。验证：前端 166 项测试全过、生产构建通过；无头 Chrome + CDP 加载真实构建产物 10 项验收全过（顶栏 ⋯ 菜单打开/内容/关闭三路径/删除二次确认；正文 select、识别 MD 格式、折叠三控件 34px+2px 一致且单行不溢出；插入折叠块默认展开、光标落标题行、再点折叠、再点展开 toggle 往返），截图与脚本在 `run/verify-toolbar-topbar-more.mjs`（忽略目录）。
+
+- 2026-10-13：修复表格多列无法同时鼠标拖选（用户截图反馈）。根因：`@tiptap/extension-table` 无条件注册 prosemirror-tables 的 `tableEditing` 插件（PluginKey 名 `selectingCells`），其 `mousedown` 处理器在鼠标拖出起始单元格时会派发 `CellSelection`（整块单元格高亮），覆盖浏览器原生的连续文字拖选。可编辑模式下这是预期行为（跨格拖选后批量删除/合并），但只读查看时（SharedDoc 始终只读、Editor 拿到编辑权限前的窗口期）用户只是想跨列选中一段文字复制，被这个接管打断后表现为"多列无法同时拖选"。修复：在 `frontend/src/extensions/docTable.js` 覆盖 `addProseMirrorPlugins`，遍历基类返回的插件，定位 `spec.key.name === 'selectingCells'` 的那个，包装其 `props.handleDOMEvents.mousedown`——`view.editable === false` 时直接 `return false` 放行给浏览器原生拖选，可编辑时走原 `origMouseDown`；`setEditable(true)` 后 `view.editable` 翻回 true，原 CellSelection 行为自动恢复，无需重建插件。columnResizing、列宽手柄、triple click、keyDown、paste 等其他行为不动。改动仅 `frontend/src/extensions/docTable.js`。验证：前端 166 项测试全过、生产构建通过（2.07s）；后端无改动。**补充（浏览器运行验收发现）**：该实现里 `super.addProseMirrorPlugins()` 在真实浏览器运行时报 "super.addProseMirrorPlugins is not a function"（tiptap v2 扩展方法在 `extension.config` 里，config 对象字面量的 `super` 指向 Object.prototype），导致编辑页 setup 阶段抛错、页面白屏；已改为 `Table.config.addProseMirrorPlugins.call(this)`，见上方 2026-10-13 第 4 条。
 
 - 2026-10-12：顶栏导航 tab 视觉对齐参考图（用户给的「力扣 HOT 100」学习平台导航截图，对照当前「[01] 我的文档 / [02] 社区」样式）。改动仅 `frontend/src/components/TopNav.vue` 的 `.nav-btn` 样式：选中态背景从实色 `var(--primary)`(#97b39b) + 白字改为更浅更柔的灰绿 `#a7b7a1` + 深色加粗文字（`var(--text-primary)` + 600）；未选中项文字从中灰 `var(--text-secondary)` 改为更淡的 `#9aa39b`；圆角从像素风直角（`var(--radius):0`）改为 4px 小圆角；导航项间距 16px→20px。hover 底色与 active 位移逻辑不变。验证：前端生产构建通过（1.90s）；后端无改动。
 
@@ -146,6 +153,8 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 - 退出登录只保证本地登出即时生效；若 `/logout` 请求失败（离线、后端不可达），服务端会话记录会残留到过期，期间该 token 仍有效。当前演示级认证下可接受，做生产级鉴权时应一并收紧（例如短会话有效期 + 服务端主动失效）。
 
 ## 验证结果
+
+- 2026-10-13：编辑器工具栏与顶栏 UI 改造通过前端 166 项测试与生产构建；无头 Chrome + CDP 加载真实构建产物（隔离后端 + 注入登录态打开真实文档页）10 项浏览器验收全过：顶栏独立「导入 MD / 分享」按钮已移除、⋯ 按钮 36px 且菜单初始关闭；点击 ⋯ 弹出「导入 MD / 分享 / 删除」（删除为 danger + 分隔线）；再次点击、点击外部、Esc 三种方式均正确关闭；删除项弹出二次确认、取消后留在文档页；「正文」select /「识别 MD 格式」/「折叠」三控件高度 34px、边框 2px 一致且文字单行不溢出；点击「折叠」插入新折叠块（默认展开、含标题行、光标落进标题行——PM 选区 parent=collapsibleSummary）；再点一键折叠（data-open 翻转为 false）、再点一键展开（toggle 往返）。同时浏览器运行验收发现并修复两处此前未暴露的崩溃：折叠块插入 RangeError（renderHTML 内容洞规则）与编辑页白屏（docTable 的 super 调用）。线上按 CI/CD、`run/deployed-commit` 与 `deploy/verify-public.sh` 核对。
 
 - 2026-10-13：表格只读跨列拖选修复通过前端 166 项测试与生产构建（2.07s），后端无改动；线上按 CI/CD、`run/deployed-commit` 与 `deploy/verify-public.sh` 核对。
 

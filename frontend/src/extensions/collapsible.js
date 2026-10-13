@@ -2,21 +2,34 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 
 /**
- * 点击箭头（或箭头区域）切换折叠块 open 状态。
+ * 点击标题行左侧的箭头区域切换折叠块 open 状态。
  *
  * 折叠块结构是纯容器渲染（renderHTML 只输出带 hole 的 div），不用 NodeView：
- * 箭头是 summary 行里 contenteditable=false 的 span，点击事件在这里拦截，
- * 通过 posAtDOM 定位容器节点后 setNodeMarkup 翻转 open 属性。
+ * 箭头由标题行的 CSS ::before 绘制（见 assets/style.css），这里在
+ * handleClick 里按坐标判定是否命中标题行左侧的箭头区（宽 ARROW_ZONE_WIDTH），
+ * 命中后通过 posAtDOM 定位容器节点，setNodeMarkup 翻转 open 属性。
+ *
+ * 注意：标题行 <p> 只能有一个内容洞，ProseMirror DOM spec 不允许
+ * 「箭头 span + 内容洞 0」作为兄弟节点（"Content hole must be the only child
+ * of its parent node"，插入折叠块时直接 RangeError），所以箭头不能用真实
+ * 元素渲染，只能走 ::before 伪元素。
  */
+const ARROW_ZONE_WIDTH = 26
+
 function createCollapsibleTogglePlugin() {
   return new Plugin({
     key: new PluginKey('collapsibleToggle'),
     props: {
       handleClick(view, pos, event) {
         if (!(event.target instanceof HTMLElement)) return false
-        if (!event.target.closest('.doc-collapsible-arrow')) return false
+        const summary = event.target.closest('.doc-collapsible-summary')
+        if (!summary || !view.dom.contains(summary)) return false
 
-        const container = event.target.closest('[data-collapsible]')
+        // 只把标题行最左侧的箭头区当成切换热区，点击标题文字仍是正常编辑光标
+        const rect = summary.getBoundingClientRect()
+        if (event.clientX - rect.left > ARROW_ZONE_WIDTH) return false
+
+        const container = summary.closest('[data-collapsible]')
         if (!container || !view.dom.contains(container)) return false
 
         const nodePos = view.posAtDOM(container, 0)
@@ -37,7 +50,7 @@ function createCollapsibleTogglePlugin() {
 }
 
 /**
- * 折叠块标题行：内联文字 + 前面的箭头。
+ * 折叠块标题行：内联文字 + 前面的箭头（箭头是 CSS ::before，不占真实 DOM 节点）。
  *
  * 不设 group：它只能作为 collapsible 的第一个子节点出现（由 collapsible 的
  * content 表达式显式约束），放到顶层会让 schema 校验失败而被重塑。
@@ -55,7 +68,6 @@ export const CollapsibleSummary = Node.create({
     return [
       'p',
       mergeAttributes(HTMLAttributes, { class: 'doc-collapsible-summary' }),
-      ['span', { class: 'doc-collapsible-arrow', contenteditable: 'false' }, ''],
       0,
     ]
   },

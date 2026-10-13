@@ -865,7 +865,12 @@ a {
   margin: 0;
   font-weight: 700;
 }
-#app .editor-content .doc-collapsible-arrow {
+/* 折叠块标题行左侧箭头：用 ::before 伪元素绘制（不占真实 DOM 节点）。
+   ProseMirror DOM spec 不允许「箭头 span + 内容洞」作为兄弟节点，
+   真实 span 会在插入折叠块时抛 "Content hole must be the only child"，
+   所以箭头必须走伪元素，切换热区由 extensions/collapsible.js 按坐标判定。 */
+#app .editor-content .doc-collapsible-summary::before {
+  content: '\25b8';
   flex: none;
   width: 16px;
   height: 18px;
@@ -875,7 +880,6 @@ a {
   cursor: pointer;
   user-select: none;
 }
-#app .editor-content .doc-collapsible-arrow::before { content: '\25b8'; }
-#app .editor-content .doc-collapsible[data-open='true'] .doc-collapsible-arrow::before { content: '\25be'; }
+#app .editor-content .doc-collapsible[data-open='true'] .doc-collapsible-summary::before { content: '\25be'; }
 #app .editor-content .doc-collapsible[data-open='false'] > *:not(.doc-collapsible-summary) { display: none; }
 #app .editor-content .doc-collapsible > *:last-child { margin-bottom: 0; }

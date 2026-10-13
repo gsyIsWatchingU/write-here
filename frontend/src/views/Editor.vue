@@ -31,7 +31,23 @@
             accept=".md,.markdown,text/markdown,text/plain"
             @change="handleMarkdownImport"
           />
-          <button v-if="canEdit" class="ghost" @click="openMarkdownPicker">导入 MD</button>
+          <div v-if="topbarMenuVisible" class="topbar-more">
+            <button
+              type="button"
+              class="ghost topbar-more-btn"
+              title="更多操作"
+              aria-label="更多操作"
+              @click.stop="toggleTopbarMenu"
+            >⋯</button>
+            <div v-if="topbarMenuOpen" class="topbar-more-menu">
+              <button v-if="canEdit" type="button" @click="runTopbarAction('import')">导入 MD</button>
+              <template v-if="isOwner">
+                <button type="button" @click="runTopbarAction('share')">分享</button>
+                <div class="menu-divider" aria-hidden="true"></div>
+                <button type="button" class="danger" @click="runTopbarAction('delete')">删除</button>
+              </template>
+            </div>
+          </div>
           <div v-if="isOwner" class="visibility-control">
             <label>
               <span>可见性：</span>
@@ -41,7 +57,6 @@
               </select>
             </label>
           </div>
-          <button v-if="isOwner" class="ghost" @click="openShare">分享</button>
           <div class="topbar-divider"></div>
           <NotificationBell />
           <SettingsEntry />
@@ -306,6 +321,54 @@ const deletingDocId = ref(null)
 const imageNotice = ref('')
 const imageNoticeError = ref(false)
 let imageNoticeTimer = null
+
+// 顶栏 ⋯ 更多操作菜单：导入 MD / 分享 / 删除
+const topbarMenuOpen = ref(false)
+const topbarMenuVisible = computed(() => canEdit.value || isOwner.value)
+
+function toggleTopbarMenu() {
+  topbarMenuOpen.value = !topbarMenuOpen.value
+}
+
+function closeTopbarMenu() {
+  topbarMenuOpen.value = false
+}
+
+async function runTopbarAction(action) {
+  closeTopbarMenu()
+  if (action === 'import') {
+    openMarkdownPicker()
+  } else if (action === 'share') {
+    openShare()
+  } else if (action === 'delete') {
+    await handleDeleteCurrentDocument()
+  }
+}
+
+// 顶栏 ⋯ 菜单：删除当前文档（与目录 ⋯ 菜单的删除语义一致，删后回工作台）
+async function handleDeleteCurrentDocument() {
+  const title = docTitle.value || '无标题文档'
+  if (!window.confirm(`确定要删除「${title}」吗？此操作不可恢复。`)) return
+  deletingDocId.value = docId.value
+  try {
+    await api.deleteDoc(docId.value, user.id)
+    router.push('/')
+  } catch (error) {
+    alert('删除失败：' + error.message)
+  } finally {
+    deletingDocId.value = null
+  }
+}
+
+function handleTopbarMoreMousedown(event) {
+  if (!topbarMenuOpen.value) return
+  if (event.target.closest && event.target.closest('.topbar-more, .topbar-more-menu')) return
+  closeTopbarMenu()
+}
+
+function handleTopbarMoreKeydown(event) {
+  if (event.key === 'Escape') closeTopbarMenu()
+}
 
 function reportImageStatus(status) {
   if (imageNoticeTimer) {
@@ -635,6 +698,9 @@ async function handleDeleteDocument(doc) {
 // 加载文档
 onMounted(async () => {
   compactMedia.addEventListener?.('change', handleViewportChange)
+  document.addEventListener('mousedown', handleTopbarMoreMousedown, true)
+  document.addEventListener('keydown', handleTopbarMoreKeydown)
+  window.addEventListener('scroll', closeTopbarMenu, true)
   // 延迟加载文档目录，不阻塞主内容加载
   setTimeout(loadDocumentDirectory, 200)
   try {
@@ -708,6 +774,9 @@ onBeforeUnmount(() => {
   if (saveTimer) clearTimeout(saveTimer)
   if (imageNoticeTimer) clearTimeout(imageNoticeTimer)
   compactMedia.removeEventListener?.('change', handleViewportChange)
+  document.removeEventListener('mousedown', handleTopbarMoreMousedown, true)
+  document.removeEventListener('keydown', handleTopbarMoreKeydown)
+  window.removeEventListener('scroll', closeTopbarMenu, true)
   provider.awareness.off('change', updateCollabUsers)
   provider.destroy()
   ydoc.destroy()
@@ -933,6 +1002,41 @@ function copyLink() {
   padding-top: 5px;
   padding-bottom: 5px;
 }
+/* 顶栏 ⋯ 更多操作：按钮下弹出下拉菜单，像素风描边与目录 ⋯ 菜单一致 */
+.topbar-more {
+  position: relative;
+}
+.topbar-more-btn {
+  padding-inline: 10px;
+  line-height: 1;
+}
+.topbar-more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 300;
+  width: 160px;
+  padding: 4px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  box-shadow: 4px 4px 0 var(--primary);
+}
+.topbar-more-menu button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  color: var(--text);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.topbar-more-menu button:hover { background: var(--surface-hover); }
+.topbar-more-menu button.danger { color: var(--danger); }
+.topbar-more-menu button.danger:hover { background: var(--danger-hover); }
+.topbar-more-menu .menu-divider { height: 1px; margin: 4px 2px; background: var(--border-soft); }
 .topbar-divider {
   width: 1px;
   height: 20px;
