@@ -412,8 +412,8 @@ function focusThread(commentId, scrollText) {
 h2 { margin: 0; font-size: 15px; } h2 span { color: var(--text-muted); font-weight: 400; }
 .resolved-toggle { display: flex; flex: none; gap: 6px; align-items: center; color: var(--text-secondary); font-size: 11px; white-space: nowrap; }
 .resolved-toggle input { width: 13px; height: 13px; padding: 0; accent-color: var(--primary-strong); }
-.comment-composer { margin-top: 8px; padding: 6px 10px; background: var(--bg-gray); border: 1px solid var(--border-soft); }
-.comment-composer:focus-within { border-color: var(--border); outline: 2px solid var(--primary); outline-offset: 2px; }
+.comment-composer { margin-top: 8px; padding: 6px 10px; background: var(--bg-gray); }
+.comment-composer:focus-within { outline: 2px solid var(--primary); outline-offset: 2px; }
 .comment-composer.anchored { border-left: 3px solid var(--primary-strong); }
 .comment-composer textarea, .reply-composer textarea { width: 100%; padding: 2px 0; resize: vertical; border: 0; background: transparent; line-height: 1.5; outline: none; }
 .comment-composer.collapsed textarea { min-height: 26px; }
@@ -424,16 +424,16 @@ h2 { margin: 0; font-size: 15px; } h2 span { color: var(--text-muted); font-weig
 .composer-footer .primary { min-height: 28px; padding: 3px 10px; font-size: 12px; }
 .selected-quote, .thread-quote { margin-bottom: 6px; }
 .selected-quote > span, .thread-quote > span { color: var(--primary-strong); font-size: 10px; }
-blockquote { max-height: 60px; margin: 3px 0; padding: 4px 8px; overflow: hidden; color: var(--text-secondary); background: var(--bg); border-left: 3px solid var(--primary); font-size: 12px; line-height: 1.45; }
-.thread-quote blockquote { background: var(--surface-hover); }
+blockquote { max-height: 60px; margin: 3px 0; padding: 4px 8px; overflow: hidden; color: var(--text-secondary); border-left: 3px solid var(--primary); font-size: 12px; line-height: 1.45; }
+.thread-quote blockquote { border-left-color: var(--border-soft); }
 .text-action { min-height: auto; padding: 0; color: var(--text-muted); background: none; border: 0; font-size: 11px; }
-.comment-thread { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; }
-.comment-thread:hover { border-color: var(--primary-strong); }
+.comment-thread { margin-top: 4px; padding: 10px 4px; border-bottom: 1px solid var(--border-soft); cursor: pointer; }
+.comment-thread:hover { background: var(--surface-hover); }
 .comment-thread.resolved { opacity: .62; }
-.comment-thread.focused { outline: 2px solid var(--primary); }
-.comment-thread.orphaned { border-style: dashed; }
-.reply-list { margin: 6px 0 0 14px; padding-left: 8px; border-left: 2px solid var(--primary); }
-.reply-composer { margin: 6px 0 0 14px; padding: 6px 8px; background: var(--surface-hover); border: 1px solid var(--border); }
+.comment-thread.focused { box-shadow: inset 3px 0 0 var(--primary); }
+.comment-thread.orphaned blockquote { border-left-style: dashed; }
+.reply-list { margin: 6px 0 0 14px; padding-left: 8px; border-left: 1px solid var(--border-soft); }
+.reply-composer { margin: 6px 0 0 14px; padding: 6px 8px; background: var(--bg-gray); }
 .reply-actions { justify-content: flex-end; margin-top: 5px; }
 .comment-empty { margin-top: 8px; padding: 16px 12px; text-align: center; color: var(--text-muted); border-top: 1px solid var(--border-soft); font-size: 12px; }
 .login-prompt { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 8px; padding: 10px 12px; color: var(--text-muted); background: var(--bg-gray); border: 1px solid var(--border-soft); font-size: 12px; }
