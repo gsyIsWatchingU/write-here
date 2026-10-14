@@ -430,7 +430,7 @@ blockquote { max-height: 60px; margin: 3px 0; padding: 4px 8px; overflow: hidden
 .comment-thread { margin-top: 4px; padding: 10px 4px; border-bottom: 1px solid var(--border-soft); cursor: pointer; }
 .comment-thread:hover { background: var(--surface-hover); }
 .comment-thread.resolved { opacity: .62; }
-.comment-thread.focused { box-shadow: inset 3px 0 0 var(--primary); }
+.comment-thread.focused { background: var(--bg-gray); }
 .comment-thread.orphaned blockquote { border-left-style: dashed; }
 .reply-list { margin: 6px 0 0 14px; padding-left: 8px; border-left: 1px solid var(--border-soft); }
 .reply-composer { margin: 6px 0 0 14px; padding: 6px 8px; background: var(--bg-gray); }
