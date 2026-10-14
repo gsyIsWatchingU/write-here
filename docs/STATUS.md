@@ -1,6 +1,6 @@
 # 项目状态
 
-最后更新：2026-10-13
+最后更新：2026-10-14
 
 ## 当前阶段
 
@@ -11,6 +11,13 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 将随机公网地址升级为固定域名，并继续完善生产安全能力。
 
 ## 已完成
+
+- 2026-10-14：评论锚点样式调整（用户截图反馈「所有被评论的都应该有下划线，选中右侧评论后对应被评论的句子高亮」）。
+  1. **默认状态**：被评论文本不再显示浅绿色背景块，改为仅显示绿色下划线（`border-bottom: 2px solid var(--primary-strong)`），视觉上更像「被标注了评论」而非「被高亮了」。
+  2. **选中状态**：点击右侧评论时，对应锚点文本显示淡绿色背景高亮（`rgba(151, 179, 155, 0.45)`），同时保留下划线，形成清晰的「定位反馈」。
+  3. **已解决评论**：背景改为透明，下划线改为灰色虚线（`border-bottom-style: dashed; border-bottom-color: var(--text-muted)`），与未解决评论区分。
+  4. 去掉了原 `is-active` 状态的 `outline` 外框（与像素风直角、无阴影的设计语言一致，避免多余描边）。
+  改动仅 `frontend/src/assets/style.css` 的 `.comment-anchor` 三段样式。验证：前端生产构建通过（1.86s）；`0f51b1b` 已通过 CI/CD 部署，服务器 `run/deployed-commit` 与本地 HEAD 一致，`deploy/verify-public.sh` 全绿（公网 `/health`、`/`、`/login` 均 200，协同与通知两条 WebSocket 连接成功，SQLite 12 个业务表，`write-here` 与 `cloudflared-write-here` 均 RUNNING）。
 
 - 2026-10-14：编辑器关闭浏览器拼写检查（用户截图反馈「去掉所有红色高项，再也不要出现，像飞书文档一样」）。根因：截图里 Vite/Webpack/ESM/Vue/WebSocket 等英文词下方的红色波浪线是**浏览器拼写检查**对非词典词的标注，并非文档中的高亮格式（编辑器 H 高亮为黄色底、链接为绿色，均与截图不符）。修复：`Editor.vue` 与 `SharedDoc.vue` 两个编辑器的 `editorProps` 增加 `attributes: { spellcheck: 'false' }`（ProseMirror 据此给 contenteditable 元素写入 `spellcheck="false"`），文档标题输入框同样加 `spellcheck="false"`。红色波浪线由浏览器即时渲染、不落库，改动上线后刷新即消失，无需清洗存量数据。改动：`frontend/src/views/Editor.vue`、`frontend/src/views/SharedDoc.vue`。验证：前端 166 项测试全过、生产构建通过（1.98s），构建产物 `Editor-Dh7HZuRc.js` / `SharedDoc-G3_HikAI.js` 均含 `attributes:{spellcheck:"false"}`，标题输入框含 `spellcheck:"false"`。
 
