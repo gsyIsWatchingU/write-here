@@ -10,6 +10,7 @@
             :placeholder="'无标题文档'"
             :readonly="!canEdit"
             :class="{ readonly: !canEdit }"
+            spellcheck="false"
             @input="scheduleAutoSave"
           />
         </div>
@@ -486,6 +487,8 @@ const editor = useEditor({
   ],
   editable: false,
   editorProps: {
+    // 关闭浏览器拼写检查：英文技术词（Vite/Webpack/ESM 等）不再被划红色波浪线，与飞书文档一致
+    attributes: { spellcheck: 'false' },
     handleKeyDown: (view, event) => (
       handleBackspaceDeleteEmptyLine(view, event) || handleCodeBlockTab(view, event)
     ),

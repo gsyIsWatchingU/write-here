@@ -220,6 +220,8 @@ const editor = useEditor({
   ],
   editable: false,
   editorProps: {
+    // 关闭浏览器拼写检查：英文技术词不再被划红色波浪线，与飞书文档一致
+    attributes: { spellcheck: 'false' },
     handleKeyDown: (view, event) => (
       handleBackspaceDeleteEmptyLine(view, event) || handleCodeBlockTab(view, event)
     ),

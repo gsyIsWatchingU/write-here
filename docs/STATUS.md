@@ -12,6 +12,8 @@ GPU 服务器演示部署和极简像素主题改造已完成，功能继续完�
 
 ## 已完成
 
+- 2026-10-14：编辑器关闭浏览器拼写检查（用户截图反馈「去掉所有红色高项，再也不要出现，像飞书文档一样」）。根因：截图里 Vite/Webpack/ESM/Vue/WebSocket 等英文词下方的红色波浪线是**浏览器拼写检查**对非词典词的标注，并非文档中的高亮格式（编辑器 H 高亮为黄色底、链接为绿色，均与截图不符）。修复：`Editor.vue` 与 `SharedDoc.vue` 两个编辑器的 `editorProps` 增加 `attributes: { spellcheck: 'false' }`（ProseMirror 据此给 contenteditable 元素写入 `spellcheck="false"`），文档标题输入框同样加 `spellcheck="false"`。红色波浪线由浏览器即时渲染、不落库，改动上线后刷新即消失，无需清洗存量数据。改动：`frontend/src/views/Editor.vue`、`frontend/src/views/SharedDoc.vue`。验证：前端 166 项测试全过、生产构建通过（1.98s），构建产物 `Editor-Dh7HZuRc.js` / `SharedDoc-G3_HikAI.js` 均含 `attributes:{spellcheck:"false"}`，标题输入框含 `spellcheck:"false"`。
+
 - 2026-10-13：编辑器工具栏与顶栏 UI 改造（用户截图反馈：①「折叠块」按钮看不懂、②「正文」与「识别 MD 格式」两个框高度/边框粗细不一致、③文字溢出、④顶栏「导入/分享/删除」应收进「⋯」更多菜单）。
   1. **「折叠块」改为一键折叠**：工具栏按钮更名「折叠」，语义变成切换——光标在折叠块内时点击直接翻转 `open`（折叠/展开），不在折叠块内时插入新折叠块并把光标放进标题行（`TextSelection.create(doc, summaryNodePos)`：PM 对节点起始边界按「跟随块」解析，能落进空标题行文本块，此前 setSelection 边界位置会解析进下一个段落）。按钮在折叠块内时显示 active 态。
   2. **样式统一**：「正文」select 与「识别 MD 格式」「折叠」文本按钮统一为高 34px、2px 黑描边、直角、`white-space: nowrap` 单行不溢出（此前 select 约 30px 高 + 1px 边框，「折叠块」文字在 34px 图标框里溢出）。
