@@ -57,6 +57,36 @@
 
         <template v-if="isTableBlock">
           <div class="block-menu-divider"></div>
+          <div class="block-menu-heading"><span>行列操作</span></div>
+          <button class="block-menu-option" type="button" role="menuitem" @click="tableAction('addRowBefore')">
+            <span class="block-menu-icon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="12" height="9" rx="1"/><path d="M2 9.5h12"/><path d="M8 3.5v-2"/><path d="M6 2l2-1.5L10 2"/></svg></span>
+            <span>在上方插入行</span>
+          </button>
+          <button class="block-menu-option" type="button" role="menuitem" @click="tableAction('addRowAfter')">
+            <span class="block-menu-icon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="9" rx="1"/><path d="M2 6.5h12"/><path d="M8 13v2"/><path d="M6 13.5L8 15l2-1.5"/></svg></span>
+            <span>在下方插入行</span>
+          </button>
+          <button class="block-menu-option" type="button" role="menuitem" @click="tableAction('addColumnBefore')">
+            <span class="block-menu-icon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="9" height="12" rx="1"/><path d="M9.5 2v12"/><path d="M3.5 8h-2"/><path d="M2 6L.5 8 2 10"/></svg></span>
+            <span>在左侧插入列</span>
+          </button>
+          <button class="block-menu-option" type="button" role="menuitem" @click="tableAction('addColumnAfter')">
+            <span class="block-menu-icon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="9" height="12" rx="1"/><path d="M6.5 2v12"/><path d="M14.5 8h2"/><path d="M15 6l1.5 2-1.5 2"/></svg></span>
+            <span>在右侧插入列</span>
+          </button>
+          <div class="block-menu-divider"></div>
+          <button class="block-menu-option" type="button" role="menuitem" @click="tableAction('deleteRow')">
+            <span class="block-menu-icon" aria-hidden="true">−</span>
+            <span>删除当前行</span>
+          </button>
+          <button class="block-menu-option" type="button" role="menuitem" @click="tableAction('deleteColumn')">
+            <span class="block-menu-icon" aria-hidden="true">−</span>
+            <span>删除当前列</span>
+          </button>
+          <button class="block-menu-option danger" type="button" role="menuitem" @click="tableAction('deleteTable')">
+            <span class="block-menu-icon" aria-hidden="true">×</span>
+            <span>删除整个表格</span>
+          </button>
           <div class="block-menu-heading">
             <span>表格宽度</span>
             <span class="block-menu-current">{{ currentTableWidthLabel }}</span>
@@ -580,6 +610,15 @@ function deleteBlock() {
 
 // 宽度模式只改 table 节点自身属性，不动单元格内容，所以直接 setNodeMarkup，
 // 不进撤销栈以外的结构变更；菜单保持展开，方便两个模式来回对照。
+// 表格行列操作：addRowBefore/After、addColumnBefore/After、deleteRow/Column/Table
+// 都是 TipTap Table 扩展挂在 editor.chain() 上的命令，按当前光标所在单元格执行。
+function tableAction(command) {
+  const chain = props.editor.chain().focus()
+  if (typeof chain[command] !== 'function') return
+  chain[command]().run()
+  setOpen(false)
+  nextTick(updatePosition)
+}
 function applyTableWidth(mode) {
   const currentBlock = getCurrentBlock()
   if (!currentBlock) return
