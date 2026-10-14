@@ -10,7 +10,6 @@
 
     <div v-if="user" class="comment-composer" :class="{ anchored: pendingAnchor, collapsed: composerCollapsed }">
       <div v-if="pendingAnchor" class="selected-quote">
-        <span>评论原文</span>
         <blockquote>{{ pendingAnchor.quoteText }}</blockquote>
         <button class="text-action" type="button" @click="cancelPendingAnchor">改为全文评论</button>
       </div>
@@ -55,7 +54,7 @@
       @click="focusThread(thread.id, true)"
     >
       <div v-if="thread.quoteText" class="thread-quote">
-        <span>{{ thread.anchorStatus === 'orphaned' ? '原文已删除或发生较大修改' : '评论原文' }}</span>
+        <span v-if="thread.anchorStatus === 'orphaned'" class="orphan-note">原文已删除或发生较大修改</span>
         <blockquote>{{ thread.quoteText }}</blockquote>
       </div>
 
@@ -147,7 +146,23 @@ let anchorPluginRegistered = false
 let anchorSaveTimer = null
 const dirtyAnchors = new Map()
 
-const threads = computed(() => comments.value.filter(comment => !comment.parentId))
+const threads = computed(() => {
+  const roots = comments.value.filter(comment => !comment.parentId)
+  return roots.slice().sort((a, b) => {
+    // 锚点已失效的排到最后
+    const aOrphaned = a.anchorStatus === 'orphaned'
+    const bOrphaned = b.anchorStatus === 'orphaned'
+    if (aOrphaned !== bOrphaned) return aOrphaned ? 1 : -1
+    // 有锚点的按文档中位置从上到下排
+    const aPos = a.anchorFrom != null ? Number(a.anchorFrom) : null
+    const bPos = b.anchorFrom != null ? Number(b.anchorFrom) : null
+    if (aPos != null && bPos != null) return aPos - bPos
+    if (aPos != null) return -1
+    if (bPos != null) return 1
+    // 全文评论按时间倒序
+    return new Date(b.createdAt) - new Date(a.createdAt)
+  })
+})
 const visibleThreads = computed(() => threads.value.filter(thread => showResolved.value || !thread.isResolved))
 
 function refreshDecorations() {
@@ -423,7 +438,7 @@ h2 { margin: 0; font-size: 15px; } h2 span { color: var(--text-muted); font-weig
 .composer-footer span { color: var(--text-muted); font-size: 10px; }
 .composer-footer .primary { min-height: 28px; padding: 3px 10px; font-size: 12px; }
 .selected-quote, .thread-quote { margin-bottom: 6px; }
-.selected-quote > span, .thread-quote > span { color: var(--primary-strong); font-size: 10px; }
+.orphan-note { display: block; margin-bottom: 2px; color: var(--text-muted); font-size: 10px; }
 blockquote { max-height: 60px; margin: 3px 0; padding: 4px 8px; overflow: hidden; color: var(--text-secondary); border-left: 3px solid var(--primary); font-size: 12px; line-height: 1.45; }
 .thread-quote blockquote { border-left-color: var(--border-soft); }
 .text-action { min-height: auto; padding: 0; color: var(--text-muted); background: none; border: 0; font-size: 11px; }
