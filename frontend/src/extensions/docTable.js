@@ -1,5 +1,5 @@
 import Table from '@tiptap/extension-table'
-import { TableView } from '@tiptap/pm/tables'
+import { TableView, tableEditingKey } from '@tiptap/pm/tables'
 import {
   TABLE_WIDTH_ATTRIBUTE,
   normalizeTableWidthMode,
@@ -85,13 +85,19 @@ export const DocTable = Table.extend({
     // 绑定，this.options 即 DocTable 配置后的选项，含 resizable/View）。
     const plugins = Table.config.addProseMirrorPlugins.call(this)
     return plugins.map((plugin) => {
-      if (plugin.spec.key?.name !== 'selectingCells') return plugin
+      // 必须用引用比较 tableEditingKey：这个版本的 PluginKey 实例属性是
+      // `.key`（值为 "selectingCells$"），不是 `.name`；之前按 `.name` 判断
+      // 永远 undefined，包装代码从未执行。columnResizing 插件的 key 是
+      // columnResizingPluginKey，不会被误包装。
+      if (plugin.spec.key !== tableEditingKey) return plugin
       const origHandleDOMEvents = plugin.spec.props?.handleDOMEvents
       const origMouseDown = origHandleDOMEvents?.mousedown
       if (!origMouseDown) return plugin
       plugin.spec.props.handleDOMEvents = {
         ...origHandleDOMEvents,
         mousedown: (view, event) => {
+          // 只读查看时不接管表格 mousedown，让浏览器原生跨单元格连续文字
+          // 拖选生效；可编辑时走原 CellSelection 行为。
           if (!view.editable) return false
           return origMouseDown(view, event)
         },
