@@ -363,14 +363,20 @@ function adjustPanelPosition() {
   const naturalHeight = panel.scrollHeight
   panel.style.maxHeight = previousMaxHeight
 
-  const desired = Math.min(naturalHeight, 420)
 
-  if (desired > spaceBelow && spaceAbove > spaceBelow && spaceAbove >= 120) {
+  // 优先完整显示全部选项：只要某侧空间足够，就不限高、不滚动
+  if (naturalHeight <= spaceBelow) {
+    menuUpward.value = false
+    panelMaxHeight.value = null
+  } else if (naturalHeight <= spaceAbove) {
+    menuUpward.value = true
+    panelMaxHeight.value = null
+  } else if (spaceAbove > spaceBelow && spaceAbove >= 120) {
     menuUpward.value = true
     panelMaxHeight.value = Math.max(120, spaceAbove)
   } else {
     menuUpward.value = false
-    panelMaxHeight.value = Math.max(120, Math.min(desired, spaceBelow))
+    panelMaxHeight.value = Math.max(120, Math.min(naturalHeight, spaceBelow))
   }
 }
 
@@ -877,7 +883,7 @@ onBeforeUnmount(() => {
   top: 34px;
   left: 0;
   width: 220px;
-  max-height: min(420px, 70vh);
+  max-height: min(600px, 85vh);
   overflow-y: auto;
   padding: 8px;
   background: var(--bg);
