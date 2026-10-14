@@ -187,7 +187,7 @@ async function openSettings() {
   aiModelError.value = ''
   try {
     const settings = await api.getSettings()
-    aiBaseUrl.value = settings.ai.baseUrl || ''
+    aiBaseUrl.value = settings.ai.baseUrl || 'https://api.deepseek.com'
     aiApiKey.value = ''
     aiHasApiKey.value = Boolean(settings.ai.hasApiKey)
     aiModel.value = settings.ai.model || ''
