@@ -83,6 +83,14 @@
             <span class="block-menu-icon" aria-hidden="true">−</span>
             <span>删除当前列</span>
           </button>
+          <button class="block-menu-option" type="button" role="menuitem" :disabled="!canMergeCells" @click="tableAction('mergeCells')">
+            <span class="block-menu-icon" aria-hidden="true">▦</span>
+            <span>合并单元格</span>
+          </button>
+          <button class="block-menu-option" type="button" role="menuitem" :disabled="!canSplitCell" @click="tableAction('splitCell')">
+            <span class="block-menu-icon" aria-hidden="true">▧</span>
+            <span>拆分单元格</span>
+          </button>
           <button class="block-menu-option danger" type="button" role="menuitem" @click="tableAction('deleteTable')">
             <span class="block-menu-icon" aria-hidden="true">×</span>
             <span>删除整个表格</span>
@@ -253,6 +261,8 @@ const top = ref(0)
 const left = ref(0)
 const currentBlockType = ref('paragraph')
 const isTableBlock = ref(false)
+const canMergeCells = ref(false)
+const canSplitCell = ref(false)
 const tableWidthMode = ref(TABLE_WIDTH_FULL)
 const canMoveUp = ref(false)
 const canMoveDown = ref(false)
@@ -480,6 +490,7 @@ function updatePosition() {
     // 表格不在「转换为」列表里：单独标记为 table，列表里就不会有项被误勾上，
     // 同时按它自己的节点属性刷新宽度模式。
     isTableBlock.value = isTableNode(currentBlock.node)
+    try { canMergeCells.value = Boolean(props.editor.can().mergeCells()); canSplitCell.value = Boolean(props.editor.can().splitCell()) } catch { canMergeCells.value = false; canSplitCell.value = false }
     tableWidthMode.value = getTableWidthMode(currentBlock.node)
     currentBlockType.value = isTableBlock.value ? 'table' : getCurrentBlockType()
     canMoveUp.value = currentBlock.index > 0

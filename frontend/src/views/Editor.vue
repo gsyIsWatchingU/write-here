@@ -24,7 +24,7 @@
               :title="u.name"
             >{{ u.name[0] }}</span>
           </div>
-          <span v-if="saveStatus" class="save-status">{{ saveStatus }}</span>
+          <span v-if="saveStatus" class="save-status" :class="saveStatusClass"><i class="save-dot" aria-hidden="true"></i>{{ saveStatus }}</span>
           <input
             ref="markdownFileInput"
             class="file-input"
@@ -116,7 +116,15 @@
         </div>
         <div v-if="imageNotice" class="image-notice" :class="{ error: imageNoticeError }">{{ imageNotice }}</div>
         <div class="editor-wrapper" v-show="!docLoading">
-          <editor-content :editor="editor" class="editor-content" @mousedown="onEditorContainerMousedown" />
+          <editor-content :editor="editor" class="editor-content" @mousedown="onEditorContainerMousedown" @mousemove="onEditorMouseMove" @mouseleave="tableHandle.visible = false" />
+        <button
+          v-if="tableHandle.visible && canEdit"
+          class="table-insert-handle"
+          :style="tableHandle.style"
+          :title="tableHandle.title"
+          @mousedown.prevent
+          @click="onTableHandleClick"
+        >+</button>
         </div>
       </div>
 
@@ -232,7 +240,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { computed, ref, reactive, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import { TextSelection } from '@tiptap/pm/state'
@@ -296,6 +304,48 @@ const compactMedia = window.matchMedia('(max-width: 1200px)')
 
 const docTitle = ref('')
 const saveStatus = ref('')
+const saveStatusClass = computed(() => {
+  if (saveStatus.value === '已保存') return 'is-saved'
+  if (saveStatus.value === '保存中...') return 'is-saving'
+  if (saveStatus.value === '保存失败') return 'is-error'
+  return ''
+})
+
+// 飞书式表格行列插入手柄：鼠标靠近单元格上/下/左/右边缘 6px 时浮出 + 按钮
+const tableHandle = reactive({ visible: false, x: 0, y: 0, command: '', title: '', style: '' })
+function onEditorMouseMove(e) {
+  if (!canEdit.value || !editor.value) { tableHandle.visible = false; return }
+  const target = e.target
+  if (!(target instanceof HTMLElement)) { tableHandle.visible = false; return }
+  const cell = target.closest('td, th')
+  if (!cell) { tableHandle.visible = false; return }
+  const rect = cell.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  const t = 6
+  if (y < t) {
+    tableHandle.command = 'addRowBefore'; tableHandle.title = '在上方插入行'
+    tableHandle.x = rect.left + rect.width / 2; tableHandle.y = rect.top
+  } else if (y > rect.height - t) {
+    tableHandle.command = 'addRowAfter'; tableHandle.title = '在下方插入行'
+    tableHandle.x = rect.left + rect.width / 2; tableHandle.y = rect.bottom
+  } else if (x < t) {
+    tableHandle.command = 'addColumnBefore'; tableHandle.title = '在左侧插入列'
+    tableHandle.x = rect.left; tableHandle.y = rect.top + rect.height / 2
+  } else if (x > rect.width - t) {
+    tableHandle.command = 'addColumnAfter'; tableHandle.title = '在右侧插入列'
+    tableHandle.x = rect.right; tableHandle.y = rect.top + rect.height / 2
+  } else {
+    tableHandle.visible = false; return
+  }
+  tableHandle.visible = true
+  tableHandle.style = `left: ${tableHandle.x}px; top: ${tableHandle.y}px`
+}
+function onTableHandleClick() {
+  if (!tableHandle.command || !editor.value) return
+  editor.value.chain().focus()[tableHandle.command]().run()
+  tableHandle.visible = false
+}
 const showShareModal = ref(false)
 const shareLink = ref('')
 const sharePermission = ref('read')
@@ -1046,10 +1096,20 @@ function copyLink() {
   background: var(--border);
   margin: 0 4px;
 }
-.save-status {
-  font-size: 12px;
-  color: var(--text-muted);
+.save-status { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-muted); }
+.save-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); flex: none; }
+.save-status.is-saved .save-dot { background: #22c55e; }
+.save-status.is-saving .save-dot { background: #f59e0b; animation: save-dot-pulse 1s ease-in-out infinite; }
+.save-status.is-error .save-dot { background: #ef4444; }
+@keyframes save-dot-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.85); } }
+.table-insert-handle {
+  position: fixed; width: 18px; height: 18px; margin-left: -9px; margin-top: -9px;
+  border-radius: 50%; border: 1px solid var(--border); background: #fff;
+  color: var(--primary); font-size: 14px; line-height: 1; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  z-index: 50; box-shadow: 0 1px 3px rgba(0,0,0,0.12); padding: 0;
 }
+.table-insert-handle:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
 .visibility-control {
   display: flex;
   align-items: center;
