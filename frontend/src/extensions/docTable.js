@@ -63,18 +63,23 @@ export const DocTable = Table.extend({
   },
 
   /**
-   * 包装 tableEditing 插件的 mousedown：只读查看时不接管表格拖选。
+   * 包装 tableEditing 插件的 mousedown：让普通拖选走浏览器原生连续文字。
    *
-   * prosemirror-tables 的 tableEditing 插件（PluginKey 名 "selectingCells"）
-   * 默认在 mousedown 时挂 mousemove 监听，鼠标一旦拖出起始单元格就派发
-   * CellSelection（整块单元格高亮），覆盖浏览器原生的连续文字拖选。
-   * 可编辑模式下这是预期行为（跨格拖选后批量删除/合并）；但只读查看时
-   * （SharedDoc 始终只读、Editor 拿到编辑权限前的窗口期）用户只是想跨列
-   * 选中一段文字复制，被这个接管打断后表现为"多列无法同时拖选"。
+   * prosemirror-tables 的 tableEditing 插件默认在单元格内 mousedown 时挂
+   * mousemove 监听，鼠标一旦拖出起始单元格就派发 CellSelection（整块单元格
+   * 高亮），覆盖浏览器原生的连续文字拖选——用户想跨列选中一段文字复制时
+   * 被打断，表现为"多列无法同时拖选"。
    *
-   * 这里在 view.editable === false 时直接放行 mousedown，让浏览器原生
-   * 跨单元格文字选中生效；setEditable(true) 后 view.editable 翻回 true，
-   * 原 CellSelection 行为自动恢复，无需重建插件。
+   * 这里分三种情况：
+   * 1. `view.editable === false`（SharedDoc 只读分享页、Editor 拿到权限前
+   *    的窗口期）：一律放行，浏览器原生跨格文字选中。
+   * 2. 可编辑但**普通拖选（无 Shift）**：不注册 CellSelection 的 mousemove
+   *    监听，让跨格拖选走浏览器原生连续文字选中（用于跨列复制文字）。
+   * 3. 可编辑且 **Shift+mousedown**：走原 prosemirror-tables 逻辑，扩展
+   *    CellSelection（整块单元格选中，用于批量删除/合并单元格）。
+   *
+   * 原 CellSelection 的键盘操作（方向键跨格、Delete 删除单元格等）由
+   * handleKeyDown 处理，不受影响。
    */
   addProseMirrorPlugins() {
     // 注意：tiptap v2 的扩展方法存放在 extension.config 里，getExtensionField
@@ -96,9 +101,9 @@ export const DocTable = Table.extend({
       plugin.spec.props.handleDOMEvents = {
         ...origHandleDOMEvents,
         mousedown: (view, event) => {
-          // 只读查看时不接管表格 mousedown，让浏览器原生跨单元格连续文字
-          // 拖选生效；可编辑时走原 CellSelection 行为。
-          if (!view.editable) return false
+          // 只读一律放行；可编辑时只有 Shift+mousedown 才走原 CellSelection
+          // 扩展逻辑，普通拖选放行给浏览器原生连续文字选中。
+          if (!view.editable || !event.shiftKey) return false
           return origMouseDown(view, event)
         },
       }
