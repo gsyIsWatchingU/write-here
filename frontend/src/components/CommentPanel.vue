@@ -67,6 +67,7 @@
         @reply="startReply"
         @remove="removeComment"
         @resolve="toggleResolved"
+        @update="updateComment"
       />
 
       <div v-if="repliesFor(thread.id).length" class="reply-list">
@@ -79,6 +80,7 @@
           @like="toggleLike"
           @reply="startReply"
           @remove="removeComment"
+          @update="updateComment"
         />
       </div>
 
@@ -398,6 +400,19 @@ async function removeComment(comment) {
     await api.deleteComment(comment.id, user.id)
     comments.value = comments.value.filter(item => item.id !== comment.id && item.parentId !== comment.id)
     if (Number(activeCommentId.value) === Number(comment.id)) activeCommentId.value = null
+    refreshDecorations()
+  } catch (error) {
+    alert(error.message)
+  }
+}
+
+async function updateComment({ id, content }) {
+  try {
+    const updated = await api.updateComment(id, user.id, content)
+    const index = comments.value.findIndex(item => Number(item.id) === Number(id))
+    if (index !== -1) {
+      comments.value[index] = { ...comments.value[index], ...updated }
+    }
     refreshDecorations()
   } catch (error) {
     alert(error.message)

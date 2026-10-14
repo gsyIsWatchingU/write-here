@@ -192,6 +192,9 @@ export const api = {
       body: JSON.stringify({ docId, userId, anchors, shareToken }),
     }),
 
+  updateComment: (id, userId, content) =>
+    request(`/comments/${id}`, { method: 'PUT', body: JSON.stringify({ userId, content }) }),
+
   deleteComment: (id, userId) =>
     request(`/comments/${id}?userId=${userId}`, { method: 'DELETE' }),
 

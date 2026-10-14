@@ -1678,6 +1678,46 @@ app.put('/comments/anchors', (req, res) => {
 });
 
 // 删除评论
+// 编辑评论（仅评论作者本人）
+app.put('/comments/:id', (req, res) => {
+    const { id } = req.params;
+    const { userId, content } = req.body;
+    if (!userId) return res.status(400).json({ error: '用户ID不能为空' });
+    if (!content || !content.trim()) return res.status(400).json({ error: '评论内容不能为空' });
+
+    db.get(`
+        SELECT comments.*, docs.userId as ownerId
+        FROM comments
+        JOIN docs ON comments.docId = docs.id
+        WHERE comments.id = ?
+    `, [id], (err, comment) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!comment) return res.status(404).json({ error: '评论不存在' });
+        if (comment.userId !== parseInt(userId)) {
+            return res.status(403).json({ error: '只能编辑自己的评论' });
+        }
+
+        db.run(
+            'UPDATE comments SET content = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
+            [content.trim(), id],
+            updateErr => {
+                if (updateErr) return res.status(500).json({ error: updateErr.message });
+                db.get(`
+                    SELECT comments.*, COALESCE(users.displayName, users.username) AS username,
+                           (SELECT COUNT(*) FROM comment_likes WHERE commentId = comments.id) AS likeCount,
+                           EXISTS(SELECT 1 FROM comment_likes WHERE commentId = comments.id AND userId = ?) AS liked
+                    FROM comments
+                    JOIN users ON comments.userId = users.id
+                    WHERE comments.id = ?
+                `, [userId, id], (selErr, updated) => {
+                    if (selErr) return res.status(500).json({ error: selErr.message });
+                    res.json(updated);
+                });
+            }
+        );
+    });
+});
+
 app.delete('/comments/:id', (req, res) => {
     const { id } = req.params;
     const { userId } = req.query;
